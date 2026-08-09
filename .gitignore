@@ -9,7 +9,7 @@
 # Everything needed to REBUILD the book is tracked (tools/build-book.ps1 and the
 # app itself); only the data is excluded.
 # ---------------------------------------------------------------------------
-data/
+data/*
 !data/README.md
 
 # Local plan exports / scratch

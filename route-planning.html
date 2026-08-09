@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Route Planning &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786069221">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Schedule Builder's own layout. Tokens, card, pill, button, input and
+     section-label all come from shell.css — only the rotation list, the day
+     rows, the preview box and the toast are defined here, because they exist
+     on this page and nowhere else.
+     ----------------------------------------------------------------------- */
+
+  /* Hero — the dial replaces the old "Week N of 6" text eyebrow. */
+  .hero { display: flex; align-items: center; gap: var(--s-5); flex-wrap: wrap; }
+  #zoneDial { --dial-size: 140px; }
+  @media (min-width: 420px) { #zoneDial { --dial-size: 184px; } }
+  .hero-caption { display: grid; gap: var(--s-2); flex: 1 1 200px; min-width: 0; }
+  .hero-zone { font-size: var(--fs-xl); font-weight: 500; letter-spacing: -0.01em; }
+
+  /* Week navigation */
+  .week-nav { display: flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-3); }
+  .week-nav .btn { flex: 0 0 auto; }
+  .week-nav-label {
+    flex: 1;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    color: var(--ink-light);
+  }
+  .week-nav-label.is-offset { color: var(--teal); font-weight: 500; }
+
+  /* Rotation list + day list share a bare list-card shell */
+  .list-card {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+  }
+
+  .week-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-4);
+    padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--rule);
+  }
+  .week-row:last-child { border-bottom: none; }
+  .week-row.is-current { background: var(--teal-dim); }
+  .week-marker {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--ink-light);
+    min-width: 18px;
+    padding-top: 3px;
+    flex-shrink: 0;
+  }
+  .week-row.is-current .week-marker { color: var(--teal-deep); font-weight: 500; }
+  .week-content { flex: 1; min-width: 0; }
+  .week-daterange {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--ink-light);
+  }
+  .week-row.is-current .week-daterange { color: var(--teal-deep); }
+  .week-zone { font-size: var(--fs-base); font-weight: 500; line-height: 1.3; }
+  .week-row.is-current .week-zone { color: var(--teal-deep); }
+  .week-followup { font-size: var(--fs-sm); color: var(--ink-light); }
+
+  .daily-row {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--s-4);
+    border-bottom: 1px solid var(--rule);
+    min-height: 48px;
+  }
+  .daily-row:last-child { border-bottom: none; }
+  .daily-row.is-today { background: var(--teal-dim); }
+  .day-pill {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--ink-mid);
+    min-width: 24px;
+    flex-shrink: 0;
+  }
+  .daily-row.is-today .day-pill { color: var(--teal-deep); }
+  .day-date-str {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--ink-light);
+    min-width: 38px;
+    flex-shrink: 0;
+    margin-left: var(--s-2);
+  }
+  .day-sep { color: var(--rule); margin: 0 var(--s-2); flex-shrink: 0; }
+  /* --rule vanishes against the today row's teal tint */
+  .daily-row.is-today .day-sep { color: rgba(26,107,114,0.35); }
+  .day-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-size: var(--fs-sm);
+    padding: var(--s-3) 0;
+    outline: none;
+  }
+  .day-input::placeholder { color: var(--ink-faint); }
+  .daily-row.is-today .day-input::placeholder { color: rgba(26,107,114,0.5); }
+  .day-input:focus { box-shadow: none; }
+  .daily-row:focus-within { box-shadow: inset 2px 0 0 var(--teal); }
+
+  .btn-row { display: flex; gap: var(--s-3); margin: var(--s-5) 0; }
+  .btn-row .btn { flex: 1; min-height: 46px; }
+
+  .preview-box {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    padding: var(--s-4);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    line-height: 1.85;
+    color: var(--ink-mid);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .anchor-row { display: flex; align-items: center; gap: var(--s-3); }
+  .anchor-row label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    white-space: nowrap;
+  }
+  .anchor-row input[type="date"] {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    color: var(--teal);
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* -----------------------------------------------------------------------
+     Route Board frame.
+
+     The component is `height:100%` of whatever contains it and uses
+     container queries (`container-type:inline-size`) for its own responsive
+     layout — so it needs a box with a real height, and it must not be
+     measured while the panel is hidden. Hence the explicit height here and
+     the lazy mount in JS.
+     ----------------------------------------------------------------------- */
+  #routeBoardFrame {
+    height: 70vh;
+    min-height: 520px;
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+  @media (min-width: 900px) {
+    #routeBoardFrame { height: calc(100vh - 210px); min-height: 560px; }
+  }
+
+  /* Theme hooks. These are set on the host ELEMENT, so they beat the
+     component's own `:host{}` defaults (id selector vs :host) and inherit
+     through the shadow boundary — no internal edits.
+
+     Only typography and radius are overridden. See the note in the script
+     below for why the colour palette is deliberately left alone. */
+  #routeBoard {
+    --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'DM Mono', ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
+    --radius: var(--r-md);
+    /* The board never styles its checkboxes, so they render in the browser's
+       default magenta. accent-color is an inherited property, so setting it
+       here reaches into the shadow tree. */
+    accent-color: var(--teal);
+  }
+
+  /* Toast. Page-scoped for now — if Sales or Prescriptions need one in Phase
+     4/5, promote it to shell.css rather than copying it a third time. */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--nav-h) + var(--s-5) + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink);
+    color: var(--white);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    padding: var(--s-2) var(--s-5);
+    border-radius: var(--r-pill);
+    opacity: 0;
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 60;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (min-width: 900px) {
+    .toast { bottom: var(--s-6); left: calc(50% + (var(--sidebar-w) / 2)); }
+  }
+</style>
+</head>
+
+<body data-page="route">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Route Planning</h1>
+    <span class="eyebrow mono" id="todayLabel"></span>
+  </header>
+
+  <div class="subtabs" role="tablist" aria-label="Route planning tools"
+       data-tabs data-default="builder">
+    <button data-panel="board">Route Board</button>
+    <button data-panel="builder">Schedule Builder</button>
+  </div>
+
+  <!-- Route Board. Mounted lazily on first reveal — see the script below.
+       Note there is deliberately no <script src="data/accounts.js"> on this
+       page: that file is gitignored and never reaches the deployed site, so
+       requesting it here would only 404 on every load. Local book testing
+       happens in the standalone route-board.html, which is what
+       tools/build-book.ps1 stamps. -->
+  <section class="tabpanel" data-panel="board" role="tabpanel" aria-label="Route Board">
+    <div id="routeBoardFrame"><div id="routeBoard"></div></div>
+    <div id="routeBoardFallback" hidden></div>
+  </section>
+
+  <section class="tabpanel" data-panel="builder" role="tabpanel" aria-label="Schedule Builder">
+
+    <div class="card">
+      <div class="hero">
+        <div id="zoneDial"></div>
+        <div class="hero-caption">
+          <span class="eyebrow mono">Primary zone</span>
+          <span class="hero-zone" id="heroZone"></span>
+          <span class="pill pill-accent" id="heroFollowup"></span>
+          <span class="mono" style="font-size:var(--fs-sm); color:var(--ink-light);"
+                id="heroDates"></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-label"><span>Week</span></p>
+
+    <div class="week-nav">
+      <button class="btn" type="button" id="prevWeek">&larr; Prev</button>
+      <span class="week-nav-label" id="weekNavLabel" aria-live="polite"></span>
+      <button class="btn" type="button" id="nextWeek">Next &rarr;</button>
+    </div>
+
+    <p class="section-label"><span>6-week rotation</span></p>
+    <div class="list-card" id="scheduleBlock"></div>
+
+    <p class="section-label"><span id="dailyLabel">This week</span></p>
+    <div class="list-card" id="dailyBlock"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" type="button" id="copyBtn">Copy for Email</button>
+      <button class="btn" type="button" id="calBtn">Open Calendar</button>
+    </div>
+
+    <p class="section-label"><span>Email preview</span></p>
+    <div class="preview-box" id="previewBox"></div>
+
+    <p class="section-label"><span>Cycle</span></p>
+    <div class="card" style="padding:var(--s-4);">
+      <div class="anchor-row">
+        <label for="anchorInput">Cycle start</label>
+        <input type="date" id="anchorInput">
+      </div>
+    </div>
+    <p class="hint" style="text-align:center; margin-top:var(--s-2);">
+      Set to the Monday your cycle begins &mdash; snaps to the nearest Monday.
+    </p>
+
+  </section>
+
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/data-store.js?v=1786146009"></script>
+<script src="assets/js/shell.js?v=1786144357"></script>
+<script src="route-board.js?v=1786069332" charset="utf-8"></script>
+<script>
+/* ===========================================================================
+   Schedule Builder — page-scoped. Nothing here is shared with other tools;
+   the only cross-page contract is the th_* keys written through Store.
+
+   Migrated from the standalone Territory Schedule tool. Behaviour is
+   unchanged apart from the three things Phase 2 exists to add:
+     1. Routes and cycle anchor now persist (they were in-memory only).
+     2. Inputs save on typing, so changing the anchor no longer wipes them.
+     3. th_schedule_summary is written for Home.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  /* --- Zone rotation, in cycle order -------------------------------------
+     Week 1 is Waco/East Austin. The array previously started at North West
+     Austin, which put Waco at week 6 — one full rotation out of step with the
+     real schedule. Corrected by rotating the array, NOT by moving the anchor:
+     both fix the phase, but the anchor is a real date you set and the order is
+     what was wrong.
+
+     Every primary -> followup pairing is unchanged by the rotation. That is
+     not luck: the follow-up territory is always the zone three weeks away, and
+     with six zones +3 and -3 are the same position, so rotating the list
+     carries each pair with it.
+     ---------------------------------------------------------------------- */
+  var ZONES = [
+    { primary: 'Waco/East Austin',     followup: 'North Central Austin'            },
+    { primary: 'North West Austin',    followup: 'South Central Austin Follow-Ups' },
+    { primary: 'Hill Country',         followup: 'Southwest Austin Follow-Ups'     },
+    { primary: 'North Central Austin', followup: 'Waco/East Austin Follow-Ups'     },
+    { primary: 'South Central Austin', followup: 'Northwest Austin Follow-Ups'     },
+    { primary: 'South West Austin',    followup: 'Hill Country Follow-Ups'         }
+  ];
+
+  var DAY_LABELS = ['M', 'T', 'W', 'Th', 'F'];
+
+  /* Monday June 22 2026 — the cycle start this tool shipped with. Only used
+     the first time; after that the stored anchor wins. */
+  var DEFAULT_ANCHOR = '2026-06-22';
+
+  var storedAnchor = Store.schedule.readAnchor();
+  var anchorIso = storedAnchor || DEFAULT_ANCHOR;
+  /* Persist the default on first run. Leaving it implicit means a later edit
+     to DEFAULT_ANCHOR would silently shift the whole rotation for anyone who
+     never touched the Cycle start field. */
+  var needsAnchorWrite = !storedAnchor;
+
+  var weekOffset = 0;       // 0 = current week, +1 next, -1 last
+  var saveTimer = null;
+
+  /* --- Date helpers ------------------------------------------------------ */
+
+  /* Parse YYYY-MM-DD as a LOCAL date. `new Date('2026-06-22')` parses as UTC
+     and lands on the 21st for anyone west of Greenwich. */
+  function parseIso(s) {
+    var p = String(s).split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]);
+  }
+
+  function fmtISO(d) {
+    return d.getFullYear() + '-' +
+           String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  }
+
+  function getMondayOfWeek(date) {
+    var d = new Date(date);
+    var day = d.getDay();                       // 0 Sun .. 6 Sat
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function addDays(date, n) { var d = new Date(date); d.setDate(d.getDate() + n); return d; }
+  function addWeeks(date, n) { return addDays(date, n * 7); }
+  function fmt(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
+
+  function getCycleIndex(monday) {
+    var anchorMon = getMondayOfWeek(parseIso(anchorIso));
+    /* Round, not floor — a DST boundary inside the span makes the raw
+       millisecond division come out at 5.958 weeks instead of 6. */
+    var weeks = Math.round((monday - anchorMon) / (7 * 24 * 60 * 60 * 1000));
+    return ((weeks % 6) + 6) % 6;
+  }
+
+  function currentMonday() { return getMondayOfWeek(new Date()); }
+  function getViewedMonday() { return addWeeks(currentMonday(), weekOffset); }
+
+  /* --- Persistence ------------------------------------------------------- */
+
+  function readRoutes(monday) {
+    var saved = Store.schedule.readRoutes(fmtISO(monday));
+    return Array.isArray(saved) ? saved : [];
+  }
+
+  /* Writes the five day inputs for whichever week is on screen. Called before
+     any rebuild and on a short debounce while typing — the original only
+     saved on week-shift and copy, which is how anchor changes ate routes. */
+  function saveCurrentInputs() {
+    var inputs = document.querySelectorAll('.day-input');
+    if (!inputs.length) return;
+    var values = Array.prototype.map.call(inputs, function (el) { return el.value; });
+    var key = fmtISO(getViewedMonday());
+    /* Don't create an empty record for a week that was never filled in. */
+    var hasContent = values.some(function (v) { return v.trim() !== ''; });
+    if (hasContent) {
+      Store.schedule.writeRoutes(key, values);
+    } else if (Store.schedule.readRoutes(key)) {
+      Store.remove(Store.KEYS.scheduleRoutes + key);
+    }
+    /* Editing THIS week's notes changes what Home shows for today, so refresh
+       the summary. Other weeks do not affect it. */
+    if (weekOffset === 0) writeSummary();
+  }
+
+  function queueSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveCurrentInputs, 400);
+  }
+
+  /* Home reads this. It always describes the REAL current week, never the
+     week being browsed — otherwise leaving the page on "+3 weeks" would make
+     Home advertise the wrong zone. */
+  function writeSummary() {
+    var mon = currentMonday();
+    var idx = getCycleIndex(mon);
+    /* Read back rather than reading the DOM: the inputs on screen may belong
+       to a different week than the one Home cares about. */
+    var days = Store.schedule.readRoutes(fmtISO(mon));
+    Store.schedule.writeSummary({
+      weekNum:   idx + 1,
+      zone:      ZONES[idx].primary,
+      followup:  ZONES[idx].followup,
+      dateRange: fmt(mon) + ' – ' + fmt(addDays(mon, 4)),
+      days:      Array.isArray(days) ? days : []
+    });
+  }
+
+  /* --- Render ------------------------------------------------------------ */
+
+  function buildSchedule() {
+    var today = new Date();
+    var viewedMonday = getViewedMonday();
+    var cycleIdx = getCycleIndex(viewedMonday);
+
+    document.getElementById('todayLabel').textContent =
+      today.toLocaleDateString('en-US',
+        { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+    /* Week nav label */
+    var navLabel = document.getElementById('weekNavLabel');
+    var labelText;
+    if (weekOffset === 0)       { labelText = 'This week'; }
+    else if (weekOffset === 1)  { labelText = 'Next week'; }
+    else if (weekOffset === -1) { labelText = 'Last week'; }
+    else if (weekOffset > 0)    { labelText = '+' + weekOffset + ' weeks'; }
+    else                        { labelText = weekOffset + ' weeks'; }
+    navLabel.textContent = labelText;
+    navLabel.className = 'week-nav-label' + (weekOffset === 0 ? '' : ' is-offset');
+
+    document.getElementById('dailyLabel').textContent =
+      Math.abs(weekOffset) <= 1 ? labelText : 'Week of ' + fmt(viewedMonday);
+
+    /* Hero + dial */
+    var hero = ZONES[cycleIdx];
+    Shell.zoneDial(document.getElementById('zoneDial'), { week: cycleIdx + 1, totalWeeks: 6 });
+    document.getElementById('heroZone').textContent = hero.primary;
+    document.getElementById('heroFollowup').textContent = hero.followup;
+    document.getElementById('heroDates').textContent =
+      fmt(viewedMonday) + ' – ' + fmt(addDays(viewedMonday, 4));
+
+    /* Rotation — six weeks forward from the week being viewed. The marker
+       shows the cycle position (1-6) so it reads consistently with the dial. */
+    var sb = document.getElementById('scheduleBlock');
+    sb.innerHTML = '';
+    for (var i = 0; i < 6; i++) {
+      var zi = (cycleIdx + i) % 6;
+      var zone = ZONES[zi];
+      var ws = addWeeks(viewedMonday, i);
+      var row = document.createElement('div');
+      row.className = 'week-row' + (i === 0 ? ' is-current' : '');
+      row.innerHTML =
+        '<div class="week-marker">' + (i === 0 ? '&rarr;' : (zi + 1)) + '</div>' +
+        '<div class="week-content">' +
+          '<div class="week-daterange">' + fmt(ws) + ' – ' + fmt(addDays(ws, 4)) + '</div>' +
+          '<div class="week-zone">' + Shell.escapeHtml(zone.primary) + '</div>' +
+          '<div class="week-followup">' + Shell.escapeHtml(zone.followup) + '</div>' +
+        '</div>';
+      sb.appendChild(row);
+    }
+
+    /* Day rows */
+    var db = document.getElementById('dailyBlock');
+    db.innerHTML = '';
+    var saved = readRoutes(viewedMonday);
+    for (var j = 0; j < 5; j++) {
+      var day = addDays(viewedMonday, j);
+      var isToday = day.toDateString() === today.toDateString();
+      var drow = document.createElement('div');
+      drow.className = 'daily-row' + (isToday ? ' is-today' : '');
+      drow.innerHTML =
+        '<div class="day-pill">' + DAY_LABELS[j] + '</div>' +
+        '<div class="day-date-str">' + fmt(day) + '</div>' +
+        '<div class="day-sep">&ndash;</div>';
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'day-input';
+      input.placeholder = 'Add route…';
+      input.value = saved[j] || '';
+      input.setAttribute('aria-label',
+        day.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) + ' route');
+      input.addEventListener('input', function () { updatePreview(); queueSave(); });
+      drow.appendChild(input);
+      db.appendChild(drow);
+    }
+
+    updatePreview();
+    document.getElementById('anchorInput').value = fmtISO(getMondayOfWeek(parseIso(anchorIso)));
+  }
+
+  /* --- Email text -------------------------------------------------------- */
+
+  function buildCopyText() {
+    var viewedMonday = getViewedMonday();
+    var cycleIdx = getCycleIndex(viewedMonday);
+    var lines = [];
+
+    for (var i = 0; i < 6; i++) {
+      var zone = ZONES[(cycleIdx + i) % 6];
+      var ws = addWeeks(viewedMonday, i);
+      lines.push(fmt(ws) + ' - ' + fmt(addDays(ws, 4)) + ' ' +
+                 zone.primary + ' (' + zone.followup + ')');
+    }
+    lines.push('');
+
+    var inputs = document.querySelectorAll('.day-input');
+    for (var j = 0; j < 5; j++) {
+      var route = inputs[j] ? inputs[j].value.trim() : '';
+      lines.push('(' + DAY_LABELS[j] + ') ' + fmt(addDays(viewedMonday, j)) + ' - ' + route);
+    }
+    return lines.join('\n');
+  }
+
+  function updatePreview() {
+    document.getElementById('previewBox').textContent = buildCopyText();
+  }
+
+  function copySchedule() {
+    saveCurrentInputs();
+    var text = buildCopyText();
+    var fallback = function () {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { showToast('Copied ✓'); },
+        function () { fallback(); showToast('Copied ✓'); }
+      );
+    } else {
+      fallback();
+      showToast('Copied ✓');
+    }
+  }
+
+  /* --- Calendar ---------------------------------------------------------- */
+
+  /* Unchanged from the original: try the iOS calendar scheme, and if the page
+     is still in the foreground a second later, assume it did nothing and hand
+     over an .ics file instead. */
+  function openCalendar() {
+    window.open('calshow://', '_self');
+    setTimeout(function () { if (!document.hidden) exportICS(); }, 1000);
+  }
+
+  function icsEscape(s) {
+    return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;')
+                    .replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  }
+
+  function exportICS() {
+    var viewedMonday = getViewedMonday();
+    var cycleIdx = getCycleIndex(viewedMonday);
+    /* DTSTAMP is required on every VEVENT by RFC 5545. The original omitted
+       it; Google tolerates that, stricter importers reject the file. */
+    var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0',
+                 'PRODID:-//OCuSOFT Territory//EN', 'CALSCALE:GREGORIAN'];
+
+    for (var i = 0; i < 6; i++) {
+      var zone = ZONES[(cycleIdx + i) % 6];
+      var ws = addWeeks(viewedMonday, i);
+      var ds = fmtISO(ws).replace(/-/g, '');
+      /* DTEND is exclusive for all-day events, so Saturday spans Mon-Fri. */
+      var de = fmtISO(addDays(ws, 5)).replace(/-/g, '');
+      lines.push('BEGIN:VEVENT',
+        'UID:ocusoft-' + ds + '@territory',
+        'DTSTAMP:' + stamp,
+        'DTSTART;VALUE=DATE:' + ds,
+        'DTEND;VALUE=DATE:' + de,
+        'SUMMARY:' + icsEscape(zone.primary + ' (' + zone.followup + ')'),
+        'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/calendar' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'territory_schedule.ics';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Calendar file downloaded');
+  }
+
+  /* --- Anchor ------------------------------------------------------------ */
+
+  function onAnchorChange() {
+    var val = document.getElementById('anchorInput').value;
+    if (!val) return;
+    saveCurrentInputs();                       // was missing — this ate routes
+    anchorIso = fmtISO(getMondayOfWeek(parseIso(val)));
+    Store.schedule.writeAnchor(anchorIso);
+    buildSchedule();
+    writeSummary();                            // zone for the current week moved
+    showToast('Cycle start updated');
+  }
+
+  /* --- Toast ------------------------------------------------------------- */
+
+  var toastTimer;
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+
+  /* --- Route Board -------------------------------------------------------
+     Mounted lazily, the first time its panel is actually revealed.
+
+     Two reasons it cannot just be mounted at page load:
+       - `:host` is `height:100%` and the component uses container queries, so
+         mounting inside a `hidden` panel measures a 0x0 box and lays out
+         against nothing.
+       - With no account book, mount() replaces its own root and then THROWS.
+         Doing that during page init would abort the rest of this script.
+
+     The board manages its own storage under the `th_route.*` prefix. Nothing
+     on this page reads or writes those keys — Home reads `th_route.week.v2`
+     directly in Phase 6, through Store.routeBoard.
+     ----------------------------------------------------------------------- */
+
+  var boardApi = null;
+  var boardTried = false;
+
+  function mountBoard() {
+    if (boardTried) {
+      /* Already up: re-render in case the container resized while hidden. */
+      if (boardApi) boardApi.render();
+      return;
+    }
+    boardTried = true;
+
+    if (typeof RouteBoard === 'undefined') {
+      showBoardFallback('script',
+        'route-board.js did not load.',
+        'The file should sit next to this page at the repo root.');
+      return;
+    }
+
+    /* No book-presence check here on purpose. The board now handles that case
+       itself — it mounts against an empty book and opens its own Data panel so
+       you can paste one in. Gating the mount would put the host page back in
+       front of the only UI that can fix it. */
+    try {
+      boardApi = RouteBoard.mount(document.getElementById('routeBoard'), {
+        storagePrefix: 'th_route'
+      });
+    } catch (err) {
+      showBoardFallback('error',
+        'Route Board failed to start.',
+        'The account book loaded but the board could not render it: ' +
+        (err && err.message ? err.message : 'unknown error'));
+    }
+  }
+
+  function showBoardFallback(kind, title, detail) {
+    var frame = document.getElementById('routeBoardFrame');
+    var box = document.getElementById('routeBoardFallback');
+    frame.hidden = true;
+    box.hidden = false;
+    box.className = 'empty';
+    box.innerHTML = '<strong>' + Shell.escapeHtml(title) + '</strong>' +
+                    Shell.escapeHtml(detail);
+    box.setAttribute('data-fallback', kind);
+  }
+
+  /* --- Wiring ------------------------------------------------------------ */
+
+  function shiftWeek(delta) {
+    saveCurrentInputs();
+    weekOffset += delta;
+    buildSchedule();
+  }
+
+  Shell.ready(function () {
+    document.getElementById('prevWeek').addEventListener('click', function () { shiftWeek(-1); });
+    document.getElementById('nextWeek').addEventListener('click', function () { shiftWeek(1); });
+    document.getElementById('copyBtn').addEventListener('click', copySchedule);
+    document.getElementById('calBtn').addEventListener('click', openCalendar);
+    document.getElementById('anchorInput').addEventListener('change', onAnchorChange);
+
+    /* Catch the last keystrokes if the debounce hasn't fired yet. pagehide
+       covers the iOS Safari case, where beforeunload is unreliable. */
+    window.addEventListener('pagehide', saveCurrentInputs);
+    window.addEventListener('beforeunload', saveCurrentInputs);
+
+    if (!Store.available) {
+      showToast('Storage unavailable — notes won’t persist');
+    }
+
+    if (needsAnchorWrite) Store.schedule.writeAnchor(anchorIso);
+
+    buildSchedule();
+    writeSummary();
+
+    /* Shell.tabs() fires this whenever the visible panel changes. */
+    var tablist = document.querySelector('[data-tabs]');
+    tablist.addEventListener('th:tab', function (e) {
+      if (e.detail.panel === 'board') mountBoard();
+    });
+    /* Covers the case where 'board' is the panel restored from sessionStorage:
+       Shell.tabs() has already selected it by the time this listener attaches. */
+    if (!document.querySelector('.tabpanel[data-panel="board"]').hidden) mountBoard();
+  });
+
+})();
+</script>
+</body>
+</html>

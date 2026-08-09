@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Prescriptions &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786069221">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Follow-Up Tracker layout. Card, pill, button, input and section-label
+     come from shell.css; what is here is the prescriber card, the order row
+     with its follow-up checkbox, the chip rows and the import panel.
+     ----------------------------------------------------------------------- */
+
+  .stat-pills { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+  .stat-pill {
+    display: inline-flex; align-items: baseline; gap: var(--s-1);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    padding: var(--s-1) var(--s-3);
+  }
+  .stat-pill b { font-family: var(--font-mono); font-size: var(--fs-base); font-weight: 500; }
+  .stat-pill span { font-size: var(--fs-xs); color: var(--ink-light); }
+  .stat-pill.warn b { color: var(--amber); }
+  .stat-pill.flag b { color: var(--red); }
+
+  .search-wrap { position: relative; }
+  .search-wrap svg {
+    position: absolute; left: var(--s-3); top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; stroke: var(--ink-faint); fill: none; stroke-width: 2;
+    pointer-events: none;
+  }
+  .search-wrap .input { padding-left: 36px; }
+
+  .chip-row {
+    display: flex; gap: var(--s-1); align-items: center;
+    overflow-x: auto; padding-bottom: var(--s-1);
+    scrollbar-width: none;
+  }
+  .chip-row::-webkit-scrollbar { display: none; }
+  .chip-row > .lbl { font-size: var(--fs-xs); color: var(--ink-light); flex-shrink: 0; }
+  .chip {
+    flex-shrink: 0;
+    padding: var(--s-1) var(--s-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-pill);
+    background: var(--white);
+    color: var(--ink-mid);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .chip:hover { border-color: var(--ink-faint); }
+  .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+
+  /* Prescriber card. The left edge reads state at a glance: red when the
+     doctor is flagged, amber when scripts are still outstanding, green when
+     everything has been followed up. */
+  .doc {
+    position: relative;
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    padding: var(--s-4) var(--s-4) var(--s-4) calc(var(--s-4) + 4px);
+  }
+  .doc::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+  .doc[data-state="flagged"]::before { background: var(--red); }
+  .doc[data-state="open"]::before    { background: var(--amber); }
+  .doc[data-state="done"]::before    { background: var(--green); }
+
+  /* Route assignment. The select is transparent and sits behind a coloured
+     chip so the swatch stays visible while remaining a real <select> — native
+     pickers are what work on a phone. */
+  .zone-pick { position: relative; display: inline-flex; }
+  .zone-pick select {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; font-size: 16px; /* 16px stops iOS zooming */
+  }
+  .zone-pick .zone-chip { pointer-events: none; }
+  .zone-pick:hover .zone-chip { border-color: var(--zone, var(--ink-faint)); }
+
+  .doc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); }
+  /* Route colour also runs down the card edge when the follow-up state is
+     settled, so a scan of the list reads as routes rather than as noise. */
+  .doc[data-state="done"][data-zone]::before { background: var(--zone); }
+  .doc-name { font-size: var(--fs-lg); font-weight: 500; line-height: 1.25; }
+  .doc-sub { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
+  .doc-meta { display: grid; justify-items: end; gap: 4px; flex-shrink: 0; text-align: right; }
+  .doc-meta .m { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
+
+  /* Flag toggle */
+  .flag-btn {
+    display: inline-flex; align-items: center; gap: var(--s-1);
+    padding: 3px var(--s-2);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-pill);
+    background: var(--white);
+    color: var(--ink-light);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .flag-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2;
+                  stroke-linecap: round; stroke-linejoin: round; }
+  .flag-btn:hover { border-color: var(--red); color: var(--red); }
+  .flag-btn[aria-pressed="true"] {
+    background: var(--red-dim); border-color: transparent; color: var(--red); font-weight: 500;
+  }
+  .flag-btn[aria-pressed="true"] svg { fill: currentColor; }
+
+  .doc textarea {
+    width: 100%; min-height: 56px;
+    margin-top: var(--s-3);
+    padding: var(--s-2) var(--s-3);
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    font-size: var(--fs-sm);
+    resize: vertical;
+  }
+  .doc textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-dim); }
+
+  /* Order list — always visible, because the follow-up toggle lives on it */
+  .orders { margin-top: var(--s-3); border-top: 1px solid var(--rule); }
+  .order {
+    display: flex; align-items: center; gap: var(--s-2);
+    padding: var(--s-2) 0;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+  }
+  .order:last-child { border-bottom: none; }
+  .order input[type="checkbox"] {
+    width: 17px; height: 17px; flex-shrink: 0; margin: 0;
+    accent-color: var(--green); cursor: pointer;
+  }
+  .order .drug { color: var(--ink); font-weight: 500; }
+  .order .loc  { color: var(--ink-light); flex: 1; text-align: right;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .order .wr   { color: var(--ink-mid); white-space: nowrap; }
+  .order .st   { white-space: nowrap; min-width: 52px; text-align: right; }
+  .order .st.hold   { color: var(--amber); }
+  .order .st.filled { color: var(--green); }
+  .order.is-done .drug, .order.is-done .wr { color: var(--ink-light); }
+  .order.is-done .drug { text-decoration: line-through; }
+
+  .orders-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--s-3);
+    padding: var(--s-2) 0 var(--s-1);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+  .orders-head button {
+    background: none; border: none; padding: 0;
+    font: inherit; text-transform: none; letter-spacing: 0;
+    color: var(--teal); cursor: pointer;
+  }
+
+  /* Import panel */
+  .import-body textarea {
+    width: 100%; min-height: 160px;
+    padding: var(--s-3);
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    line-height: 1.5;
+    resize: vertical;
+    white-space: pre;
+  }
+  .import-body textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-dim); }
+  .preview {
+    margin-top: var(--s-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    padding: var(--s-3);
+    background: var(--bg);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
+  }
+  .preview b { font-family: var(--font-mono); }
+  .preview .add { color: var(--green); }
+  .preview .upd { color: var(--teal); }
+  .preview ul { margin: var(--s-2) 0 0; padding-left: var(--s-4); list-style: disc; }
+  .preview li { color: var(--ink-mid); font-size: var(--fs-xs); }
+  .msg { font-size: var(--fs-sm); margin-top: var(--s-2); }
+  .msg.err { color: var(--red); }
+
+  .toast {
+    position: fixed; left: 50%;
+    bottom: calc(var(--nav-h) + var(--s-5) + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink); color: var(--white);
+    font-size: var(--fs-sm); font-weight: 500;
+    padding: var(--s-2) var(--s-5);
+    border-radius: var(--r-pill);
+    opacity: 0; pointer-events: none; white-space: nowrap; z-index: 60;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (min-width: 900px) {
+    .toast { bottom: var(--s-6); left: calc(50% + (var(--sidebar-w) / 2)); }
+  }
+</style>
+</head>
+
+<body data-page="rx">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Prescriptions</h1>
+    <span class="eyebrow mono">Austin / Waco</span>
+  </header>
+
+  <!-- ===================== IMPORT ===================== -->
+  <section id="importView">
+    <div class="card">
+      <div class="card-head">
+        <h2 id="importTitle">Import prescriber data</h2>
+        <button class="btn btn-sm" id="importCancel" hidden>Cancel</button>
+      </div>
+
+      <p class="stat-label" style="margin-bottom:var(--s-3);">
+        Paste a dispensing export below &mdash; tab-separated straight out of Excel,
+        CSV, or this tool&rsquo;s own JSON. Columns are matched by their headers,
+        so the 9-column territory file and the 14-column national file both work
+        without rearranging anything.
+      </p>
+
+      <div class="import-body">
+        <textarea id="pasteBox" spellcheck="false"
+          placeholder="Prescriber&#9;Drug&#9;Date Written&#9;Date Filled&#9;City&#10;Doe, Jane&#9;DEMOVECTIN&#9;6/4/26&#9;6/5/26&#9;Austin"></textarea>
+
+        <div class="row" style="margin-top:var(--s-3);">
+          <button class="btn btn-primary" id="previewBtn">Preview changes</button>
+          <button class="btn" id="clearPasteBtn">Clear</button>
+        </div>
+
+        <div id="importMsg" class="msg"></div>
+        <div id="importPreview" class="preview" hidden></div>
+
+        <div class="row" id="applyRow" hidden style="margin-top:var(--s-3);">
+          <button class="btn btn-primary" id="applyBtn">Apply import</button>
+          <button class="btn" id="cancelApplyBtn">Discard</button>
+        </div>
+      </div>
+    </div>
+
+    <p class="hint" style="text-align:center; margin-top:var(--s-4);">
+      Prescriber data stays in this browser. It is never committed to the repo
+      and never leaves your device.
+    </p>
+  </section>
+
+  <!-- ===================== ROSTER ===================== -->
+  <section id="rosterView" hidden>
+
+    <p class="hint" id="asOf" style="margin-bottom:var(--s-3);"></p>
+
+    <div class="stat-pills" id="statPills"></div>
+
+    <div class="search-wrap" style="margin-top:var(--s-3);">
+      <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      <input type="search" class="input" id="searchBox"
+             placeholder="Search by doctor, city or drug&hellip;" aria-label="Search prescribers">
+    </div>
+
+    <div class="chip-row" id="filterRow" style="margin-top:var(--s-2);"></div>
+    <div class="chip-row" id="zoneRow" style="margin-top:var(--s-1);"></div>
+    <div class="chip-row" id="sortRow" style="margin-top:var(--s-1);"></div>
+
+    <div class="stack" id="docList" style="margin-top:var(--s-4);"></div>
+
+    <div id="emptyMsg" class="empty" hidden></div>
+
+    <div class="row" style="justify-content:center; gap:var(--s-4); margin-top:var(--s-8);">
+      <button class="btn btn-sm" id="openImportBtn">Import new export</button>
+      <button class="btn btn-sm" id="resetBtn">Reset follow-up data</button>
+    </div>
+    <div class="row" id="resetConfirm" hidden style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
+      <span class="hint">Clear every follow-up tick, flag and note? Prescription data is kept.</span>
+      <button class="btn btn-sm btn-danger" id="resetYes">Yes, clear</button>
+      <button class="btn btn-sm" id="resetNo">Cancel</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/data-store.js?v=1786146009"></script>
+<script src="assets/js/shell.js?v=1786144357"></script>
+<script>
+/* ===========================================================================
+   Prescriber Follow-Up Tracker — page-scoped.
+
+   The record is one row per prescription: who wrote it, what, when, and
+   whether it was filled. On top of that sit exactly two pieces of state you
+   control:
+
+     - a per-PRESCRIPTION tick: have I followed up on this script yet
+     - a per-DOCTOR flag:       is following this doctor up a priority
+
+   Follow-up is per prescription, not per doctor, because a doctor can have one
+   script chased and another still open. There are no due dates: nothing here
+   is scheduled, it is either done or it is not.
+
+   NO prescriber data is embedded in this file. The React original carried a
+   35-doctor array inline; that is real doctor names, cities and prescribing
+   history — the same class of data as data/accounts.js, which §8 forbids
+   committing because GitHub Pages serves publicly even from a private repo.
+   The roster arrives by import and lives only in this browser.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  var roster = null;        // { generated, prescribers: [...] }
+  var followups = {};       // { docId: {flagged, notes, done:{orderKey:true}, updatedAt} }
+  var search = '';
+  var filter = 'all';
+  var zoneFilter = 'all';
+  var sortMode = 'priority';
+  var showAll = {};         // docId -> reveal already-followed-up scripts
+  var pending = null;
+  var noteTimers = {};
+
+  var FILTERS = [
+    ['all',     'All'],
+    ['open',    'Needs follow-up'],
+    ['flagged', 'Flagged'],
+    ['done',    'All followed up']
+  ];
+
+  /* --- Dates ------------------------------------------------------------- */
+
+  var MONTHS = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+
+  /* Returns YYYY-MM-DD, or '' if unparseable. Two-digit years map to
+     2000-2099: these are dispensing records, never last century. */
+  function parseDate(raw) {
+    if (raw === null || raw === undefined) return '';
+    var s = String(raw).trim();
+    if (!s || /^(n\/?a|none|null|-|—)$/i.test(s)) return '';
+
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return iso(+m[1], +m[2], +m[3]);
+
+    m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+    if (m) {
+      var y = +m[3];
+      if (y < 100) y += 2000;
+      return iso(y, +m[1], +m[2]);
+    }
+
+    m = s.match(/^([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+    if (m && MONTHS[m[1].slice(0, 3).toLowerCase()] !== undefined) {
+      return iso(+m[3], MONTHS[m[1].slice(0, 3).toLowerCase()] + 1, +m[2]);
+    }
+
+    /* Excel serial date. Day 1 is 1900-01-01, and Excel's fictional
+       1900-02-29 costs two days. */
+    if (/^\d{5}$/.test(s)) {
+      var d = new Date(Date.UTC(1899, 11, 30) + (+s) * 86400000);
+      return iso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    }
+    return '';
+  }
+
+  function iso(y, mo, d) {
+    if (!y || !mo || !d || mo > 12 || d > 31) return '';
+    return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+
+  function disp(isoStr) {
+    if (!isoStr) return null;
+    var p = isoStr.split('-');
+    return (+p[1]) + '/' + (+p[2]) + '/' + p[0].slice(2);
+  }
+
+  /* --- Import: column detection ------------------------------------------ */
+
+  /* Matched in this order; the first field matching a header claims it, and a
+     field is claimed only once. Order is what disambiguates — "Date Written"
+     must reach `written` first, and `city` is tried before `location` so
+     "Office City" lands on city.
+
+     Patterns are word-boundary CONTAINS, not anchored, because real exports
+     prefix things: "Rx Product", "Prescriber Last Name", "Clinic Location".
+     `name` is the exception — a bare \bprescriber\b would swallow
+     "Prescriber City" before city ever saw it. */
+  var FIELDS = [
+    ['written', /\b(date\s*written|written|prescribed|rx\s*date|order\s*date|date\s*rx|write\s*date)\b/i],
+    ['filled',  /\b(date\s*filled|filled|dispensed?|shipped?|completed|fill\s*date)\b/i],
+    ['last',    /\b(last\s*name|lastname|surname)\b/i],
+    ['first',   /\b(first\s*name|firstname|given\s*name)\b/i],
+    ['name',    /^(prescriber|physician|doctor|provider|writer|practitioner)$|\b(prescriber|physician|doctor|provider|writer|practitioner)\s*name\b|^name$/i],
+    ['title',   /\b(title|credential|degree|suffix|profession)\b/i],
+    ['city',    /\b(city|town)\b/i],
+    ['location',/\b(location|office|clinic|site|practice)\b/i],
+    ['drug',    /\b(drug|product|item|medication|compound|rx\s*name|description)\b/i],
+    ['status',  /\b(status|on\s*hold|hold)\b/i]
+  ];
+
+  function splitRow(line, delim) {
+    if (delim === ',') {
+      var out = [], cur = '', inQ = false;
+      for (var i = 0; i < line.length; i++) {
+        var c = line[i];
+        if (c === '"') {
+          if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = !inQ;
+        } else if (c === ',' && !inQ) { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out.map(function (s) { return s.trim(); });
+    }
+    return line.split(delim).map(function (s) { return s.trim(); });
+  }
+
+  function detectDelim(line) {
+    if (line.indexOf('\t') !== -1) return '\t';
+    if (line.indexOf(',') !== -1) return ',';
+    if (/\s{2,}/.test(line)) return /\s{2,}/;
+    return null;
+  }
+
+  function mapHeaders(cells) {
+    var map = {}, used = {};
+    cells.forEach(function (h, idx) {
+      var clean = h.replace(/[_-]+/g, ' ').trim();
+      for (var f = 0; f < FIELDS.length; f++) {
+        var field = FIELDS[f][0];
+        if (used[field] !== undefined) continue;
+        if (FIELDS[f][1].test(clean)) { map[field] = idx; used[field] = idx; return; }
+      }
+    });
+    return map;
+  }
+
+  function slugify(name) {
+    return String(name).toLowerCase()
+      .replace(/[.,]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  var TITLE_RE = /\b(MD|DO|OD|PA|NP|DDS|PharmD)\b/i;
+
+  function splitLocation(v) {
+    if (!v) return {};
+    var parts = String(v).split(',').map(function (s) { return s.trim(); });
+    if (parts.length >= 2 && TITLE_RE.test(parts[0])) {
+      return { title: parts[0].toUpperCase(), city: parts.slice(1).join(', ') };
+    }
+    return { city: parts[parts.length - 1] };
+  }
+
+  /* --- Import: parse ------------------------------------------------------ */
+
+  function parseImport(text) {
+    var trimmed = String(text).trim();
+    if (!trimmed) throw new Error('Nothing pasted yet.');
+
+    if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[') {
+      var obj;
+      try { obj = JSON.parse(trimmed); }
+      catch (e) { throw new Error('That looks like JSON but will not parse: ' + e.message); }
+      var list = Array.isArray(obj) ? obj : obj.prescribers;
+      if (!Array.isArray(list)) throw new Error('Expected an array of prescribers, or an object with a "prescribers" array.');
+      return fromPrescriberList(list);
+    }
+
+    var lines = trimmed.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (lines.length < 2) throw new Error('Needs a header row plus at least one data row.');
+
+    var delim = detectDelim(lines[0]);
+    if (!delim) throw new Error('Could not find column separators. Copy straight from Excel (tabs) or save as CSV.');
+
+    var headers = splitRow(lines[0], delim);
+    var cols = mapHeaders(headers);
+
+    var missing = [];
+    if (cols.name === undefined && cols.last === undefined) missing.push('prescriber name');
+    if (cols.drug === undefined) missing.push('drug');
+    if (cols.written === undefined) missing.push('date written');
+    if (missing.length) {
+      throw new Error('Could not find a column for: ' + missing.join(', ') +
+        '. Headers seen: ' + headers.filter(Boolean).join(', ') + '.');
+    }
+
+    var byId = {}, problems = [], kept = 0;
+
+    for (var r = 1; r < lines.length; r++) {
+      var cells = splitRow(lines[r], delim);
+      var rowNo = r + 1;
+
+      var name = '';
+      if (cols.name !== undefined && cells[cols.name]) name = cells[cols.name].trim();
+      else if (cols.last !== undefined) {
+        var last = (cells[cols.last] || '').trim();
+        var first = cols.first !== undefined ? (cells[cols.first] || '').trim() : '';
+        name = first ? last + ', ' + first : last;
+      }
+      if (!name) { problems.push('Row ' + rowNo + ': no prescriber name — skipped.'); continue; }
+
+      /* Credential can arrive three ways and an export can disagree with
+         itself. Most-structured wins: a dedicated title column, then one
+         embedded in a location like "OD, Austin", then one trailing the name
+         like "Doe, Jane MD" — free text, and the likeliest to be stale. */
+      var nameSuffix = (name.match(/[\s,]+(MD|DO|OD|PA|NP|DDS|PharmD)\.?$/i) || [])[1];
+      name = name.replace(/[\s,]+(MD|DO|OD|PA|NP|DDS|PharmD)\.?$/i, '').trim();
+
+      var loc = cols.location !== undefined ? (cells[cols.location] || '').trim() : '';
+      var parsedLoc = loc ? splitLocation(loc) : {};
+
+      var title = ((cols.title !== undefined ? (cells[cols.title] || '').trim() : '') ||
+                   parsedLoc.title || nameSuffix || '').toUpperCase();
+      var city = (cols.city !== undefined ? (cells[cols.city] || '').trim() : '') ||
+                 parsedLoc.city || '';
+
+      var drug = cols.drug !== undefined ? (cells[cols.drug] || '').trim().toUpperCase() : '';
+      if (!drug) { problems.push('Row ' + rowNo + ': no drug — skipped.'); continue; }
+
+      var written = parseDate(cells[cols.written]);
+      if (!written) {
+        problems.push('Row ' + rowNo + ' (' + name + '): date written "' +
+          (cells[cols.written] || '') + '" not understood — skipped.');
+        continue;
+      }
+
+      var filled = cols.filled !== undefined ? parseDate(cells[cols.filled]) : '';
+      var statusCell = cols.status !== undefined ? (cells[cols.status] || '') : '';
+      var onHold = /hold|pending|open|unfilled/i.test(statusCell) ||
+                   (!filled && !/fill|complete|ship|dispens/i.test(statusCell));
+
+      var id = slugify(name);
+      if (!byId[id]) byId[id] = { id: id, name: name, city: city, title: title, orders: [] };
+      if (!byId[id].city && city) byId[id].city = city;
+      if (!byId[id].title && title) byId[id].title = title;
+
+      byId[id].orders.push({
+        drug: drug,
+        location: (title ? title + ', ' : '') + (city || byId[id].city || ''),
+        written: written,
+        writtenDisp: disp(written),
+        onHold: onHold,
+        filledDisp: filled ? disp(filled) : null
+      });
+      kept++;
+    }
+
+    if (!kept) throw new Error('No usable rows found. ' + (problems[0] || 'Check the date and drug columns.'));
+
+    return { prescribers: finalize(byId), problems: problems, rowsKept: kept };
+  }
+
+  /* Accepts the shape this tool itself exports, so a book round-trips. */
+  function fromPrescriberList(list) {
+    var byId = {}, problems = [];
+    list.forEach(function (p, i) {
+      if (!p || !p.name) { problems.push('Entry ' + (i + 1) + ': no name — skipped.'); return; }
+      var id = p.id || slugify(p.name);
+      byId[id] = {
+        id: id, name: p.name, city: p.city || '', title: p.title || '',
+        orders: (p.orders || []).map(function (o) {
+          var written = o.written || parseDate(o.writtenDisp);
+          return {
+            drug: String(o.drug || '').toUpperCase(),
+            location: o.location || '',
+            written: written,
+            writtenDisp: o.writtenDisp || disp(written),
+            onHold: !!o.onHold,
+            filledDisp: o.filledDisp || null
+          };
+        }).filter(function (o) { return o.drug && o.written; })
+      };
+    });
+    return { prescribers: finalize(byId), problems: problems,
+             rowsKept: Object.keys(byId).reduce(function (n, k) { return n + byId[k].orders.length; }, 0) };
+  }
+
+  function finalize(byId) {
+    return Object.keys(byId).map(function (id) {
+      var p = byId[id];
+      p.orders.sort(function (a, b) { return a.written.localeCompare(b.written); });
+      p.orderCount = p.orders.length;
+      p.onHoldCount = p.orders.filter(function (o) { return o.onHold; }).length;
+      p.lastWritten = p.orders.length ? p.orders[p.orders.length - 1].written : '';
+      return p;
+    }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  /* --- Import: merge ------------------------------------------------------
+     Dedup is by MULTISET, not by set. Two rows with the same drug and dates
+     are legitimately two separate scripts — the real data has a doctor with
+     three written the same day, two of them filled the same day. Collapsing
+     those would quietly delete a script. So for each order signature we keep
+     whichever side has MORE of it: re-importing an overlapping export is a
+     no-op, while a genuine repeat still gets through.
+     ---------------------------------------------------------------------- */
+
+  function sig(o) {
+    return o.drug + '|' + o.written + '|' + (o.onHold ? 'hold' : (o.filledDisp || ''));
+  }
+
+  /* Stable per-order key: signature plus which occurrence of it this is.
+     Orders sharing a signature are interchangeable, so the Nth stays the Nth
+     across a re-import and its follow-up tick stays attached. */
+  function orderKeys(orders) {
+    var seen = {};
+    return orders.map(function (o) {
+      var s = sig(o);
+      seen[s] = (seen[s] || 0) + 1;
+      return s + '#' + seen[s];
+    });
+  }
+
+  function countBy(orders) {
+    var c = {};
+    orders.forEach(function (o) {
+      var k = sig(o);
+      if (!c[k]) c[k] = { n: 0, sample: o };
+      c[k].n++;
+    });
+    return c;
+  }
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function mergeRoster(existing, incoming) {
+    var out = {}, stats = { newDocs: 0, newOrders: 0, updatedDocs: 0, unchangedDocs: 0 };
+
+    (existing ? existing.prescribers : []).forEach(function (p) { out[p.id] = clone(p); });
+
+    incoming.prescribers.forEach(function (inc) {
+      var cur = out[inc.id];
+      if (!cur) {
+        out[inc.id] = clone(inc);
+        stats.newDocs++;
+        stats.newOrders += inc.orders.length;
+        return;
+      }
+      var curCounts = countBy(cur.orders), incCounts = countBy(inc.orders);
+      var merged = cur.orders.slice(), added = 0;
+      Object.keys(incCounts).forEach(function (k) {
+        var need = incCounts[k].n - (curCounts[k] ? curCounts[k].n : 0);
+        for (var i = 0; i < need; i++) { merged.push(clone(incCounts[k].sample)); added++; }
+      });
+      if (added) { cur.orders = merged; stats.newOrders += added; stats.updatedDocs++; }
+      else { stats.unchangedDocs++; }
+      if (!cur.city && inc.city) cur.city = inc.city;
+      if (!cur.title && inc.title) cur.title = inc.title;
+    });
+
+    return { roster: { generated: new Date().toISOString(), prescribers: finalize(out) }, stats: stats };
+  }
+
+  /* --- Follow-up state ---------------------------------------------------- */
+
+  function stateOf(p) {
+    var fu = followups[p.id] || {};
+    var done = fu.done || {};
+    var keys = orderKeys(p.orders);
+    var open = 0;
+    for (var i = 0; i < keys.length; i++) if (!done[keys[i]]) open++;
+    return {
+      flagged: !!fu.flagged,
+      notes: fu.notes || '',
+      zone: fu.zone || '',
+      done: done,
+      keys: keys,
+      open: open,
+      band: fu.flagged ? 'flagged' : (open > 0 ? 'open' : 'done')
+    };
+  }
+
+  function patchDoc(id, patch) {
+    var cur = followups[id] || {};
+    followups[id] = {
+      flagged: patch.flagged !== undefined ? patch.flagged : !!cur.flagged,
+      notes:   patch.notes   !== undefined ? patch.notes   : (cur.notes || ''),
+      zone:    patch.zone    !== undefined ? patch.zone    : (cur.zone || ''),
+      done:    patch.done    !== undefined ? patch.done    : (cur.done || {}),
+      updatedAt: new Date().toISOString()
+    };
+    Store.prescribers.writeFollowups(followups);
+    writeSummary();
+  }
+
+  /* Home reads this. Two plain counts, no dates: how many scripts are still
+     waiting on a follow-up, and how many doctors are flagged. */
+  function writeSummary() {
+    if (!roster) return;
+    var needFollowUp = 0, flagged = 0, byRoute = {};
+    roster.prescribers.forEach(function (p) {
+      var st = stateOf(p);
+      needFollowUp += st.open;
+      if (st.flagged) flagged++;
+      if (st.zone) {
+        if (!byRoute[st.zone]) byRoute[st.zone] = { open: 0, flagged: 0, doctors: 0 };
+        byRoute[st.zone].doctors++;
+        byRoute[st.zone].open += st.open;
+        if (st.flagged) byRoute[st.zone].flagged++;
+      }
+    });
+    Store.prescribers.writeSummary({
+      needFollowUp: needFollowUp, flagged: flagged, byRoute: byRoute
+    });
+  }
+
+  /* --- Render ------------------------------------------------------------- */
+
+  function visible() {
+    var q = search.trim().toLowerCase();
+    var list = roster.prescribers.map(function (p) { return { p: p, st: stateOf(p) }; });
+
+    list = list.filter(function (e) {
+      if (filter === 'open' && e.st.open === 0) return false;
+      if (filter === 'flagged' && !e.st.flagged) return false;
+      if (filter === 'done' && e.st.open > 0) return false;
+      if (zoneFilter === 'none' && e.st.zone) return false;
+      if (zoneFilter !== 'all' && zoneFilter !== 'none' && e.st.zone !== zoneFilter) return false;
+      if (q) {
+        var hay = e.p.name + ' ' + (e.p.city || '') + ' ' +
+                  e.p.orders.map(function (o) { return o.drug; }).join(' ');
+        if (hay.toLowerCase().indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    if (sortMode === 'newest') {
+      list.sort(function (a, b) { return (b.p.lastWritten || '').localeCompare(a.p.lastWritten || ''); });
+    } else if (sortMode === 'oldest') {
+      list.sort(function (a, b) { return (a.p.lastWritten || '').localeCompare(b.p.lastWritten || ''); });
+    } else if (sortMode === 'route') {
+      /* Groups the list by route in rotation order, unassigned last, then
+         falls back to priority within each route. */
+      list.sort(function (a, b) {
+        var za = a.st.zone ? (Shell.zoneById(a.st.zone) || {}).week || 99 : 99;
+        var zb = b.st.zone ? (Shell.zoneById(b.st.zone) || {}).week || 99 : 99;
+        if (za !== zb) return za - zb;
+        if (a.st.flagged !== b.st.flagged) return a.st.flagged ? -1 : 1;
+        if (a.st.open !== b.st.open) return b.st.open - a.st.open;
+        return a.p.name.localeCompare(b.p.name);
+      });
+    } else {
+      /* Flagged first, then most outstanding scripts, then most recent Rx. */
+      list.sort(function (a, b) {
+        if (a.st.flagged !== b.st.flagged) return a.st.flagged ? -1 : 1;
+        if (a.st.open !== b.st.open) return b.st.open - a.st.open;
+        return (b.p.lastWritten || '').localeCompare(a.p.lastWritten || '');
+      });
+    }
+    return list;
+  }
+
+  function renderChrome() {
+    var docs = roster.prescribers.length;
+    var open = 0, flagged = 0;
+    roster.prescribers.forEach(function (p) {
+      var st = stateOf(p);
+      open += st.open;
+      if (st.flagged) flagged++;
+    });
+
+    document.getElementById('statPills').innerHTML =
+      '<span class="stat-pill"><b>' + docs + '</b><span>doctors</span></span>' +
+      '<span class="stat-pill' + (open ? ' warn' : '') + '"><b>' + open + '</b><span>to follow up</span></span>' +
+      '<span class="stat-pill' + (flagged ? ' flag' : '') + '"><b>' + flagged + '</b><span>flagged</span></span>';
+
+    var latest = roster.prescribers.reduce(function (m, p) {
+      return (p.lastWritten && p.lastWritten > m) ? p.lastWritten : m;
+    }, '');
+    document.getElementById('asOf').textContent = latest
+      ? 'Prescription data as of ' + disp(latest) + ' — import a new export any time to add to it.'
+      : '';
+
+    document.getElementById('filterRow').innerHTML = FILTERS.map(function (f) {
+      return chipHtml(f[0], f[1], filter === f[0]);
+    }).join('');
+
+    /* Route filter. Each chip carries its own colour swatch and the count of
+       doctors assigned to it, so an unused route is obvious at a glance. */
+    var counts = {}, unassigned = 0;
+    roster.prescribers.forEach(function (p) {
+      var z = stateOf(p).zone;
+      if (z) counts[z] = (counts[z] || 0) + 1; else unassigned++;
+    });
+    document.getElementById('zoneRow').innerHTML =
+      '<span class="lbl">Route</span>' +
+      chipHtml('all', 'All', zoneFilter === 'all') +
+      Shell.ZONES.map(function (z) {
+        return '<button class="chip" data-val="' + z.id + '" aria-pressed="' +
+               (zoneFilter === z.id ? 'true' : 'false') + '" title="Week ' + z.week + ' — ' + z.label + '">' +
+               '<span class="zone-dot" style="--zone:' + z.color + '"></span> ' +
+               Shell.escapeHtml(z.name) + ' <span class="mono">' + (counts[z.id] || 0) + '</span>' +
+               '</button>';
+      }).join('') +
+      chipHtml('none', 'No route ' + unassigned, zoneFilter === 'none');
+
+    document.getElementById('sortRow').innerHTML =
+      '<span class="lbl">Sort</span>' +
+      chipHtml('priority', 'Priority', sortMode === 'priority') +
+      chipHtml('route', 'Route', sortMode === 'route') +
+      chipHtml('newest', 'Newest Rx', sortMode === 'newest') +
+      chipHtml('oldest', 'Oldest Rx', sortMode === 'oldest');
+  }
+
+  function chipHtml(val, label, on) {
+    return '<button class="chip" data-val="' + val + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+           Shell.escapeHtml(label) + '</button>';
+  }
+
+  var FLAG_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+                 '<path d="M5 21V4h13l-2.5 4L18 12H5"/></svg>';
+
+  function renderList() {
+    var list = visible();
+    var host = document.getElementById('docList');
+    var empty = document.getElementById('emptyMsg');
+
+    if (!list.length) {
+      host.innerHTML = '';
+      empty.hidden = false;
+      empty.innerHTML = '<strong>Nothing matches</strong>No doctors match ' +
+        (search ? '"' + Shell.escapeHtml(search) + '"' : 'this filter') + '.';
+      return;
+    }
+    empty.hidden = true;
+
+    host.innerHTML = list.map(function (e) {
+      var p = e.p, st = e.st;
+      var revealAll = !!showAll[p.id] || st.open === p.orders.length;
+
+      /* Outstanding scripts are always on screen; ones already ticked off
+         collapse behind "show all" so a ten-script doctor stays readable. */
+      var rows = p.orders.map(function (o, i) {
+        return { o: o, key: st.keys[i], done: !!st.done[st.keys[i]] };
+      }).filter(function (r) { return revealAll || !r.done; });
+
+      var hiddenCount = p.orders.length - rows.length;
+
+      var z = st.zone ? Shell.zoneById(st.zone) : null;
+
+      return '<article class="doc" data-state="' + st.band + '"' +
+             (z ? ' data-zone="' + z.id + '" style="--zone:' + z.color + '"' : '') +
+             ' data-id="' + Shell.escapeHtml(p.id) + '">' +
+        '<div class="doc-top">' +
+          '<div style="min-width:0">' +
+            '<h2 class="doc-name">' + Shell.escapeHtml(p.name) + '</h2>' +
+            '<p class="doc-sub">' + Shell.escapeHtml([p.title, p.city].filter(Boolean).join(', ')) + '</p>' +
+            '<span class="zone-pick" style="margin-top:var(--s-2)' + (z ? ';--zone:' + z.color : '') + '">' +
+              '<span class="zone-chip' + (z ? '' : ' is-unset') + '">' +
+                (z ? '<span class="zone-dot" style="--zone:' + z.color + '"></span>' : '') +
+                (z ? 'Wk ' + z.week + ' &middot; ' + Shell.escapeHtml(z.name) : 'Assign route') +
+              '</span>' +
+              '<select data-role="zone" aria-label="Route for ' + Shell.escapeHtml(p.name) + '">' +
+                '<option value=""' + (z ? '' : ' selected') + '>No route</option>' +
+                Shell.ZONES.map(function (zz) {
+                  return '<option value="' + zz.id + '"' + (z && z.id === zz.id ? ' selected' : '') + '>' +
+                         'Week ' + zz.week + ' — ' + Shell.escapeHtml(zz.name) + ' (' + zz.label + ')</option>';
+                }).join('') +
+              '</select>' +
+            '</span>' +
+          '</div>' +
+          '<div class="doc-meta">' +
+            '<button class="flag-btn" data-role="flag" aria-pressed="' + (st.flagged ? 'true' : 'false') + '" ' +
+              'title="Mark this doctor high priority">' + FLAG_SVG +
+              (st.flagged ? 'Priority' : 'Flag') + '</button>' +
+            '<span class="m">' + p.orderCount + ' script' + (p.orderCount !== 1 ? 's' : '') + '</span>' +
+            (st.open > 0
+              ? '<span class="pill pill-warn">' + st.open + ' to follow up</span>'
+              : '<span class="pill pill-ok">all followed up</span>') +
+          '</div>' +
+        '</div>' +
+
+        '<div class="orders">' +
+          '<div class="orders-head"><span>Prescriptions</span>' +
+            (hiddenCount > 0
+              ? '<button data-role="showall">show all ' + p.orderCount + '</button>'
+              : (p.orders.length > 1 && st.open < p.orders.length && revealAll
+                  ? '<button data-role="showall">hide done</button>' : '')) +
+          '</div>' +
+          rows.map(function (r) {
+            return '<label class="order' + (r.done ? ' is-done' : '') + '">' +
+              '<input type="checkbox" data-role="done" data-key="' + Shell.escapeHtml(r.key) + '"' +
+                (r.done ? ' checked' : '') + ' aria-label="Followed up on ' +
+                Shell.escapeHtml(r.o.drug) + ' written ' + Shell.escapeHtml(r.o.writtenDisp || '') + '">' +
+              '<span class="drug">' + Shell.escapeHtml(r.o.drug) + '</span>' +
+              '<span class="loc">' + Shell.escapeHtml(r.o.location || '') + '</span>' +
+              '<span class="wr">wr ' + Shell.escapeHtml(r.o.writtenDisp || '') + '</span>' +
+              (r.o.onHold
+                ? '<span class="st hold">on hold</span>'
+                : '<span class="st filled">' + Shell.escapeHtml(r.o.filledDisp || 'filled') + '</span>') +
+            '</label>';
+          }).join('') +
+        '</div>' +
+
+        '<textarea data-role="notes" ' +
+          'placeholder="Add a note — what to bring up, what happened last visit…" ' +
+          'aria-label="Notes for ' + Shell.escapeHtml(p.name) + '">' +
+          Shell.escapeHtml(st.notes) + '</textarea>' +
+      '</article>';
+    }).join('');
+  }
+
+  function renderAll() { renderChrome(); renderList(); }
+
+  /* Re-syncs one card's state band and its outstanding-count pill without
+     touching the rest of the list — see the note on the change handler. */
+  function refreshCard(card, id) {
+    var p = null;
+    for (var i = 0; i < roster.prescribers.length; i++) {
+      if (roster.prescribers[i].id === id) { p = roster.prescribers[i]; break; }
+    }
+    if (!p) return;
+    var st = stateOf(p);
+    card.setAttribute('data-state', st.band);
+    var pill = card.querySelector('.doc-meta .pill');
+    if (pill) {
+      pill.className = 'pill ' + (st.open > 0 ? 'pill-warn' : 'pill-ok');
+      pill.textContent = st.open > 0 ? st.open + ' to follow up' : 'all followed up';
+    }
+    var flagBtn = card.querySelector('[data-role="flag"]');
+    if (flagBtn) {
+      flagBtn.lastChild.nodeValue = st.flagged ? 'Priority' : 'Flag';
+    }
+  }
+
+  /* --- Import UI ---------------------------------------------------------- */
+
+  function showImport(isFirstRun) {
+    document.getElementById('importView').hidden = false;
+    document.getElementById('rosterView').hidden = true;
+    document.getElementById('importCancel').hidden = !!isFirstRun;
+    document.getElementById('importTitle').textContent =
+      isFirstRun ? 'Import prescriber data' : 'Import a new export';
+    window.scrollTo(0, 0);
+  }
+
+  function showRoster() {
+    document.getElementById('importView').hidden = true;
+    document.getElementById('rosterView').hidden = false;
+    renderAll();
+    window.scrollTo(0, 0);
+  }
+
+  function clearPreview() {
+    pending = null;
+    document.getElementById('importPreview').hidden = true;
+    document.getElementById('applyRow').hidden = true;
+  }
+
+  function doPreview() {
+    var msg = document.getElementById('importMsg');
+    msg.textContent = ''; msg.className = 'msg';
+    clearPreview();
+
+    var parsed;
+    try { parsed = parseImport(document.getElementById('pasteBox').value); }
+    catch (err) { msg.textContent = err.message; msg.className = 'msg err'; return; }
+
+    var merged = mergeRoster(roster, parsed);
+    pending = merged;
+
+    var s = merged.stats;
+    var html = '<b>' + parsed.rowsKept + '</b> prescription' + (parsed.rowsKept !== 1 ? 's' : '') +
+               ' read across <b>' + parsed.prescribers.length + '</b> doctor' +
+               (parsed.prescribers.length !== 1 ? 's' : '') + '.<br>' +
+               '<span class="add">+ ' + s.newDocs + ' new doctor' + (s.newDocs !== 1 ? 's' : '') + '</span> &middot; ' +
+               '<span class="add">+ ' + s.newOrders + ' new prescription' + (s.newOrders !== 1 ? 's' : '') + '</span>';
+    if (s.updatedDocs) html += ' &middot; <span class="upd">' + s.updatedDocs + ' updated</span>';
+    if (s.unchangedDocs) html += ' &middot; ' + s.unchangedDocs + ' already up to date';
+    html += '<br><span class="hint">Your follow-up ticks, flags and notes are kept.</span>';
+
+    if (parsed.problems.length) {
+      html += '<ul>' + parsed.problems.slice(0, 8).map(function (p) {
+        return '<li>' + Shell.escapeHtml(p) + '</li>';
+      }).join('') + '</ul>';
+      if (parsed.problems.length > 8) {
+        html += '<p class="hint">…and ' + (parsed.problems.length - 8) + ' more.</p>';
+      }
+    }
+
+    var box = document.getElementById('importPreview');
+    box.innerHTML = html;
+    box.hidden = false;
+    document.getElementById('applyRow').hidden = false;
+  }
+
+  function doApply() {
+    if (!pending) return;
+    roster = pending.roster;
+    Store.prescribers.writeRoster(roster);
+    writeSummary();
+    clearPreview();
+    document.getElementById('pasteBox').value = '';
+    document.getElementById('importMsg').textContent = '';
+    showRoster();
+    toast('Imported ✓');
+  }
+
+  /* --- Toast -------------------------------------------------------------- */
+
+  var toastTimer;
+  function toast(m) {
+    var t = document.getElementById('toast');
+    t.textContent = m;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2000);
+  }
+
+  /* --- Wiring ------------------------------------------------------------- */
+
+  Shell.ready(function () {
+    roster = Store.prescribers.readRoster();
+    var fu = Store.prescribers.readFollowups();
+    followups = (fu && typeof fu === 'object' && !Array.isArray(fu)) ? fu : {};
+
+    document.getElementById('previewBtn').addEventListener('click', doPreview);
+    document.getElementById('applyBtn').addEventListener('click', doApply);
+    document.getElementById('cancelApplyBtn').addEventListener('click', function () {
+      clearPreview();
+      document.getElementById('importMsg').textContent = '';
+    });
+    document.getElementById('clearPasteBtn').addEventListener('click', function () {
+      document.getElementById('pasteBox').value = '';
+      clearPreview();
+      document.getElementById('importMsg').textContent = '';
+    });
+    document.getElementById('importCancel').addEventListener('click', function () {
+      clearPreview(); showRoster();
+    });
+    document.getElementById('openImportBtn').addEventListener('click', function () { showImport(false); });
+
+    document.getElementById('searchBox').addEventListener('input', function () {
+      search = this.value;
+      renderList();
+    });
+
+    document.getElementById('filterRow').addEventListener('click', function (e) {
+      var b = e.target.closest('.chip'); if (!b) return;
+      filter = b.getAttribute('data-val');
+      renderAll();
+    });
+    document.getElementById('zoneRow').addEventListener('click', function (e) {
+      var b = e.target.closest('.chip'); if (!b) return;
+      zoneFilter = b.getAttribute('data-val');
+      renderAll();
+    });
+    document.getElementById('sortRow').addEventListener('click', function (e) {
+      var b = e.target.closest('.chip'); if (!b) return;
+      sortMode = b.getAttribute('data-val');
+      renderAll();
+    });
+
+    /* Delegated, so the list can re-render freely without rebinding. */
+    var list = document.getElementById('docList');
+
+    /* Ticking a box updates that row IN PLACE. Rebuilding the list from
+       inside the handler destroys the checkbox while its own event is still
+       propagating, which made the browser re-fire against the replacement
+       node — one click ticked two scripts and flipped the flag back off.
+       It also reads better: the row you just ticked stays put and struck
+       through instead of vanishing under your finger. */
+    list.addEventListener('change', function (e) {
+      var zsel = e.target.closest('[data-role="zone"]');
+      if (zsel) {
+        var zcard = e.target.closest('.doc');
+        patchDoc(zcard.getAttribute('data-id'), { zone: zsel.value });
+        renderChrome();
+        /* Deferred for the same reason as the flag: assigning a route can
+           change sort order and filtering, and rebuilding the list from
+           inside the select's own change event destroys the select. */
+        setTimeout(renderList, 0);
+        return;
+      }
+      var cb = e.target.closest('[data-role="done"]'); if (!cb) return;
+      var card = e.target.closest('.doc');
+      var id = card.getAttribute('data-id');
+
+      var done = Object.assign({}, (followups[id] || {}).done || {});
+      if (cb.checked) done[cb.getAttribute('data-key')] = true;
+      else delete done[cb.getAttribute('data-key')];
+      patchDoc(id, { done: done });
+
+      var row = cb.closest('.order');
+      if (row) row.classList.toggle('is-done', cb.checked);
+      refreshCard(card, id);
+      renderChrome();
+    });
+
+    list.addEventListener('click', function (e) {
+      var flag = e.target.closest('[data-role="flag"]');
+      if (flag) {
+        var card = e.target.closest('.doc');
+        var fid = card.getAttribute('data-id');
+        var now = !(followups[fid] || {}).flagged;
+        patchDoc(fid, { flagged: now });
+        flag.setAttribute('aria-pressed', now ? 'true' : 'false');
+        refreshCard(card, fid);
+        renderChrome();
+        /* Flagging changes sort order, so the list does need rebuilding —
+           but only once this click has finished propagating. */
+        setTimeout(renderList, 0);
+        return;
+      }
+      var sa = e.target.closest('[data-role="showall"]');
+      if (sa) {
+        var sid = e.target.closest('.doc').getAttribute('data-id');
+        showAll[sid] = !showAll[sid];
+        setTimeout(renderList, 0);
+      }
+    });
+
+    list.addEventListener('input', function (e) {
+      var ta = e.target.closest('[data-role="notes"]'); if (!ta) return;
+      var id = e.target.closest('.doc').getAttribute('data-id');
+      /* Debounced, and deliberately NOT re-rendering — a re-render would steal
+         focus and drop the caret mid-sentence. */
+      clearTimeout(noteTimers[id]);
+      noteTimers[id] = setTimeout(function () { patchDoc(id, { notes: ta.value }); }, 600);
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function () {
+      document.getElementById('resetConfirm').hidden = false;
+    });
+    document.getElementById('resetNo').addEventListener('click', function () {
+      document.getElementById('resetConfirm').hidden = true;
+    });
+    document.getElementById('resetYes').addEventListener('click', function () {
+      followups = {};
+      Store.prescribers.writeFollowups(followups);
+      writeSummary();
+      document.getElementById('resetConfirm').hidden = true;
+      renderAll();
+      toast('Follow-up data cleared');
+    });
+
+    window.addEventListener('pagehide', function () {
+      Object.keys(noteTimers).forEach(function (id) { clearTimeout(noteTimers[id]); });
+    });
+
+    if (roster && roster.prescribers && roster.prescribers.length) {
+      writeSummary();
+      showRoster();
+    } else {
+      showImport(true);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,606 @@
+/* ===========================================================================
+   Territory Hub — shell.css
+   Design tokens, navigation, and the shared component set.
+
+   This is the ONLY stylesheet shared across pages. Each tool keeps its own
+   internal styles in its own page's <style> block — the rule is: if it is
+   nav, a token, or a component that appears on more than one page, it lives
+   here; if it is a tool's own layout or widget, it does not.
+
+   Accent hex values below were contrast-checked against --bg (#F7F7F8), the
+   worst-case background. --green, --amber and --ink-light were darkened from
+   the values in the plan because the originals failed WCAG AA (4.5:1) for
+   normal-size text. Ratios are noted inline. Do not lighten them back
+   without re-checking.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Tokens
+   --------------------------------------------------------------------------- */
+:root {
+  /* Base — carried from Schedule Builder */
+  --teal:        #1A6B72;   /* 5.79 on --bg  |  white on it: 6.19 */
+  --teal-dim:    #D0E8EA;
+  --teal-deep:   #12494E;   /* pressed/hover state for teal fills */
+  --ink:         #1C1C1E;   /* 15.89 */
+  --ink-mid:     #48484A;   /* 8.52  */
+  --ink-light:   #6E6E73;   /* 4.74  — muted TEXT (was #8E8E93 @ 3.05, failed AA) */
+  --ink-faint:   #8E8E93;   /* 3.05  — non-text only: icon strokes, dividers */
+  --rule:        #E0E0E3;
+  --bg:          #F7F7F8;
+  --white:       #FFFFFF;
+
+  /* Semantic accents — verified AA against --bg for text, and white-on-fill */
+  --green:       #17805A;   /* 4.59  |  white on it: 4.92   (was #1E9E6B @ 3.19) */
+  --green-dim:   rgba(23,128,90,0.10);
+  --red:         #C8433A;   /* 4.54  |  white on it: 4.86 */
+  --red-dim:     rgba(200,67,58,0.08);
+  --amber:       #9A6508;   /* 4.63  |  white on it: 4.95   (was #AD7209 @ 3.78) */
+  --amber-dim:   rgba(154,101,8,0.08);
+  --purple:      #6E4FC9;   /* 5.41  |  white on it: 5.79 */
+  --purple-dim:  rgba(110,79,201,0.08);
+
+  /* ---- Route colours ---------------------------------------------------
+     The six zones of the rotation, in the colours already used to organise
+     routes and meetings. These are the identity of a route across every
+     tool — Route Board territory edges, prescriber assignment chips, the
+     zone dial — so they live here and nowhere else.
+
+     Two are adjusted from the plain names: "yellow" is a gold, because a
+     true yellow cannot carry text on white at 4.5:1 (it lands near 1.5),
+     and North West is a pink-red rather than a plain red so it stays
+     distinct from the red used for flags and errors. Every value below is
+     >=4.5:1 on both --white and --bg, and >=4.8:1 under white text.
+     -------------------------------------------------------------------- */
+  --zone-waco: #17805A;   /* green       — week 1, North I-35 Waco       */
+  --zone-nwa:  #C4365F;   /* reddish pink— week 2, North West Austin     */
+  --zone-hill: #6E4FC9;   /* purple      — week 3, Hill Country          */
+  --zone-nca:  #2F6FD0;   /* blue        — week 4, North Central Austin  */
+  --zone-sca:  #8A6D00;   /* yellow/gold — week 5, South Central Austin  */
+  --zone-swa:  #B4531F;   /* orange      — week 6, South West Austin     */
+
+  /* Type */
+  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
+
+  --fs-xs:   11px;
+  --fs-sm:   13px;
+  --fs-base: 15px;
+  --fs-lg:   17px;
+  --fs-xl:   21px;
+  --fs-2xl:  28px;
+  --fs-3xl:  38px;
+
+  /* Space — 4px scale */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  /* Shape */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgba(28,28,30,0.05), 0 1px 8px rgba(28,28,30,0.04);
+  --shadow-nav:  0 -1px 0 var(--rule);
+
+  /* Layout */
+  --content-max: 640px;
+  --nav-h: 60px;          /* bottom bar height, mobile */
+  --sidebar-w: 216px;     /* left rail width, >=900px */
+  --bp-wide: 900px;       /* documented here; media queries hardcode it */
+}
+
+/* ---------------------------------------------------------------------------
+   2. Reset / base
+   --------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+img, svg { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+a { color: var(--teal); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+.mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+/* Visible only to screen readers */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Skip link — first tab stop on every page */
+.skip-link {
+  position: absolute; left: var(--s-3); top: -100px;
+  background: var(--ink); color: var(--white);
+  padding: var(--s-2) var(--s-4); border-radius: var(--r-sm);
+  font-size: var(--fs-sm); z-index: 100;
+}
+.skip-link:focus { top: var(--s-3); text-decoration: none; }
+
+/* ---------------------------------------------------------------------------
+   3. Page layout
+   Mobile-first: single column, max 640px, bottom nav.
+   >=900px: nav becomes a left rail and the column re-centres beside it.
+   --------------------------------------------------------------------------- */
+.page {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--s-5) var(--s-4);
+  /* clear the fixed bottom bar, incl. iOS home indicator */
+  padding-bottom: calc(var(--nav-h) + var(--s-8) + env(safe-area-inset-bottom, 0px));
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+}
+.page-head h1 {
+  font-size: var(--fs-2xl);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.page-head .eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+}
+
+.stack       { display: grid; gap: var(--s-4); }
+.stack-tight { display: grid; gap: var(--s-2); }
+.row {
+  display: flex; align-items: center;
+  gap: var(--s-3); flex-wrap: wrap;
+}
+.row-between {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: var(--s-3);
+}
+
+/* Section label — the small mono heading that opens a group of cards */
+.section-label {
+  display: flex; align-items: baseline;
+  justify-content: space-between; gap: var(--s-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+  margin: var(--s-6) 0 var(--s-3);
+}
+.section-label:first-child { margin-top: 0; }
+
+hr.rule { border: 0; border-top: 1px solid var(--rule); margin: var(--s-5) 0; }
+
+/* Sub-tabs — the second level of navigation inside a pillar page (Route Board
+   vs Schedule Builder, and so on). Distinct from .nav on purpose: this switches
+   a panel within one page, it does not change page. Driven by Shell.tabs(). */
+.subtabs {
+  display: flex;
+  gap: var(--s-1);
+  padding: var(--s-1);
+  margin-bottom: var(--s-5);
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+}
+.subtabs button {
+  flex: 1 1 0;
+  min-height: 36px;
+  padding: var(--s-1) var(--s-3);
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-light);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+.subtabs button:hover { color: var(--ink-mid); background: var(--bg); }
+.subtabs button[aria-selected='true'] {
+  background: var(--teal-dim);
+  color: var(--teal-deep);
+}
+.tabpanel[hidden] { display: none; }
+
+/* ---------------------------------------------------------------------------
+   4. Card
+   --------------------------------------------------------------------------- */
+.card {
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  box-shadow: var(--shadow-card);
+}
+.card-head {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.card-head h2 {
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.card-foot {
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--fs-sm);
+}
+
+/* A whole card that is a link */
+a.card-link {
+  display: block; color: inherit; text-decoration: none;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+a.card-link:hover {
+  border-color: var(--teal);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+a.card-link:active { transform: none; }
+
+.card-cta {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  font-size: var(--fs-sm); font-weight: 500; color: var(--teal);
+}
+.card-cta svg { width: 14px; height: 14px; }
+
+/* ---------------------------------------------------------------------------
+   5. Pill
+   --------------------------------------------------------------------------- */
+.pill {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  padding: 3px var(--s-2);
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  background: var(--bg);
+  color: var(--ink-mid);
+  border: 1px solid var(--rule);
+}
+.pill-ok      { background: var(--green-dim);  color: var(--green);  border-color: transparent; }
+.pill-bad     { background: var(--red-dim);    color: var(--red);    border-color: transparent; }
+.pill-warn    { background: var(--amber-dim);  color: var(--amber);  border-color: transparent; }
+.pill-info    { background: var(--purple-dim); color: var(--purple); border-color: transparent; }
+.pill-accent  { background: var(--teal-dim);   color: var(--teal-deep); border-color: transparent; }
+.pill-solid   { background: var(--teal);       color: var(--white);  border-color: transparent; }
+
+/* Marks a widget that is showing sample data, not real data. Phase 6 removes
+   these from Home as each pillar starts writing its summary key. */
+.pill-placeholder {
+  background: repeating-linear-gradient(
+    -45deg, var(--bg), var(--bg) 4px, var(--white) 4px, var(--white) 8px);
+  color: var(--ink-light);
+  border: 1px dashed var(--rule);
+}
+
+/* Zone swatch + chip. `--zone` is set inline from Shell.ZONES so one rule
+   serves all six routes. */
+.zone-dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--zone, var(--ink-faint));
+  flex-shrink: 0;
+}
+.zone-chip {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  padding: 3px var(--s-2);
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  color: var(--zone, var(--ink-mid));
+  background: color-mix(in srgb, var(--zone, var(--ink-faint)) 10%, transparent);
+}
+.zone-chip.is-unset { color: var(--ink-light); background: var(--bg); border-color: var(--rule); }
+
+/* ---------------------------------------------------------------------------
+   6. Button
+   --------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.btn:hover { border-color: var(--ink-faint); text-decoration: none; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--teal); border-color: var(--teal); color: var(--white); }
+.btn-primary:hover { background: var(--teal-deep); border-color: var(--teal-deep); }
+
+.btn-danger { background: var(--red); border-color: var(--red); color: var(--white); }
+.btn-danger:hover { filter: brightness(0.92); }
+
+.btn-ghost { background: transparent; border-color: transparent; color: var(--teal); }
+.btn-ghost:hover { background: var(--teal-dim); border-color: transparent; }
+
+.btn-sm { min-height: 32px; padding: var(--s-1) var(--s-3); font-size: var(--fs-xs); }
+.btn-block { width: 100%; }
+
+/* ---------------------------------------------------------------------------
+   7. Input
+   --------------------------------------------------------------------------- */
+.field { display: grid; gap: var(--s-1); }
+.field > label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+}
+.input, .select, .textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: var(--s-2) var(--s-3);
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
+}
+.textarea { min-height: 96px; resize: vertical; line-height: 1.45; }
+.input:hover, .select:hover, .textarea:hover { border-color: var(--ink-faint); }
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-dim);
+}
+.input::placeholder, .textarea::placeholder { color: var(--ink-light); }
+.hint { font-size: var(--fs-xs); color: var(--ink-light); }
+
+/* ---------------------------------------------------------------------------
+   8. Stat + progress — used by Home's summary cards
+   --------------------------------------------------------------------------- */
+.stat { display: grid; gap: 2px; }
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.stat-label {
+  font-size: var(--fs-sm);
+  color: var(--ink-light);
+}
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--s-4);
+}
+
+.progress {
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--rule);
+  overflow: hidden;
+}
+.progress > span {
+  display: block; height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+}
+.progress.is-ok   > span { background: var(--green); }
+.progress.is-warn > span { background: var(--amber); }
+.progress.is-bad  > span { background: var(--red); }
+
+/* Empty / not-yet-built state */
+.empty {
+  padding: var(--s-6) var(--s-4);
+  text-align: center;
+  color: var(--ink-light);
+  font-size: var(--fs-sm);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--white);
+}
+.empty strong { display: block; color: var(--ink-mid); font-weight: 500; margin-bottom: var(--s-1); }
+
+/* ---------------------------------------------------------------------------
+   9. Zone dial — the signature element
+   Rendered by Shell.zoneDial(). Six segments, one per territory zone in the
+   rotation; the active zone is filled. Sizing is driven by --dial-size so the
+   same markup serves the compact (Home) and full (Route Planning) variants.
+   --------------------------------------------------------------------------- */
+.dial {
+  --dial-size: 148px;
+  position: relative;
+  width: var(--dial-size);
+  height: var(--dial-size);
+  flex: 0 0 auto;
+}
+.dial svg { width: 100%; height: 100%; }
+.dial .seg { fill: var(--teal-dim); transition: fill 160ms ease; }
+.dial .seg.is-active { fill: var(--teal); }
+.dial .seg.is-done   { fill: #A9D4D8; }
+.dial .seg-num {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  fill: var(--teal-deep);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.dial .seg.is-active + .seg-num { fill: var(--white); }
+
+.dial-center {
+  position: absolute; inset: 0;
+  display: grid; align-content: center; justify-items: center;
+  gap: 1px; pointer-events: none;
+}
+.dial-week {
+  font-family: var(--font-mono);
+  font-size: calc(var(--dial-size) * 0.24);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.dial-of {
+  font-family: var(--font-mono);
+  font-size: calc(var(--dial-size) * 0.075);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+}
+
+.dial-lg { --dial-size: 216px; }
+.dial-sm { --dial-size: 112px; }
+
+/* Dial + caption side by side */
+.dial-block { display: flex; align-items: center; gap: var(--s-5); }
+.dial-caption { display: grid; gap: var(--s-2); min-width: 0; }
+.dial-zone {
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ---------------------------------------------------------------------------
+   10. Navigation
+   Rendered by Shell.mountNav(). One component, two layouts:
+   bottom tab bar (mobile) -> left rail (>=900px).
+   --------------------------------------------------------------------------- */
+.nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 40;
+  display: flex;
+  background: var(--white);
+  box-shadow: var(--shadow-nav);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav a {
+  flex: 1 1 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px;
+  min-height: var(--nav-h);
+  padding: var(--s-1) 2px;
+  color: var(--ink-light);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  text-decoration: none;
+  border-top: 2px solid transparent;
+}
+.nav a:hover { color: var(--ink-mid); text-decoration: none; }
+.nav a svg { width: 22px; height: 22px; stroke: currentColor; fill: none;
+             stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.nav a[aria-current='page'] {
+  color: var(--teal);
+  border-top-color: var(--teal);
+}
+.nav-brand { display: none; }
+
+@media (min-width: 900px) {
+  .nav {
+    top: 0; right: auto; bottom: 0;
+    width: var(--sidebar-w);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: var(--s-5) var(--s-3);
+    border-right: 1px solid var(--rule);
+    box-shadow: none;
+  }
+  .nav-brand {
+    display: block;
+    padding: 0 var(--s-3) var(--s-5);
+    font-size: var(--fs-lg);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .nav-brand small {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+  .nav a {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--s-3);
+    min-height: 42px;
+    padding: 0 var(--s-3);
+    border-top: none;
+    border-radius: var(--r-md);
+    font-size: var(--fs-base);
+  }
+  .nav a[aria-current='page'] {
+    background: var(--teal-dim);
+    color: var(--teal-deep);
+    border-top-color: transparent;
+  }
+
+  .page {
+    margin-left: var(--sidebar-w);
+    padding: var(--s-8) var(--s-6);
+    padding-bottom: var(--s-10);
+  }
+}
+
+/* Wide enough that the rail no longer eats into the centred column */
+@media (min-width: 1180px) {
+  .page { margin-left: auto; margin-right: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

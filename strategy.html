@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Strategy &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786069221">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Strategy is a scaffold: the structure is here, the content is not. What
+     is page-scoped is the outline used to show a script's shape, and the
+     read-only note cards.
+     ----------------------------------------------------------------------- */
+
+  .planned {
+    border: 1px dashed var(--rule);
+    border-radius: var(--r-lg);
+    background: var(--white);
+    padding: var(--s-5);
+  }
+  .planned h3 { font-size: var(--fs-base); font-weight: 500; margin-bottom: var(--s-2); }
+  .planned p { font-size: var(--fs-sm); color: var(--ink-mid); line-height: 1.6; }
+
+  /* Ordered outline of a script's stages */
+  .outline { counter-reset: step; display: grid; gap: var(--s-3); margin-top: var(--s-4); }
+  .outline li {
+    counter-increment: step;
+    display: grid; grid-template-columns: 22px 1fr; gap: var(--s-3);
+    align-items: start;
+  }
+  .outline li::before {
+    content: counter(step);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--teal-deep);
+    background: var(--teal-dim);
+    border-radius: var(--r-sm);
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+  }
+  .outline .s-name { font-size: var(--fs-sm); font-weight: 500; display: block; }
+  .outline .s-note { font-size: var(--fs-xs); color: var(--ink-light); display: block; margin-top: 1px; }
+
+  .warn-box {
+    border: 1px solid var(--amber);
+    background: var(--amber-dim);
+    border-radius: var(--r-md);
+    padding: var(--s-3) var(--s-4);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
+  }
+  .warn-box strong { color: var(--amber); }
+
+  /* Read-only note card, mirroring the Follow-Up Tracker's card */
+  .note-card {
+    position: relative;
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--s-4) var(--s-4) var(--s-4) calc(var(--s-4) + 4px);
+    overflow: hidden;
+  }
+  .note-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--zone, var(--rule));
+  }
+  .note-top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: var(--s-3); flex-wrap: wrap;
+  }
+  .note-name { font-size: var(--fs-base); font-weight: 500; }
+  .note-sub { font-size: var(--fs-xs); color: var(--ink-light); }
+  .note-body {
+    margin-top: var(--s-2);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: var(--ink-mid);
+  }
+</style>
+</head>
+
+<body data-page="strategy">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Strategy</h1>
+    <span class="eyebrow mono">Scaffold</span>
+  </header>
+
+  <div class="subtabs" role="tablist" aria-label="Strategy sections"
+       data-tabs data-default="scripts">
+    <button data-panel="scripts">Scripts</button>
+    <button data-panel="objections">Objections</button>
+    <button data-panel="notes">Account notes</button>
+  </div>
+
+  <!-- ===================== DETAILING SCRIPTS ===================== -->
+  <section class="tabpanel" data-panel="scripts" role="tabpanel" aria-label="Detailing scripts">
+
+    <p class="section-label"><span>Detailing scripts</span><span class="mono">structure only</span></p>
+
+    <div class="planned">
+      <h3>NEPQ-style scripts, per product and per audience</h3>
+      <p>
+        A script here would be built for one product and one kind of audience
+        &mdash; an OD who already writes it, an OD who has never heard of it, an
+        ophthalmologist weighing it against what they use now &mdash; and would
+        follow the same stages each time:
+      </p>
+
+      <ol class="outline">
+        <li><span><span class="s-name">Connection</span>
+          <span class="s-note">Open without pitching. Earn the next two minutes.</span></span></li>
+        <li><span><span class="s-name">Situation</span>
+          <span class="s-note">What they reach for now, and for which patient.</span></span></li>
+        <li><span><span class="s-name">Problem awareness</span>
+          <span class="s-note">Where that current choice costs them something.</span></span></li>
+        <li><span><span class="s-name">Consequence</span>
+          <span class="s-note">What it costs the patient or the practice if nothing changes.</span></span></li>
+        <li><span><span class="s-name">Solution awareness</span>
+          <span class="s-note">The product, framed against the gap they just described.</span></span></li>
+        <li><span><span class="s-name">Commitment</span>
+          <span class="s-note">A specific next step &mdash; a patient type to try it on, not &ldquo;think about it&rdquo;.</span></span></li>
+      </ol>
+    </div>
+
+    <p class="section-label"><span>Before any script ships</span></p>
+
+    <div class="warn-box">
+      <strong>Anecdotes must be real.</strong> Several stages above have a slot
+      for a story &mdash; another practice&rsquo;s result, an outcome you heard
+      about. Those slots stay empty until you fill them from an actual account.
+      In front of a clinical audience an invented anecdote is not a small
+      embellishment; it is a claim about patient outcomes, and it will not
+      survive one follow-up question.
+    </div>
+  </section>
+
+  <!-- ===================== OBJECTIONS ===================== -->
+  <section class="tabpanel" data-panel="objections" role="tabpanel" aria-label="Objection handling">
+
+    <p class="section-label"><span>Objection handling</span><span class="mono">structure only</span></p>
+
+    <div class="planned">
+      <h3>A reference you can open in the parking lot</h3>
+      <p>
+        One entry per objection you actually hear &mdash; cost, coverage,
+        &ldquo;I already use something for that&rdquo;, compounding-pharmacy
+        hesitancy, turnaround time &mdash; each with the response that has
+        worked and the one that has not. This is a lookup, not a script: the
+        value is finding the right one in fifteen seconds between visits.
+      </p>
+      <p style="margin-top:var(--s-3);">
+        Nothing is seeded here on purpose. The list is worth building from
+        objections you have actually logged; a generic set would look finished
+        while being wrong for your territory.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== ACCOUNT NOTES ===================== -->
+  <section class="tabpanel" data-panel="notes" role="tabpanel" aria-label="Account notes">
+
+    <p class="section-label">
+      <span>Account notes</span>
+      <span class="mono" id="notesCount"></span>
+    </p>
+
+    <p class="hint" style="margin-bottom:var(--s-4);">
+      Read-only. These are the notes on your prescriber cards &mdash; the same
+      field, not a second copy. Edit them in Prescriptions and they change here.
+    </p>
+
+    <div class="stack" id="noteList"></div>
+    <div class="empty" id="notesEmpty" hidden></div>
+  </section>
+
+</main>
+
+<script src="assets/js/data-store.js?v=1786146009"></script>
+<script src="assets/js/shell.js?v=1786144357"></script>
+<script>
+/* ===========================================================================
+   Strategy — scaffold.
+
+   Two of the three sections are structure only. They describe what belongs
+   there and deliberately seed no content: a generic objection list or an
+   invented script would be worse than an empty one, because it would look
+   finished.
+
+   The third is a READ-ONLY view. §3 lists "per-prescriber account notes" here,
+   but the Follow-Up Tracker already has a notes field per doctor. A second one
+   would be exactly the duplicate-entry friction §7 warns about, so this reads
+   th_prescribers_followups rather than competing with it.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  function renderNotes() {
+    var roster = Store.prescribers.readRoster();
+    var followups = Store.prescribers.readFollowups() || {};
+    var host = document.getElementById('noteList');
+    var empty = document.getElementById('notesEmpty');
+    var count = document.getElementById('notesCount');
+
+    if (!roster || !roster.prescribers || !roster.prescribers.length) {
+      host.innerHTML = '';
+      count.textContent = '';
+      empty.hidden = false;
+      empty.innerHTML = '<strong>No prescriber data yet</strong>' +
+        'Import a dispensing export in Prescriptions, then any note you write ' +
+        'on a doctor shows up here.';
+      return;
+    }
+
+    /* Only doctors carrying an actual note. Flagged first, then most recently
+       edited — the same priority order the tracker itself uses. */
+    var withNotes = roster.prescribers.map(function (p) {
+      var fu = followups[p.id] || {};
+      return {
+        p: p,
+        notes: (fu.notes || '').trim(),
+        flagged: !!fu.flagged,
+        zone: fu.zone || '',
+        updatedAt: fu.updatedAt || ''
+      };
+    }).filter(function (e) { return e.notes; });
+
+    withNotes.sort(function (a, b) {
+      if (a.flagged !== b.flagged) return a.flagged ? -1 : 1;
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+    });
+
+    count.textContent = withNotes.length + ' of ' + roster.prescribers.length;
+
+    if (!withNotes.length) {
+      host.innerHTML = '';
+      empty.hidden = false;
+      empty.innerHTML = '<strong>No notes written yet</strong>' +
+        'Notes you add to a doctor in Prescriptions appear here, newest first.';
+      return;
+    }
+
+    empty.hidden = true;
+    host.innerHTML = withNotes.map(function (e) {
+      var z = e.zone ? Shell.zoneById(e.zone) : null;
+      return '<article class="note-card"' + (z ? ' style="--zone:' + z.color + '"' : '') + '>' +
+        '<div class="note-top">' +
+          '<div>' +
+            '<div class="note-name">' + Shell.escapeHtml(e.p.name) + '</div>' +
+            '<div class="note-sub">' +
+              Shell.escapeHtml([e.p.title, e.p.city].filter(Boolean).join(', ')) + '</div>' +
+          '</div>' +
+          '<div class="row" style="gap:var(--s-1)">' +
+            (e.flagged ? '<span class="pill pill-bad">Priority</span>' : '') +
+            (z ? '<span class="zone-chip" style="--zone:' + z.color + '">' +
+                 '<span class="zone-dot" style="--zone:' + z.color + '"></span>Wk ' + z.week +
+                 '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="note-body">' + Shell.escapeHtml(e.notes) + '</div>' +
+      '</article>';
+    }).join('');
+  }
+
+  Shell.ready(function () {
+    renderNotes();
+    /* Repaint if Prescriptions is edited in another tab. */
+    Store.onChange(function (key) {
+      if (key === Store.KEYS.prescriberFollow || key === Store.KEYS.prescriberRoster) {
+        renderNotes();
+      }
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

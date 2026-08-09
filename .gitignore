@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# Account book — your customer list. Do not commit.
+#
+# data/ holds ~220 named clinics with doctor names, gatekeeper names, internal
+# email addresses, purchasing status and Top 25 flags. Keep it out of the repo
+# even if the repo is private: git history is forever, and a repo that starts
+# private does not always stay that way.
+#
+# Everything needed to REBUILD the book is tracked (tools/build-book.ps1 and the
+# app itself); only the data is excluded.
+# ---------------------------------------------------------------------------
+data/
+!data/README.md
+
+# Local plan exports / scratch
+*.local.json
+plan-*.txt
+
+# OS + editor noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Claude Code local settings (machine-specific paths/permissions)
+.claude/settings.local.json

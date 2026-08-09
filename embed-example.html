@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Route Board — embedding example</title>
+<style>
+  /* ------------------------------------------------------------------
+     This page pretends to be the larger dashboard. Note that it defines
+     its own .card, .btn, .day and .search — the same class names the
+     Route Board uses internally — plus a global box-sizing reset and a
+     bare button{} rule. None of it reaches inside the board, and none of
+     the board's styles reach out here. That is the shadow root doing its
+     job; no class prefixing was needed.
+     ------------------------------------------------------------------ */
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:#f4f1ec; color:#2a2622;
+    font-family:Georgia, 'Times New Roman', serif; font-size:16px;
+  }
+  header.top{
+    background:#2a2622; color:#f4f1ec; padding:14px 20px;
+    display:flex; align-items:baseline; gap:14px;
+  }
+  header.top h1{font-size:19px; margin:0; font-weight:normal; letter-spacing:0.02em;}
+  header.top span{font-size:13px; opacity:0.65;}
+  .wrap{max-width:1180px; margin:0 auto; padding:20px;}
+
+  /* Host-page components that share names with the board's internals */
+  .card{
+    background:#fffdf9; border:3px dashed #b9302a; border-radius:0;
+    padding:22px; margin-bottom:18px; box-shadow:4px 4px 0 #e2ddd3;
+  }
+  .card h2{margin:0 0 6px; font-size:17px;}
+  .card p{margin:0; font-size:14px; color:#6b635a;}
+  .btn{
+    background:#b9302a; color:#fff; border:none; border-radius:0;
+    padding:11px 20px; font-family:inherit; font-size:15px; cursor:pointer;
+  }
+  .search{border:3px solid #2a2622; padding:10px; width:260px; font-family:inherit;}
+  .day{color:#b9302a; font-weight:bold;}
+  button{font-size:15px;}
+
+  .metrics{display:flex; gap:14px; margin-bottom:18px;}
+  .metrics .card{flex:1; margin:0; text-align:center;}
+  .metrics b{font-size:26px; display:block;}
+
+  /* The board gets a plain sized box. It fills the height it is given. */
+  #board{
+    height:560px;
+    border:3px dashed #b9302a;
+    box-shadow:4px 4px 0 #e2ddd3;
+  }
+  .board-label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:8px;
+  }
+  .board-label h2{font-size:17px; margin:0;}
+  .board-label span{font-size:13px; color:#6b635a;}
+</style>
+</head>
+<body>
+  <header class="top">
+    <h1>Sales Dashboard</h1>
+    <span>pretend host application</span>
+  </header>
+
+  <div class="wrap">
+    <div class="metrics">
+      <div class="card"><b>219</b>accounts</div>
+      <div class="card"><b>41</b>Top 25</div>
+      <div class="card"><b>6</b>territories</div>
+    </div>
+
+    <div class="card">
+      <h2>Host page controls</h2>
+      <p>These use the same class names as the board's internals. They keep their own
+         look, and the board keeps its own — neither stylesheet reaches the other.</p>
+      <p style="margin-top:12px;">
+        <input class="search" placeholder="a host-page search box">
+        <button class="btn">A host-page button</button>
+        <span class="day">A host-page .day</span>
+      </p>
+    </div>
+
+    <div class="board-label">
+      <h2>Route planning</h2>
+      <span>mounted into a 560px box, not the viewport</span>
+    </div>
+    <div id="board"></div>
+  </div>
+
+  <script src="data/accounts.js?v=1785987451" charset="utf-8"></script>
+  <script src="route-board.js?v=1786069332" charset="utf-8"></script>
+  <script>
+    // Mount into any container. Options are optional:
+    //   { book, storagePrefix }
+    window.board = RouteBoard.mount(document.getElementById('board'), {
+      storagePrefix: 'dashboardRouteBoard'
+    });
+  </script>
+</body>
+</html>

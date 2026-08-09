@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786069221">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Home-only layout. Anything reusable belongs in shell.css instead —
+     these rules exist because the week strip and dial header appear on this
+     page and nowhere else.
+     ----------------------------------------------------------------------- */
+  .hero { display: grid; gap: var(--s-5); }
+  @media (min-width: 480px) {
+    .hero { grid-template-columns: auto 1fr; align-items: center; }
+  }
+
+  .week-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--s-2);
+  }
+  .week-strip > div {
+    display: grid; gap: 2px; justify-items: center;
+    padding: var(--s-2) var(--s-1);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    background: var(--bg);
+  }
+  .week-strip .d {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+  .week-strip .n {
+    font-family: var(--font-mono);
+    font-size: var(--fs-lg);
+    font-weight: 500;
+    line-height: 1.15;
+  }
+  .week-strip .is-today { border-color: var(--teal); background: var(--teal-dim); }
+  .week-strip .is-today .d { color: var(--teal-deep); }
+
+  /* Today's route note, above the week strip */
+  .today-note {
+    display: flex; align-items: baseline; gap: var(--s-3);
+    padding: var(--s-3);
+    margin-bottom: var(--s-3);
+    background: var(--teal-dim);
+    border-radius: var(--r-md);
+  }
+  .today-label {
+    font-size: var(--fs-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    flex-shrink: 0;
+  }
+  .today-text { font-size: var(--fs-sm); color: var(--ink); line-height: 1.45; }
+
+  /* "N waiting on the route you're working" line */
+  .on-route {
+    display: flex; align-items: center; gap: var(--s-2);
+    margin-top: var(--s-3);
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-sm);
+    color: var(--ink-mid);
+  }
+  .on-route b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+
+  .home-foot {
+    margin-top: var(--s-8);
+    font-size: var(--fs-xs);
+    color: var(--ink-light);
+    text-align: center;
+  }
+</style>
+</head>
+
+<body data-page="home">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Territory Hub</h1>
+    <span class="eyebrow mono">Overview</span>
+  </header>
+
+  <!-- ---------------------------------------------------------------------
+       Rotation dial. The one element on Home that is not a link out — it is
+       orientation, not a task. Filled from th_schedule_summary.
+       --------------------------------------------------------------------- -->
+  <section class="card" id="heroCard">
+    <div class="hero">
+      <div id="heroDial"></div>
+      <div class="dial-caption">
+        <span class="eyebrow mono">Current route</span>
+        <span class="dial-zone" id="heroZone">&mdash;</span>
+        <span class="mono" style="font-size:var(--fs-sm); color:var(--ink-light);"
+              id="heroDates"></span>
+        <span class="row" id="heroPills"></span>
+      </div>
+    </div>
+  </section>
+
+  <p class="section-label"><span>This week</span><span class="mono" id="freshness"></span></p>
+
+  <div class="stack">
+
+    <!-- Route ------------------------------------------------------------ -->
+    <a class="card card-link" href="route-planning.html">
+      <div class="card-head">
+        <h2>This week&rsquo;s route</h2>
+        <span id="routeBadge"></span>
+      </div>
+      <div id="routeBody"></div>
+      <div class="card-foot row-between">
+        <span class="stat-label" id="routeFoot"></span>
+        <span class="card-cta">Open Route Planning
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+        </span>
+      </div>
+    </a>
+
+    <!-- Bonus ------------------------------------------------------------ -->
+    <a class="card card-link" href="sales.html">
+      <div class="card-head">
+        <h2>Bonus tier progress</h2>
+        <span id="bonusBadge"></span>
+      </div>
+      <div id="bonusBody"></div>
+      <div class="card-foot row-between">
+        <span class="stat-label" id="bonusFoot"></span>
+        <span class="card-cta">Open Sales
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+        </span>
+      </div>
+    </a>
+
+    <!-- Follow-ups -------------------------------------------------------- -->
+    <a class="card card-link" href="prescriptions.html">
+      <div class="card-head">
+        <h2>Prescription follow-ups</h2>
+        <span id="rxBadge"></span>
+      </div>
+      <div id="rxBody"></div>
+      <div class="card-foot row-between">
+        <span class="stat-label" id="rxFoot"></span>
+        <span class="card-cta">Open Prescriptions
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+        </span>
+      </div>
+    </a>
+
+  </div>
+
+  <p class="section-label"><span>Reference</span></p>
+
+  <a class="card card-link" href="strategy.html">
+    <div class="card-head">
+      <h2>Strategy</h2>
+      <span class="pill">Scaffold</span>
+    </div>
+    <p class="stat-label">Detailing scripts, objection handling, account notes.</p>
+  </a>
+
+</main>
+
+<script src="assets/js/data-store.js?v=1786146009"></script>
+<script src="assets/js/shell.js?v=1786144357"></script>
+<script>
+/* ===========================================================================
+   Home — reads only. Every number on this page comes from a summary written
+   by the pillar that owns it; Home never re-parses raw tool data. That is
+   what keeps it a live overview instead of a mockup you have to remember to
+   update.
+
+   A card with no summary yet shows an honest empty state naming the tool that
+   fills it, rather than a plausible-looking fake.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  var ARROW = '';
+
+  /* A summary older than this is shown with its age, so a stale report cannot
+     quietly read as today's position. */
+  var STALE_DAYS = 8;
+
+  function daysOld(iso) {
+    if (!iso) return null;
+    return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  }
+
+  function ageNote(iso) {
+    var d = daysOld(iso);
+    if (d === null) return '';
+    if (d <= 0) return 'updated today';
+    if (d === 1) return 'updated yesterday';
+    return 'updated ' + d + ' days ago';
+  }
+
+  function empty(msg) {
+    return '<p class="stat-label">' + msg + '</p>';
+  }
+
+  function money(n) {
+    if (typeof n !== 'number' || isNaN(n)) return '—';
+    return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  /* --- Hero: current route from th_schedule_summary ---------------------- */
+
+  function renderHero() {
+    var s = Store.schedule.readSummary();
+    var week = s && s.weekNum ? s.weekNum : 1;
+
+    Shell.zoneDial(document.getElementById('heroDial'), { week: week, totalWeeks: 6 });
+
+    if (!s) {
+      document.getElementById('heroZone').textContent = 'No route set';
+      document.getElementById('heroDates').textContent = '';
+      document.getElementById('heroPills').innerHTML =
+        '<span class="pill">Open Route Planning to set your cycle</span>';
+      return;
+    }
+
+    document.getElementById('heroZone').textContent = s.zone || '—';
+    document.getElementById('heroDates').textContent = s.dateRange || '';
+
+    /* Colour the caption by the route, matching the swatch system. */
+    var z = Shell.zoneByName(s.zone);
+    var pills = '';
+    if (z) {
+      pills += '<span class="zone-chip" style="--zone:' + z.color + '">' +
+               '<span class="zone-dot" style="--zone:' + z.color + '"></span>Week ' +
+               z.week + '</span>';
+    }
+    if (s.followup) {
+      pills += '<span class="pill pill-accent">' + Shell.escapeHtml(s.followup) + '</span>';
+    }
+    document.getElementById('heroPills').innerHTML = pills;
+  }
+
+  /* --- Route Board day counts (read straight from its own store) --------- */
+
+  function renderRoute() {
+    var counts = Store.routeBoard.dayCounts();
+    var s = Store.schedule.readSummary();
+    var body = document.getElementById('routeBody');
+    var badge = document.getElementById('routeBadge');
+    var foot = document.getElementById('routeFoot');
+
+    var todayIdx = (new Date().getDay() + 6) % 7;   /* 0 = Monday, 5/6 = weekend */
+    var isWeekday = todayIdx <= 4;
+
+    /* Today's route note, carried in th_schedule_summary.days. This is the
+       "events" idea from the plan, resolved as a view: Schedule Builder
+       already holds these notes, so Home shows them rather than offering a
+       second place to type them. */
+    var todayLine = '';
+    if (isWeekday && s && s.days && s.days[todayIdx] && String(s.days[todayIdx]).trim()) {
+      var dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      todayLine =
+        '<div class="today-note">' +
+          '<span class="today-label mono">' + dayName + '</span>' +
+          '<span class="today-text">' + Shell.escapeHtml(String(s.days[todayIdx]).trim()) + '</span>' +
+        '</div>';
+    }
+
+    if (!counts) {
+      badge.outerHTML = '<span class="pill" id="routeBadge">' +
+                        (todayLine ? 'From schedule' : 'Not planned') + '</span>';
+      body.innerHTML = todayLine ||
+        empty('No week planned yet on the Route Board.');
+      foot.textContent = todayLine ? 'Schedule Builder' : 'Route Board';
+      return;
+    }
+
+    var days = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri']];
+    var total = 0;
+
+    body.innerHTML = todayLine + '<div class="week-strip">' + days.map(function (d, i) {
+      total += counts[d[0]];
+      return '<div' + (i === todayIdx ? ' class="is-today"' : '') + '>' +
+             '<span class="d">' + d[1] + '</span>' +
+             '<span class="n">' + counts[d[0]] + '</span></div>';
+    }).join('') + '</div>';
+
+    badge.outerHTML = '<span class="pill pill-accent" id="routeBadge">' + total + ' stops</span>';
+    foot.textContent = total === 1 ? '1 account assigned' : total + ' accounts assigned';
+  }
+
+  /* --- Bonus ------------------------------------------------------------- */
+
+  function renderBonus() {
+    var s = Store.bonus.readSummary();
+    var body = document.getElementById('bonusBody');
+    var badge = document.getElementById('bonusBadge');
+    var foot = document.getElementById('bonusFoot');
+
+    if (!s) {
+      badge.outerHTML = '<span class="pill" id="bonusBadge">No report</span>';
+      body.innerHTML = empty('Upload an NQV and NQ report to see growth and bonus.');
+      foot.textContent = 'Bonus Tracker';
+      return;
+    }
+
+    var pct = typeof s.growthPct === 'number' ? s.growthPct : null;
+    var earned = typeof s.bonusEarned === 'number' ? s.bonusEarned : 0;
+    var possible = typeof s.bonusPossible === 'number' ? s.bonusPossible : 0;
+    var frac = possible > 0 ? Math.max(0, Math.min(1, earned / possible)) : 0;
+
+    body.innerHTML =
+      '<div class="stack-tight">' +
+        '<div class="row-between">' +
+          '<span class="stat">' +
+            '<span class="stat-value" style="color:' + (s.onTrack ? 'var(--green)' : 'var(--red)') + '">' +
+              (pct === null ? '—' : (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%') + '</span>' +
+            '<span class="stat-label">category growth</span>' +
+          '</span>' +
+        '</div>' +
+        '<div class="progress ' + (s.onTrack ? 'is-ok' : 'is-warn') + '" role="img" aria-label="' +
+          money(earned) + ' of ' + money(possible) + ' possible bonus earned">' +
+          '<span style="width:' + (frac * 100).toFixed(0) + '%"></span>' +
+        '</div>' +
+        '<div class="row-between">' +
+          '<span class="stat-label mono">' + money(earned) + ' earned</span>' +
+          '<span class="stat-label mono">' + money(possible) + ' possible</span>' +
+        '</div>' +
+      '</div>';
+
+    badge.outerHTML = '<span class="pill ' + (s.onTrack ? 'pill-ok' : 'pill-bad') + '" id="bonusBadge">' +
+                      (s.onTrack ? 'On track' : 'At risk') + '</span>';
+    foot.textContent = (s.reportDate ? 'Report of ' + s.reportDate : 'Bonus Tracker') +
+                       (daysOld(s.updatedAt) >= STALE_DAYS ? ' · ' + ageNote(s.updatedAt) : '');
+  }
+
+  /* --- Prescription follow-ups ------------------------------------------- */
+
+  function renderRx() {
+    var s = Store.prescribers.readSummary();
+    var body = document.getElementById('rxBody');
+    var badge = document.getElementById('rxBadge');
+    var foot = document.getElementById('rxFoot');
+
+    if (!s) {
+      badge.outerHTML = '<span class="pill" id="rxBadge">No data</span>';
+      body.innerHTML = empty('Import a dispensing export to track follow-ups.');
+      foot.textContent = 'Follow-Up Tracker';
+      return;
+    }
+
+    var need = s.needFollowUp || 0;
+    var flagged = s.flagged || 0;
+
+    /* What is waiting on the route being worked THIS week. The counts are
+       tallied by Prescriptions into the summary, so Home still never touches
+       the roster; all it does here is look up the current zone's bucket. */
+    var sched = Store.schedule.readSummary();
+    var zone = sched ? Shell.zoneByName(sched.zone) : null;
+    var onRoute = (zone && s.byRoute && s.byRoute[zone.id]) || null;
+
+    body.innerHTML =
+      '<div class="stat-row">' +
+        '<span class="stat">' +
+          '<span class="stat-value"' + (need ? ' style="color:var(--amber)"' : '') + '>' + need + '</span>' +
+          '<span class="stat-label">to follow up</span>' +
+        '</span>' +
+        '<span class="stat">' +
+          '<span class="stat-value"' + (flagged ? ' style="color:var(--red)"' : '') + '>' + flagged + '</span>' +
+          '<span class="stat-label">flagged</span>' +
+        '</span>' +
+      '</div>' +
+      (onRoute && onRoute.open
+        ? '<div class="on-route" style="--zone:' + zone.color + '">' +
+            '<span class="zone-dot" style="--zone:' + zone.color + '"></span>' +
+            '<span><b>' + onRoute.open + '</b> on ' + Shell.escapeHtml(zone.name) +
+            ' this week' + (onRoute.flagged ? ' · <b>' + onRoute.flagged + '</b> flagged' : '') +
+            '</span>' +
+          '</div>'
+        : '');
+
+    badge.outerHTML = '<span class="pill ' + (need ? 'pill-warn' : 'pill-ok') + '" id="rxBadge">' +
+                      (need ? need + ' open' : 'all clear') + '</span>';
+    foot.textContent = 'Prescriber follow-up tracker';
+  }
+
+  /* --- Freshness --------------------------------------------------------- */
+
+  function renderFreshness() {
+    var stamps = [
+      (Store.schedule.readSummary() || {}).updatedAt,
+      (Store.bonus.readSummary() || {}).updatedAt,
+      (Store.prescribers.readSummary() || {}).updatedAt
+    ].filter(Boolean);
+    if (!stamps.length) { document.getElementById('freshness').textContent = 'no data yet'; return; }
+    stamps.sort();
+    document.getElementById('freshness').textContent = ageNote(stamps[stamps.length - 1]);
+  }
+
+  function renderAll() {
+    renderHero();
+    renderRoute();
+    renderBonus();
+    renderRx();
+    renderFreshness();
+  }
+
+  Shell.ready(function () {
+    renderAll();
+    /* Repaint if another tab writes a summary while this one is open. */
+    Store.onChange(renderAll);
+  });
+
+})();
+</script>
+</body>
+</html>

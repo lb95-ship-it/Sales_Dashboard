@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Sales &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786069221">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Bonus Tracker's own layout. Card, pill, button, input, section-label and
+     the type scale all come from shell.css — what is here is the report
+     slots, the category table, the discrepancy rows and the export modal,
+     none of which exist on another page.
+     ----------------------------------------------------------------------- */
+
+  /* Report slots */
+  .slots { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+  .slot {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    padding: var(--s-4) var(--s-3);
+    text-align: center;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .slot:hover { border-color: var(--teal); }
+  .slot.filled { border-color: var(--green); background: var(--green-dim); }
+  /* These are spans inside a <button>; without this they run together on one
+     line instead of stacking. */
+  .slot-tag, .slot-label, .slot-fname { display: block; }
+  .slot-tag {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .slot-tag.nqv { color: var(--teal); }
+  .slot-tag.nq  { color: var(--purple); }
+  .slot-label { font-size: var(--fs-sm); font-weight: 500; margin-top: var(--s-2); }
+  .slot-fname {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--ink-light);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .slot.filled .slot-fname { color: var(--green); }
+  input[type=file] { display: none; }
+
+  /* Comparison blocks */
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+  .cmp-label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .cmp-label.nqv { color: var(--teal); }
+  .cmp-label.nq  { color: var(--purple); }
+  .cmp-overall {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xl);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-top: var(--s-2);
+  }
+  .cmp-overall.pos { color: var(--green); }
+  .cmp-overall.neg { color: var(--red); }
+  .cmp-sub { font-size: var(--fs-sm); color: var(--ink-light); margin-top: 2px; }
+
+  /* Key/value rows inside a card */
+  .kv {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--s-3);
+    background: var(--bg);
+    border-radius: var(--r-md);
+    padding: var(--s-2) var(--s-3);
+    margin-bottom: var(--s-2);
+  }
+  .kv:last-child { margin-bottom: 0; }
+  .kv-label { font-size: var(--fs-sm); color: var(--ink-mid); }
+  .kv-val { font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 500; }
+
+  /* Tables — wide, so they scroll inside their own card */
+  .table-wrap { overflow-x: auto; }
+  table.data { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  table.data thead th {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    padding: 0 var(--s-2) var(--s-2) 0;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.data thead th:first-child { text-align: left; padding-left: 0; }
+  table.data tbody td {
+    padding: var(--s-2) var(--s-2) var(--s-2) 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-mid);
+    text-align: right;
+    white-space: nowrap;
+  }
+  table.data tbody td:first-child {
+    text-align: left; padding-left: 0;
+    color: var(--ink); font-weight: 500;
+  }
+  table.data tbody tr:last-child td { border-bottom: none; }
+  table.data tr.total-row td {
+    color: var(--ink); font-weight: 500;
+    border-top: 1px solid var(--ink-faint);
+    border-bottom: none;
+    padding-top: var(--s-3);
+  }
+  .num { font-family: var(--font-mono); font-size: var(--fs-xs); }
+
+  /* Bonus-eligible marker */
+  .bdot {
+    display: inline-block; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--amber);
+    margin-left: 5px; vertical-align: middle;
+  }
+
+  /* Offices to visit */
+  .disc-item {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: var(--s-3);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--amber);
+    border-radius: var(--r-md);
+    padding: var(--s-3);
+    margin-bottom: var(--s-2);
+  }
+  .disc-cat { font-size: var(--fs-sm); font-weight: 500; }
+  .disc-detail { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
+  .disc-diff { font-family: var(--font-mono); font-size: var(--fs-base); font-weight: 500; color: var(--amber); }
+
+  /* Targets */
+  .target-row { padding: var(--s-3) 0; border-bottom: 1px solid var(--rule); }
+  .target-row:last-child { border-bottom: none; }
+  .target-name { font-size: var(--fs-sm); font-weight: 500; }
+  .target-sub { font-size: var(--fs-xs); color: var(--ink-light); font-weight: 400; }
+  .target-inputs { display: flex; gap: var(--s-3); margin-top: var(--s-2); }
+  .target-inputs > div { flex: 1; display: grid; gap: 3px; }
+  .target-col {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .target-col.nqv { color: var(--teal); }
+  .target-col.nq  { color: var(--purple); }
+  .target-inputs input {
+    width: 100%; min-height: 36px;
+    padding: var(--s-1) var(--s-2);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    text-align: right;
+  }
+  .target-inputs input:focus {
+    outline: none; border-color: var(--teal);
+    box-shadow: 0 0 0 3px var(--teal-dim);
+  }
+
+  /* Disclosure header */
+  .disclosure {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--s-3);
+    width: 100%; padding: 0; margin: 0;
+    background: none; border: none; cursor: pointer;
+    font: inherit; color: inherit; text-align: left;
+  }
+  .disclosure .chev { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
+
+  /* Error banner */
+  .err {
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    border-radius: var(--r-md);
+    padding: var(--s-3);
+    font-size: var(--fs-sm);
+    color: var(--red);
+  }
+
+  /* Loading */
+  .loading { text-align: center; padding: var(--s-8) var(--s-4); }
+  .spinner {
+    width: 28px; height: 28px; margin: 0 auto var(--s-3);
+    border: 2px solid var(--rule);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Export modal */
+  .modal-back {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(28,28,30,0.45);
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .modal-back.open { display: flex; }
+  .modal {
+    background: var(--white);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    width: 100%; max-width: var(--content-max);
+    max-height: 85vh;
+    display: flex; flex-direction: column;
+  }
+  @media (min-width: 640px) {
+    .modal-back { align-items: center; padding: var(--s-5); }
+    .modal { border-radius: var(--r-lg); }
+  }
+  .modal-head, .modal-foot {
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-4);
+    flex-shrink: 0;
+  }
+  .modal-head { justify-content: space-between; border-bottom: 1px solid var(--rule); }
+  .modal-foot { border-top: 1px solid var(--rule); }
+  .modal-head h2 { font-size: var(--fs-lg); font-weight: 500; }
+  .modal-body { padding: var(--s-4); overflow-y: auto; flex: 1; }
+  .export-text {
+    width: 100%; height: 300px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    padding: var(--s-3);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    line-height: 1.6;
+    resize: none;
+    white-space: pre;
+  }
+</style>
+</head>
+
+<body data-page="sales">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Sales</h1>
+    <span class="eyebrow mono" id="hdrSub">Bonus Tracker</span>
+  </header>
+
+  <!-- ===================== UPLOAD ===================== -->
+  <section id="uploadView">
+
+    <p class="section-label">
+      <span>Current period</span>
+      <span class="mono">required</span>
+    </p>
+
+    <div class="slots">
+      <button type="button" class="slot" id="slot-nqv-curr" data-slot="nqv-curr">
+        <span class="slot-tag nqv">NoQualVisit</span>
+        <span class="slot-label">Current period</span>
+        <span class="slot-fname" id="fn-nqv-curr">Tap to upload</span>
+      </button>
+      <button type="button" class="slot" id="slot-nq-curr" data-slot="nq-curr">
+        <span class="slot-tag nq">NoQual</span>
+        <span class="slot-label">Current period</span>
+        <span class="slot-fname" id="fn-nq-curr">Tap to upload</span>
+      </button>
+    </div>
+
+    <p class="section-label">
+      <span>Last year</span>
+      <span class="mono">optional</span>
+    </p>
+
+    <div class="slots">
+      <button type="button" class="slot" id="slot-nqv-prior" data-slot="nqv-prior">
+        <span class="slot-tag nqv">NoQualVisit</span>
+        <span class="slot-label">Same period last year</span>
+        <span class="slot-fname" id="fn-nqv-prior">Tap to upload</span>
+      </button>
+      <button type="button" class="slot" id="slot-nq-prior" data-slot="nq-prior">
+        <span class="slot-tag nq">NoQual</span>
+        <span class="slot-label">Same period last year</span>
+        <span class="slot-fname" id="fn-nq-prior">Tap to upload</span>
+      </button>
+    </div>
+
+    <input type="file" id="f-nqv-curr"  accept=".pdf">
+    <input type="file" id="f-nq-curr"   accept=".pdf">
+    <input type="file" id="f-nqv-prior" accept=".pdf">
+    <input type="file" id="f-nq-prior"  accept=".pdf">
+
+    <p class="section-label"><span>Targets</span></p>
+
+    <div class="card">
+      <button type="button" class="disclosure" id="targToggle"
+              aria-expanded="false" aria-controls="targBody">
+        <span style="font-size:var(--fs-lg);font-weight:500;">Category targets</span>
+        <span class="chev" id="targChev">optional &#9660;</span>
+      </button>
+      <div id="targBody" hidden style="margin-top:var(--s-4);">
+        <p class="hint" style="margin-bottom:var(--s-3);">
+          Enter the remaining dollar amount still needed to reach your next bonus
+          tier in each category.
+        </p>
+        <div id="targetInputs"></div>
+      </div>
+    </div>
+
+    <div class="err" id="errMsg" hidden style="margin-top:var(--s-4);"></div>
+
+    <div style="margin-top:var(--s-5);">
+      <button class="btn btn-primary btn-block" id="analyzeBtn" disabled
+              style="min-height:46px;">View dashboard</button>
+    </div>
+
+    <p class="hint" style="text-align:center; margin-top:var(--s-4);">
+      All processing happens in your browser. No data leaves your device.
+    </p>
+  </section>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section id="dashView" hidden>
+    <div class="loading" id="loadingCard" hidden>
+      <div class="spinner"></div>
+      <p class="stat-label">Reading PDFs&hellip;</p>
+    </div>
+    <div id="dashContent"></div>
+  </section>
+
+</main>
+
+<!-- Export modal -->
+<div class="modal-back" id="modalBg" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">Export for AI analysis</h2>
+      <button class="btn btn-sm" id="modalClose">Close</button>
+    </div>
+    <div class="modal-body">
+      <textarea class="export-text mono" id="exportText" readonly aria-label="Export text"></textarea>
+      <p class="hint" style="margin-top:var(--s-2);">
+        Copy this and paste it into any AI chat, then ask for analysis, a narrative
+        summary, or recommendations.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="copyExportBtn" style="flex:1;">Copy to clipboard</button>
+      <button class="btn" id="modalDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="assets/js/data-store.js?v=1786146009"></script>
+<script src="assets/js/shell.js?v=1786144357"></script>
+<script>
+/* ===========================================================================
+   Bonus Tracker — page-scoped.
+
+   Migrated from the standalone Territory Sales Dashboard. The PDF parsing is
+   carried over unchanged: it is tuned against real NQV/NQ exports and there is
+   no way to re-verify it here without those files, so it was not touched.
+
+   Phase 4 adds two things:
+     1. th_bonus_summary is written for Home after a successful parse.
+     2. th_bonus_lastUpload caches the parsed report, so returning to this page
+        restores the dashboard instead of demanding the PDFs again. The PDFs
+        themselves are never stored — only the parsed numbers.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  var CATEGORIES = [
+    { id:'2',  name:'Group 10',      bonus:false },
+    { id:'3',  name:'Surgical',      bonus:false },
+    { id:'4',  name:'Quintess',      bonus:true  },
+    { id:'5',  name:'Eyelid Hygiene',bonus:true  },
+    { id:'10', name:'Surgical Kits', bonus:false },
+    { id:'16', name:'Retaine Tears', bonus:true  },
+    { id:'17', name:'Retaine Supp.', bonus:true  },
+    { id:'18', name:'Zoria',         bonus:false },
+    { id:'20', name:'Device',        bonus:true  },
+    { id:'21', name:'Allergy',       bonus:true  }
+  ];
+
+  var SLOTS = ['nqv-curr', 'nq-curr', 'nqv-prior', 'nq-prior'];
+  var pdfTexts = {};
+  var parsedData = {};
+  var targetsOpen = false;
+
+  /* --- Targets ----------------------------------------------------------- */
+
+  function buildTargetInputs() {
+    document.getElementById('targetInputs').innerHTML = CATEGORIES.map(function (c) {
+      return '<div class="target-row">' +
+        '<div class="target-name">' + c.name +
+          (c.bonus ? '<span class="bdot"></span>' : '') +
+          ' <span class="target-sub">' + (c.bonus ? 'Bonus eligible' : 'Non-bonus') + '</span></div>' +
+        '<div class="target-inputs">' +
+          '<div><label class="target-col nqv" for="tgt-nqv-' + c.id + '">NQV still needed</label>' +
+            '<input type="text" inputmode="decimal" id="tgt-nqv-' + c.id + '" placeholder="$0.00"></div>' +
+          '<div><label class="target-col nq" for="tgt-nq-' + c.id + '">NQ still needed</label>' +
+            '<input type="text" inputmode="decimal" id="tgt-nq-' + c.id + '" placeholder="$0.00"></div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function getTargets() {
+    var out = {};
+    CATEGORIES.forEach(function (c) {
+      var nqv = document.getElementById('tgt-nqv-' + c.id).value.replace(/[$,]/g, '').trim();
+      var nq  = document.getElementById('tgt-nq-'  + c.id).value.replace(/[$,]/g, '').trim();
+      if (nqv && !isNaN(parseFloat(nqv))) { out[c.id] = out[c.id] || {}; out[c.id].nqv = parseFloat(nqv); }
+      if (nq  && !isNaN(parseFloat(nq)))  { out[c.id] = out[c.id] || {}; out[c.id].nq  = parseFloat(nq);  }
+    });
+    return out;
+  }
+
+  function applyTargets(t) {
+    if (!t) return;
+    Object.keys(t).forEach(function (id) {
+      if (t[id].nqv !== undefined) {
+        var a = document.getElementById('tgt-nqv-' + id); if (a) a.value = t[id].nqv;
+      }
+      if (t[id].nq !== undefined) {
+        var b = document.getElementById('tgt-nq-' + id); if (b) b.value = t[id].nq;
+      }
+    });
+  }
+
+  /* --- PDF text extraction (unchanged) ----------------------------------- */
+
+  function extractPDFText(file) {
+    return file.arrayBuffer().then(function (ab) {
+      return pdfjsLib.getDocument({ data: ab }).promise;
+    }).then(function (doc) {
+      var chain = Promise.resolve('');
+      for (var i = 1; i <= doc.numPages; i++) {
+        (function (pageNum) {
+          chain = chain.then(function (text) {
+            return doc.getPage(pageNum).then(function (page) {
+              return page.getTextContent();
+            }).then(function (content) {
+              var items = content.items.filter(function (it) { return it.str.trim(); });
+              items.sort(function (a, b) {
+                var dy = b.transform[5] - a.transform[5];
+                return Math.abs(dy) > 3 ? dy : a.transform[4] - b.transform[4];
+              });
+              var lastY = null;
+              for (var k = 0; k < items.length; k++) {
+                var y = Math.round(items[k].transform[5]);
+                if (lastY !== null && Math.abs(y - lastY) > 3) text += '\n';
+                else if (lastY !== null) text += ' ';
+                text += items[k].str;
+                lastY = y;
+              }
+              return text + '\n';
+            });
+          });
+        })(i);
+      }
+      return chain;
+    });
+  }
+
+  /* --- Report parsing (unchanged from the original) ---------------------- */
+
+  function parseReport(text) {
+    var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var data = {
+      rep_name: '', report_date: '', categories: {},
+      overall: { increase_pct: '', actual: '' },
+      bonus_possible: '', bonus_actual: '', distinct_accounts: {}
+    };
+
+    var catIds = CATEGORIES.map(function (c) { return c.id; });
+    var dollarRe = /\$[\d,]+\.?\d*/g;
+    var pctRe = /-?\d+\.?\d*%/g;
+    var noSalesRe = /No Sales/i;
+    var inAccounts = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+
+      if (!data.rep_name && /\d+\/\d+\/\d+/.test(line)) {
+        var dateM = line.match(/(\d+\/\d+\/\d+)/);
+        if (dateM) data.report_date = dateM[1];
+        data.rep_name = line.replace(/\s*\d+\/\d+\/\d+.*/, '').trim();
+        continue;
+      }
+
+      if (/Distinct Accounts/i.test(line)) { inAccounts = true; continue; }
+      if (inAccounts) {
+        var numM = line.match(/^(\d+)\s/);
+        if (numM && catIds.indexOf(numM[1]) !== -1) {
+          var nums = line.match(/\b(\d+)\b/g) || [];
+          var counts = nums.slice(1);
+          if (counts.length >= 4) {
+            var l4 = counts.slice(-4);
+            data.distinct_accounts[numM[1]] = { '12mo': l4[0], '6mo': l4[1], '90d': l4[2], '30d': l4[3] };
+          } else if (counts.length > 0) {
+            var next = lines[i + 1] || '';
+            var more = next.match(/\b(\d+)\b/g) || [];
+            var all = counts.concat(more);
+            if (all.length >= 4) {
+              var m4 = all.slice(-4);
+              data.distinct_accounts[numM[1]] = { '12mo': m4[0], '6mo': m4[1], '90d': m4[2], '30d': m4[3] };
+              i++;
+            }
+          }
+        }
+        continue;
+      }
+
+      if (/^Overall\b/.test(line)) {
+        var opcts = line.match(pctRe) || [];
+        var odollars = line.match(dollarRe) || [];
+        data.overall.increase_pct = opcts[0] || '';
+        data.overall.actual = odollars[odollars.length - 1] || '';
+        continue;
+      }
+
+      if (/Possible Total/i.test(line) || /Total Bonus/i.test(line)) {
+        var bd = line.match(dollarRe) || [];
+        if (bd[0]) data.bonus_possible = bd[0];
+        if (bd[1]) data.bonus_actual = bd[1];
+        continue;
+      }
+
+      var catM = line.match(/^(\d+)\s/);
+      if (!catM || catIds.indexOf(catM[1]) === -1) continue;
+
+      var pcts = line.match(pctRe) || [];
+      var dollars = line.match(dollarRe) || [];
+      var hasNoSales = noSalesRe.test(line);
+
+      var increase_pct = pcts[0] || '0.00%';
+      var tierPct = pcts.filter(function (p) { return /\d+\.\d{4}%/.test(p); })[0];
+      var tier_pct = tierPct || '';
+      var listPct = pcts.filter(function (p) { return p !== tierPct && p !== increase_pct; });
+      var pct_of_list = listPct[0] || '';
+      var actual = '', actual_bonus = '', possible_bonus = '';
+
+      if (hasNoSales) {
+        actual = 'No Sales';
+        actual_bonus = '$0.00';
+      } else {
+        actual = dollars[2] || dollars[0] || '';
+        actual_bonus = dollars[3] || '$0.00';
+        possible_bonus = dollars[4] || '';
+      }
+
+      data.categories[catM[1]] = {
+        increase_pct: increase_pct, tier_pct: tier_pct, actual: actual,
+        actual_bonus: actual_bonus, pct_of_list: pct_of_list, possible_bonus: possible_bonus
+      };
+    }
+
+    return data;
+  }
+
+  /* --- Helpers ----------------------------------------------------------- */
+
+  function pctNum(str) {
+    if (!str) return null;
+    var n = parseFloat(String(str).replace('%', ''));
+    return isNaN(n) ? null : n;
+  }
+
+  function money(str) {
+    if (!str) return null;
+    var n = parseFloat(String(str).replace(/[$,]/g, ''));
+    return isNaN(n) ? null : n;
+  }
+
+  function pillFor(pct_str) {
+    var n = pctNum(pct_str);
+    if (n === null) return '<span class="pill">&mdash;</span>';
+    if (n > 0) return '<span class="pill pill-ok">+' + n.toFixed(1) + '%</span>';
+    if (n < 0) return '<span class="pill pill-bad">' + n.toFixed(1) + '%</span>';
+    return '<span class="pill">0%</span>';
+  }
+
+  function discrepancyAmount(nqVal, nqvVal) {
+    if (!nqVal || !nqvVal || nqVal === 'No Sales' || nqvVal === 'No Sales') return null;
+    var a = money(nqVal), b = money(nqvVal);
+    if (a === null || b === null) return null;
+    var diff = a - b;
+    return Math.abs(diff) > 50 ? diff : null;
+  }
+
+  function showErr(msg) {
+    var el = document.getElementById('errMsg');
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.hidden = true; }, 8000);
+  }
+
+  /* --- File loading ------------------------------------------------------ */
+
+  function loadPDF(slot, input) {
+    var file = input.files[0];
+    if (!file) return;
+    var slotEl = document.getElementById('slot-' + slot);
+    var fnEl = document.getElementById('fn-' + slot);
+    fnEl.textContent = 'Reading…';
+
+    extractPDFText(file).then(function (text) {
+      pdfTexts[slot] = text;
+      slotEl.classList.add('filled');
+      fnEl.textContent = file.name.length > 24 ? file.name.substring(0, 22) + '…' : file.name;
+      checkReady();
+    }).catch(function () {
+      fnEl.textContent = 'Could not read file';
+      showErr('Could not read ' + file.name + '. Make sure it is a valid PDF.');
+      checkReady();
+    });
+  }
+
+  function checkReady() {
+    document.getElementById('analyzeBtn').disabled =
+      !(pdfTexts['nqv-curr'] && pdfTexts['nq-curr']);
+  }
+
+  /* --- Summary + cache --------------------------------------------------- */
+
+  /* Home reads th_bonus_summary. Dollars are stored as NUMBERS, not the
+     "$1,234.00" strings the PDF yields, because Home draws a progress bar from
+     earned/possible and cannot do that with formatted text. */
+  function writeSummary(nqvC) {
+    var pct = pctNum(nqvC.overall.increase_pct);
+    Store.bonus.writeSummary({
+      growthPct:     pct,
+      bonusEarned:   money(nqvC.bonus_actual) || 0,
+      bonusPossible: money(nqvC.bonus_possible) || 0,
+      onTrack:       pct !== null && pct >= 1,
+      reportDate:    nqvC.report_date || ''
+    });
+  }
+
+  /* Only the parsed numbers are cached — never the PDFs, and never the raw
+     extracted text, which is large enough to threaten the storage quota the
+     account book also lives in. */
+  function cacheUpload(targets) {
+    Store.bonus.writeLastUpload({
+      parsed: parsedData,
+      targets: targets,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  /* --- Render ------------------------------------------------------------ */
+
+  function renderDash(nqvC, nqC, targets, restoredAt) {
+    var html = '';
+    var nqvPct = pctNum(nqvC.overall.increase_pct);
+    var nqPct  = pctNum(nqC.overall.increase_pct);
+
+    function overallCell(pct) {
+      if (pct === null) return '<div class="cmp-overall">&mdash;</div>';
+      return '<div class="cmp-overall ' + (pct >= 0 ? 'pos' : 'neg') + '">' +
+             (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%</div>';
+    }
+
+    html += '<div class="row-between" style="margin-bottom:var(--s-4);">' +
+              '<span class="section-label" style="margin:0;">Overview</span>' +
+              '<button class="btn btn-sm" id="backBtn">Upload new reports</button>' +
+            '</div>';
+
+    if (restoredAt) {
+      html += '<p class="hint" style="margin-bottom:var(--s-3);">' +
+              'Restored from your last upload &middot; <span class="mono">' +
+              Shell.escapeHtml(String(restoredAt).slice(0, 10)) + '</span></p>';
+    }
+
+    html += '<div class="cmp-grid">' +
+      '<div class="card"><span class="cmp-label nqv">NoQualVisit</span>' +
+        overallCell(nqvPct) +
+        '<div class="cmp-sub mono">Actual ' + Shell.escapeHtml(nqvC.overall.actual || '—') + '</div>' +
+      '</div>' +
+      '<div class="card"><span class="cmp-label nq">NoQual</span>' +
+        overallCell(nqPct) +
+        '<div class="cmp-sub mono">Actual ' + Shell.escapeHtml(nqC.overall.actual || '—') + '</div>' +
+      '</div></div>';
+
+    /* Bonus status */
+    var onTrack = nqvPct !== null && nqvPct >= 1;
+    html += '<p class="section-label"><span>Bonus status</span></p>' +
+      '<div class="card">' +
+        '<div class="card-head">' +
+          '<h2>Bonus</h2>' +
+          '<span class="pill ' + (onTrack ? 'pill-ok' : 'pill-bad') + '">' +
+            (onTrack ? 'On track' : 'At risk') + '</span>' +
+        '</div>' +
+        '<div class="kv"><span class="kv-label">Overall growth (NoQualVisit)</span>' +
+          '<span class="kv-val" style="color:' + (onTrack ? 'var(--green)' : 'var(--red)') + '">' +
+          (nqvPct !== null ? (nqvPct >= 0 ? '+' : '') + nqvPct.toFixed(2) + '%' : '—') + '</span></div>' +
+        '<div class="kv"><span class="kv-label">Actual bonus earned</span>' +
+          '<span class="kv-val" style="color:var(--green)">' +
+          Shell.escapeHtml(nqvC.bonus_actual || '$0.00') + '</span></div>' +
+        '<div class="kv"><span class="kv-label">Possible bonus total</span>' +
+          '<span class="kv-val">' + Shell.escapeHtml(nqvC.bonus_possible || '$0.00') + '</span></div>' +
+      '</div>';
+
+    /* All categories */
+    html += '<p class="section-label"><span>All categories</span></p>' +
+      '<div class="card"><div class="table-wrap"><table class="data"><thead><tr>' +
+      '<th>Category</th><th>NQV %</th><th>NQ %</th><th>NQV actual</th>' +
+      '<th>NQ actual</th><th>Tier %</th><th>% list</th></tr></thead><tbody>';
+
+    CATEGORIES.forEach(function (cat) {
+      var v = nqvC.categories[cat.id] || {};
+      var q = nqC.categories[cat.id] || {};
+      var disc = discrepancyAmount(q.actual, v.actual);
+      var discStyle = disc && Math.abs(disc) > 200 ? ' style="color:var(--amber)"' : '';
+      html += '<tr>' +
+        '<td>' + cat.name + (cat.bonus ? '<span class="bdot"></span>' : '') + '</td>' +
+        '<td>' + pillFor(v.increase_pct) + '</td>' +
+        '<td>' + pillFor(q.increase_pct) + '</td>' +
+        '<td class="num">' + Shell.escapeHtml(v.actual || '—') + '</td>' +
+        '<td class="num"' + discStyle + '>' + Shell.escapeHtml(q.actual || '—') + '</td>' +
+        '<td class="num" style="color:var(--amber)">' +
+          (v.tier_pct ? Shell.escapeHtml(v.tier_pct.replace('0000', '')) : '—') + '</td>' +
+        '<td class="num">' + Shell.escapeHtml(v.pct_of_list || '—') + '</td>' +
+      '</tr>';
+    });
+
+    html += '<tr class="total-row"><td>Overall</td>' +
+      '<td>' + pillFor(nqvC.overall.increase_pct) + '</td>' +
+      '<td>' + pillFor(nqC.overall.increase_pct) + '</td>' +
+      '<td class="num">' + Shell.escapeHtml(nqvC.overall.actual || '—') + '</td>' +
+      '<td class="num">' + Shell.escapeHtml(nqC.overall.actual || '—') + '</td>' +
+      '<td>—</td><td>—</td></tr>';
+
+    html += '</tbody></table></div>' +
+      '<p class="hint" style="margin-top:var(--s-3);"><span class="bdot"></span> ' +
+      'Bonus-eligible &middot; amber NQ actual = gap vs NQV (visit those offices)</p></div>';
+
+    /* Offices to visit */
+    var discs = [];
+    CATEGORIES.forEach(function (cat) {
+      var v = nqvC.categories[cat.id] || {};
+      var q = nqC.categories[cat.id] || {};
+      var diff = discrepancyAmount(q.actual, v.actual);
+      if (diff && diff > 0) discs.push({ cat: cat, diff: diff, nqActual: q.actual, nqvActual: v.actual });
+    });
+    discs.sort(function (a, b) { return b.diff - a.diff; });
+
+    if (discs.length) {
+      html += '<p class="section-label"><span>Offices to visit</span>' +
+              '<span class="mono">NQ &gt; NQV = uncredited</span></p>';
+      discs.forEach(function (d) {
+        html += '<div class="disc-item"><div>' +
+          '<div class="disc-cat">' + d.cat.name + (d.cat.bonus ? '<span class="bdot"></span>' : '') + '</div>' +
+          '<div class="disc-detail">NQ ' + Shell.escapeHtml(d.nqActual) +
+            ' &middot; NQV ' + Shell.escapeHtml(d.nqvActual || 'No Sales') + '</div>' +
+          '</div><div class="disc-diff">+$' + d.diff.toFixed(2) + '</div></div>';
+      });
+    }
+
+    /* Targets — these are the remaining gap, not the goal. No subtraction. */
+    if (Object.keys(targets).length) {
+      html += '<p class="section-label"><span>Targets &mdash; still needed to next tier</span></p>' +
+        '<div class="card"><div class="table-wrap"><table class="data"><thead><tr>' +
+        '<th>Category</th><th style="color:var(--teal)">NQV actual</th><th>NQV needed</th>' +
+        '<th style="color:var(--purple)">NQ actual</th><th>NQ needed</th>' +
+        '</tr></thead><tbody>';
+
+      CATEGORIES.forEach(function (cat) {
+        if (!targets[cat.id]) return;
+        var v = nqvC.categories[cat.id] || {};
+        var q = nqC.categories[cat.id] || {};
+        var t = targets[cat.id];
+
+        function cell(actualStr, needed) {
+          var a = '<td class="num">' + Shell.escapeHtml(actualStr || '—') + '</td>';
+          if (needed === undefined) return a + '<td class="num" style="color:var(--ink-light)">—</td>';
+          var fmt = '$' + needed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return a + '<td class="num" style="font-weight:500;color:' +
+                 (needed > 0 ? 'var(--amber)' : 'var(--green)') + '">' + fmt + '</td>';
+        }
+
+        html += '<tr><td>' + cat.name + (cat.bonus ? '<span class="bdot"></span>' : '') + '</td>' +
+                cell(v.actual, t.nqv) + cell(q.actual, t.nq) + '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    /* Distinct accounts */
+    var acct = {};
+    ['nqv-curr', 'nq-curr'].forEach(function (s) {
+      if (parsedData[s]) {
+        Object.keys(parsedData[s].distinct_accounts).forEach(function (id) {
+          if (!acct[id]) acct[id] = parsedData[s].distinct_accounts[id];
+        });
+      }
+    });
+    if (Object.keys(acct).length) {
+      html += '<p class="section-label"><span>Distinct accounts buying</span></p>' +
+        '<div class="card"><div class="table-wrap"><table class="data"><thead><tr>' +
+        '<th>Category</th><th>12mo</th><th>6mo</th><th>90d</th><th>30d</th>' +
+        '</tr></thead><tbody>';
+      CATEGORIES.forEach(function (cat) {
+        var r = acct[cat.id];
+        if (!r) return;
+        html += '<tr><td>' + cat.name + '</td>' +
+          '<td class="num">' + (r['12mo'] || '—') + '</td>' +
+          '<td class="num">' + (r['6mo'] || '—') + '</td>' +
+          '<td class="num">' + (r['90d'] || '—') + '</td>' +
+          '<td class="num">' + (r['30d'] || '—') + '</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    html += '<div style="margin-top:var(--s-5);">' +
+      '<button class="btn btn-block" id="exportBtn" style="min-height:46px;">' +
+      'Export for AI analysis</button></div>';
+
+    document.getElementById('dashContent').innerHTML = html;
+    document.getElementById('backBtn').addEventListener('click', resetDash);
+    document.getElementById('exportBtn').addEventListener('click', openExport);
+
+    document.getElementById('hdrSub').textContent =
+      (nqvC.rep_name || 'Bonus Tracker') + (nqvC.report_date ? ' · ' + nqvC.report_date : '');
+  }
+
+  /* --- Flow -------------------------------------------------------------- */
+
+  function buildDashboard() {
+    SLOTS.forEach(function (s) {
+      if (pdfTexts[s]) parsedData[s] = parseReport(pdfTexts[s]);
+    });
+
+    var nqvC = parsedData['nqv-curr'];
+    var nqC = parsedData['nq-curr'];
+    if (!nqvC || !nqC) { showErr('Could not parse the reports. Please check the files.'); return; }
+
+    if (nqvC.overall.increase_pct === nqC.overall.increase_pct &&
+        nqvC.overall.actual === nqC.overall.actual) {
+      showErr('Both reports look identical — check that the NoQualVisit and NoQual PDFs went into separate slots.');
+    }
+
+    var targets = getTargets();
+    document.getElementById('uploadView').hidden = true;
+    document.getElementById('dashView').hidden = false;
+    renderDash(nqvC, nqC, targets, null);
+    writeSummary(nqvC);
+    cacheUpload(targets);
+  }
+
+  function resetDash() {
+    document.getElementById('uploadView').hidden = false;
+    document.getElementById('dashView').hidden = true;
+    document.getElementById('dashContent').innerHTML = '';
+    document.getElementById('hdrSub').textContent = 'Bonus Tracker';
+    window.scrollTo(0, 0);
+  }
+
+  /* Restores the last parsed report so the page is useful on arrival. The
+     summary is NOT rewritten here — it is already in storage from the run that
+     produced this cache, and rewriting would push updatedAt forward and make a
+     stale report look freshly checked on Home. */
+  function restoreLast() {
+    var cached = Store.bonus.readLastUpload();
+    if (!cached || !cached.parsed || !cached.parsed['nqv-curr'] || !cached.parsed['nq-curr']) return false;
+    parsedData = cached.parsed;
+    applyTargets(cached.targets);
+    document.getElementById('uploadView').hidden = true;
+    document.getElementById('dashView').hidden = false;
+    renderDash(parsedData['nqv-curr'], parsedData['nq-curr'], cached.targets || {}, cached.savedAt);
+    return true;
+  }
+
+  /* --- Export ------------------------------------------------------------ */
+
+  function buildExportText() {
+    var nqvC = parsedData['nqv-curr'], nqC = parsedData['nq-curr'];
+    if (!nqvC || !nqC) return '';
+    var targets = getTargets();
+    var date = nqvC.report_date || 'unknown date';
+    var name = nqvC.rep_name || 'Rep';
+
+    var now = new Date();
+    var dayOfMonth = now.getDate();
+    var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    var pctElapsed = Math.round((dayOfMonth / daysInMonth) * 100);
+    var monthName = now.toLocaleString('en-US', { month: 'long' });
+
+    var t = 'TERRITORY SALES REPORT — ' + name + ' — ' + date + '\n';
+    t += '='.repeat(50) + '\n\n';
+
+    t += 'IMPORTANT — DATE CONTEXT:\n';
+    t += 'Today is ' + monthName + ' ' + dayOfMonth + ', ' + now.getFullYear() +
+         ' — day ' + dayOfMonth + ' of ' + daysInMonth + ' (' + pctElapsed + '% through the month).\n';
+    t += 'This report resets at the start of every month. Actuals reflect only what has been recorded\n';
+    t += 'so far this month. Low dollar amounts early in the month are EXPECTED and NORMAL.\n';
+    t += 'Do NOT flag low actuals as problems unless the current pace, when projected to month end,\n';
+    t += 'would fall short of the target. Evaluate performance relative to % of month elapsed.\n\n';
+
+    t += 'REPORT CONTEXT:\n';
+    t += '- NoQualVisit (NQV): Sales in offices where the rep has a credited visit within the last 6 weeks. This is what drives bonus.\n';
+    t += '- NoQual (NQ): Overall territory sales regardless of office visits.\n';
+    t += '- Discrepancy between NQ and NQV in a category = sales happening in offices the rep hasn\'t visited recently = opportunity to get credit.\n';
+    t += '- Bonus requires OVERALL territory growth (NQV). Bonus-eligible categories: Quintess, Eyelid Hygiene, Retaine Tears, Retaine Supp., Device, Allergy.\n';
+    t += '- Bonus tiers: 1-5% growth = Tier 1; higher % = higher payout.\n';
+    t += '- "Still Needed" amounts below = the remaining gap between current actuals and the next bonus tier. These are already the gap values, not the full goal.\n\n';
+
+    t += 'OVERALL RESULTS:\n';
+    t += '  NoQualVisit: ' + nqvC.overall.increase_pct + ' growth | Actual: ' + nqvC.overall.actual + '\n';
+    t += '  NoQual:      ' + nqC.overall.increase_pct + ' growth | Actual: ' + nqC.overall.actual + '\n';
+    t += '  Bonus earned: ' + (nqvC.bonus_actual || '$0.00') + ' | Possible: ' + (nqvC.bonus_possible || '$0.00') + '\n\n';
+
+    t += 'CATEGORY BREAKDOWN:\n' + '─'.repeat(80) + '\n';
+    t += 'Category'.padEnd(18) + ' ' + 'Bonus?'.padEnd(8) + ' ' + 'NQV %'.padEnd(10) + ' ' +
+         'NQ %'.padEnd(10) + ' ' + 'NQV Actual'.padEnd(14) + ' ' + 'NQ Actual'.padEnd(14) + ' ' +
+         'Tier %'.padEnd(10) + ' ' + '% List' + '\n';
+    t += '─'.repeat(80) + '\n';
+
+    CATEGORIES.forEach(function (cat) {
+      var v = nqvC.categories[cat.id] || {}, q = nqC.categories[cat.id] || {};
+      t += cat.name.padEnd(18) + ' ' + (cat.bonus ? 'YES' : 'no').padEnd(8) + ' ' +
+           (v.increase_pct || '—').padEnd(10) + ' ' + (q.increase_pct || '—').padEnd(10) + ' ' +
+           (v.actual || '—').padEnd(14) + ' ' + (q.actual || '—').padEnd(14) + ' ' +
+           (v.tier_pct || '—').padEnd(10) + ' ' + (v.pct_of_list || '—') + '\n';
+    });
+    t += '─'.repeat(80) + '\n\n';
+
+    var discs = [];
+    CATEGORIES.forEach(function (cat) {
+      var v = nqvC.categories[cat.id] || {}, q = nqC.categories[cat.id] || {};
+      var diff = discrepancyAmount(q.actual, v.actual);
+      if (diff && diff > 0) discs.push({ name: cat.name, bonus: cat.bonus, diff: diff, nqActual: q.actual, nqvActual: v.actual });
+    });
+    if (discs.length) {
+      t += 'OFFICES TO VISIT (NQ > NQV — uncredited sales exist):\n';
+      discs.sort(function (a, b) { return b.diff - a.diff; }).forEach(function (d) {
+        t += '  ' + d.name + (d.bonus ? ' [BONUS]' : '') + ': NQ ' + d.nqActual +
+             ' vs NQV ' + (d.nqvActual || 'No Sales') + ' — gap: $' + d.diff.toFixed(2) + '\n';
+      });
+      t += '\n';
+    }
+
+    if (Object.keys(targets).length) {
+      t += 'STILL NEEDED TO REACH NEXT BONUS TIER:\n';
+      t += '(These are the remaining gap amounts — not the full goals. Actual + Still Needed = full tier target.)\n';
+      CATEGORIES.forEach(function (cat) {
+        if (!targets[cat.id]) return;
+        var v = nqvC.categories[cat.id] || {}, q = nqC.categories[cat.id] || {};
+        var tg = targets[cat.id];
+        t += '  ' + cat.name + (cat.bonus ? ' [BONUS]' : '') + ':\n';
+        if (tg.nqv !== undefined) {
+          t += '    NQV: actual ' + (v.actual || '$0') + ' | still needed $' + tg.nqv.toFixed(2) +
+               ' | full tier goal $' + ((money(v.actual) || 0) + tg.nqv).toFixed(2) + '\n';
+        }
+        if (tg.nq !== undefined) {
+          t += '    NQ:  actual ' + (q.actual || '$0') + ' | still needed $' + tg.nq.toFixed(2) +
+               ' | full tier goal $' + ((money(q.actual) || 0) + tg.nq).toFixed(2) + '\n';
+        }
+      });
+      t += '\n';
+    }
+
+    var acct = {};
+    ['nqv-curr', 'nq-curr'].forEach(function (s) {
+      if (parsedData[s]) Object.keys(parsedData[s].distinct_accounts).forEach(function (id) {
+        if (!acct[id]) acct[id] = parsedData[s].distinct_accounts[id];
+      });
+    });
+    if (Object.keys(acct).length) {
+      t += 'DISTINCT ACCOUNTS BUYING:\n';
+      CATEGORIES.forEach(function (cat) {
+        var r = acct[cat.id];
+        if (!r) return;
+        t += '  ' + cat.name + ': 12mo=' + r['12mo'] + ' | 6mo=' + r['6mo'] +
+             ' | 90d=' + r['90d'] + ' | 30d=' + r['30d'] + '\n';
+      });
+      t += '\n';
+    }
+
+    t += '='.repeat(50) + '\n';
+    t += 'Please analyze this data. I would like:\n';
+    t += '1. A plain-English summary of how my territory is performing overall\n';
+    t += '2. Which categories are growing and which are declining — assessed against the ' +
+         pctElapsed + '% of month elapsed, not raw dollar amounts\n';
+    t += '3. Where the biggest opportunities are (discrepancies between NQ and NQV, categories close to tier thresholds)\n';
+    t += '4. What I should focus on this week to protect or increase my bonus\n';
+    t += '5. Any other insights from the data\n';
+    return t;
+  }
+
+  function openExport() {
+    document.getElementById('exportText').value = buildExportText();
+    document.getElementById('modalBg').classList.add('open');
+    document.getElementById('copyExportBtn').focus();
+  }
+
+  function closeExport() {
+    document.getElementById('modalBg').classList.remove('open');
+  }
+
+  function copyExport() {
+    var ta = document.getElementById('exportText');
+    var btn = document.getElementById('copyExportBtn');
+    var done = function () {
+      btn.textContent = 'Copied ✓';
+      setTimeout(function () { btn.textContent = 'Copy to clipboard'; }, 2000);
+    };
+    var fallback = function () {
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  /* --- Wiring ------------------------------------------------------------ */
+
+  Shell.ready(function () {
+    buildTargetInputs();
+
+    SLOTS.forEach(function (slot) {
+      var input = document.getElementById('f-' + slot);
+      document.getElementById('slot-' + slot).addEventListener('click', function () { input.click(); });
+      input.addEventListener('change', function () { loadPDF(slot, input); });
+    });
+
+    document.getElementById('targToggle').addEventListener('click', function () {
+      targetsOpen = !targetsOpen;
+      document.getElementById('targBody').hidden = !targetsOpen;
+      this.setAttribute('aria-expanded', targetsOpen ? 'true' : 'false');
+      document.getElementById('targChev').innerHTML = targetsOpen ? 'hide &#9650;' : 'optional &#9660;';
+    });
+
+    document.getElementById('analyzeBtn').addEventListener('click', buildDashboard);
+    document.getElementById('modalClose').addEventListener('click', closeExport);
+    document.getElementById('modalDone').addEventListener('click', closeExport);
+    document.getElementById('copyExportBtn').addEventListener('click', copyExport);
+    document.getElementById('modalBg').addEventListener('click', function (e) {
+      if (e.target === this) closeExport();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeExport();
+    });
+
+    if (!window.pdfjsLib) {
+      showErr('The PDF reader failed to load. Check your connection and reload — it comes from a CDN.');
+    }
+
+    restoreLast();
+  });
+
+})();
+</script>
+</body>
+</html>

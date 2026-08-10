@@ -175,7 +175,10 @@
   }
   @media (min-width: 900px) {
     #routeBoardFrame { height: calc(100vh - 210px); min-height: 560px; }
-  }
+  }@media (min-width: 900px) {
+  body[data-page="route"] .page { max-width: 1100px; }
+}
+  
 
   /* Theme hooks. These are set on the host ELEMENT, so they beat the
      component's own `:host{}` defaults (id selector vs :host) and inherit

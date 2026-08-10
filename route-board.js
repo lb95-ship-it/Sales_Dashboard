@@ -178,8 +178,14 @@ const CSS = `  :host{
   .card:active{cursor:grabbing;}
   .card.dragging{opacity:0.4;}
   .card:hover{border-color:var(--ink-faint);}
-  .card-name{font-weight:600; font-size:13px; line-height:1.25; padding-right:14px;}
-  .card.placed .card-name{padding-right:58px;}
+.card-name{font-weight:600; font-size:13px; line-height:1.25; padding-right:14px;}
+  .card.placed .card-name{
+    padding-right:58px;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
   .stopno{
     display:inline-flex; align-items:center; justify-content:center;
     min-width:17px; height:17px; padding:0 4px; margin-right:5px; border-radius:5px;
@@ -1012,7 +1018,7 @@ function cardHTML(a, stop, total){
 
   return `<div class="card${assigned?' placed':''}${clash?' conflict':''}" draggable="true" data-id="${id}" style="--src-color:${terrColor(a.territories[0])}">
     ${ctl}
-    <div class="card-name">${stopBadge}${escapeHtml(a.name)}</div>
+<div class="card-name" title="${escapeAttr(a.name)}">${stopBadge}${escapeHtml(a.name)}</div>
     ${noteHTML}
     ${schedHTML}
     <div class="card-tags">${tagStr}<span class="terr-mini" title="${escapeAttr(a.territories.join(', '))}">${terrLabel(a)}</span></div>

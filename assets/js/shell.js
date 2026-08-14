@@ -61,6 +61,14 @@
     return null;
   }
 
+  /* The dial draws one segment per week of the rotation, so it needs the zone
+     for a week number rather than an id or a name. Returns null past week 6 —
+     a dial asked for more weeks than there are zones falls back to teal. */
+  function zoneByWeek(week) {
+    for (var i = 0; i < ZONES.length; i++) if (ZONES[i].week === week) return ZONES[i];
+    return null;
+  }
+
   /* Matches on the canonical name or any known alias, case- and
      punctuation-insensitive. Returns null rather than guessing. */
   function zoneByName(name) {
@@ -174,9 +182,15 @@
       var start = i * step + gap / 2;
       var end = (i + 1) * step - gap / 2;
       var mid = polar(DIAL.cx, DIAL.cy, (DIAL.rOuter + DIAL.rInner) / 2, (start + end) / 2);
+      /* Each segment carries its own territory colour. Done / active /
+         upcoming are opacity steps in shell.css, not different hues, so a
+         week keeps the same colour it has on every swatch and chip in the
+         app whatever its state. */
+      var zone = zoneByWeek(i + 1);
+      var segStyle = zone ? ' style="--seg:' + zone.color + '"' : '';
       /* seg and its number are adjacent siblings — shell.css relies on that
          to flip the active segment's label to white. */
-      svg += '<path class="seg' + state + '" d="' + ringSegment(start, end) + '"/>' +
+      svg += '<path class="seg' + state + '"' + segStyle + ' d="' + ringSegment(start, end) + '"/>' +
              '<text class="seg-num" x="' + mid.x.toFixed(2) + '" y="' + mid.y.toFixed(2) + '">' +
              (i + 1) + '</text>';
     }

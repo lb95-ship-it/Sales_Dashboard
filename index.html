@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/shell.css?v=1786069221">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786688991">
 
 <style>
   /* -----------------------------------------------------------------------
@@ -187,7 +187,7 @@
 </main>
 
 <script src="assets/js/data-store.js?v=1786146009"></script>
-<script src="assets/js/shell.js?v=1786144357"></script>
+<script src="assets/js/shell.js?v=1786688980"></script>
 <script>
 /* ===========================================================================
    Home — reads only. Every number on this page comes from a summary written
@@ -256,8 +256,18 @@
                '<span class="zone-dot" style="--zone:' + z.color + '"></span>Week ' +
                z.week + '</span>';
     }
+    /* The follow-up route gets its own territory colour too, so the two chips
+       read as two different routes rather than "the route" and "an extra".
+       Schedule Builder writes these with a trailing "Follow-Ups" that is not
+       part of any zone name, so strip it before resolving — and fall back to
+       the plain pill rather than guessing if it still does not match. */
     if (s.followup) {
-      pills += '<span class="pill pill-accent">' + Shell.escapeHtml(s.followup) + '</span>';
+      var fz = Shell.zoneByName(String(s.followup).replace(/\s*follow[-\s]?ups?\s*$/i, ''));
+      pills += fz
+        ? '<span class="zone-chip" style="--zone:' + fz.color + '">' +
+            '<span class="zone-dot" style="--zone:' + fz.color + '"></span>' +
+            Shell.escapeHtml(s.followup) + '</span>'
+        : '<span class="pill pill-accent">' + Shell.escapeHtml(s.followup) + '</span>';
     }
     document.getElementById('heroPills').innerHTML = pills;
   }

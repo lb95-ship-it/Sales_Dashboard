@@ -207,7 +207,7 @@ const CSS = `  :host{
   .card:hover{border-color:var(--ink-faint);}
 .card-name{font-weight:600; font-size:13px; line-height:1.25; padding-right:14px;}
   .card.placed .card-name{
-    padding-right:58px;
+    padding-right:34px;
     display:-webkit-box;
     -webkit-line-clamp:2;
     -webkit-box-orient:vertical;
@@ -219,16 +219,38 @@ const CSS = `  :host{
     background:var(--src-color,var(--unassigned)); color:var(--on-day);
     font-family:var(--mono); font-size:10.5px; font-weight:700; vertical-align:1px;
   }
+  /* The corner now holds one control, not three. Ordering moved to .card-nav
+     below, because three 17px squares 2px apart cannot be made into three
+     44px targets in the corner of a 150px column — any hit area big enough
+     would overlap its neighbours and steal their taps. Alone, this one can
+     carry a real 44px target via ::after while staying visually small. */
   .card-ctl{position:absolute; top:5px; right:6px; display:flex; gap:2px; align-items:center;}
   .card-ctl button{
-    width:17px; height:17px; padding:0; border-radius:4px; border:1px solid transparent;
+    position:relative;
+    width:26px; height:26px; padding:0; border-radius:5px; border:1px solid transparent;
     background:transparent; color:var(--ink-faint); font-size:10px; line-height:1;
     cursor:pointer; font-family:var(--sans);
   }
+  .card-ctl button::after{content:''; position:absolute; inset:-9px;}
   .card-ctl button:hover:not(:disabled){color:var(--ink); background:var(--hover-tint);}
   .card-ctl button:disabled{opacity:0.25; cursor:default;}
-  .card-ctl button.rm{font-size:14px;}
+  .card-ctl button.rm{font-size:17px;}
   .card-ctl button.rm:hover{color:var(--wed); background:var(--wed-soft);}
+
+  /* Touch controls on a placed card: both arrows are a true 44x44, and the
+     day picker sits beside them so a stop can be moved between days and
+     reordered inside one without a single drag. */
+  .card-nav{display:flex; gap:4px; margin-top:7px;}
+  .card-nav button{
+    min-height:44px; border-radius:6px; border:1px solid var(--line);
+    background:transparent; color:var(--ink-dim); cursor:pointer;
+    font-family:var(--sans); font-size:12px; line-height:1; transition:.08s;
+  }
+  .card-nav button.step{flex:0 0 44px; font-size:11px;}
+  .card-nav button.dayp{flex:1;}
+  .card-nav button:hover:not(:disabled){color:var(--ink); border-color:var(--ink-faint);}
+  .card-nav button:disabled{opacity:0.3; cursor:default;}
+  .card-nav button.dayp[aria-expanded="true"]{color:var(--accent); border-color:var(--accent-line);}
   .drop-line{
     height:2px; margin:2px 1px; border-radius:2px; background:var(--accent-fill);
     box-shadow:0 0 6px var(--accent-glow);
@@ -326,6 +348,7 @@ const CSS = `  :host{
     display:flex; align-items:center; justify-content:center; color:var(--ink-faint);
     font-size:14px; cursor:pointer; line-height:1;
   }
+  .card .x::after{content:''; position:absolute; inset:-14px;}
   .card .x:hover{color:var(--wed); background:var(--wed-soft);}
   /* Skipped: still readable, clearly out of play. Shown only when the
      Show skipped chip is on, and always after the live pool. */
@@ -334,9 +357,9 @@ const CSS = `  :host{
   .card .x.unskip:hover{color:var(--mon); background:var(--mon-soft);}
 
   /* Quick-assign row (tap targets, mobile-friendly) */
-  .qa{display:flex; gap:3px; margin-top:6px;}
+  .qa{display:flex; flex-wrap:wrap; gap:3px; margin-top:6px;}
   .qa button{
-    flex:1; font-size:11px; font-weight:700; padding:4px 0; border-radius:5px;
+    flex:1 0 44px; min-height:44px; font-size:11px; font-weight:700; padding:4px 0; border-radius:5px;
     border:1px solid var(--line); background:transparent; cursor:pointer; color:var(--ink-faint);
     font-family:var(--mono); transition:.08s;
   }
@@ -1084,10 +1107,20 @@ function cardHTML(a, stop, total){
   // these are the only keyboard-reachable way to sequence a day.
   const ctl = assigned
     ? `<div class="card-ctl">
-         <button data-move="${id}" data-dir="-1" title="Earlier in the day" aria-label="Move earlier"${stop===1?' disabled':''}>&#9650;</button>
-         <button data-move="${id}" data-dir="1" title="Later in the day" aria-label="Move later"${stop===total?' disabled':''}>&#9660;</button>
          <button class="rm" data-unassign="${id}" title="Remove from day" aria-label="Remove from day">&times;</button>
        </div>`
+    : '';
+  // Reorder and day-move, both by tap. The day list omits the day the stop is
+  // already on, and assignTo appends it to the end of the target day.
+  const navRow = assigned
+    ? `<div class="card-nav">
+         <button class="step" data-move="${id}" data-dir="-1" title="Earlier in the day" aria-label="Move earlier"${stop===1?' disabled':''}>&#9650;</button>
+         <button class="step" data-move="${id}" data-dir="1" title="Later in the day" aria-label="Move later"${stop===total?' disabled':''}>&#9660;</button>
+         <button class="dayp" data-moveday="${id}" aria-expanded="false" title="Move to another day">Day &#9662;</button>
+       </div>
+       <div class="qa" data-moverow="${id}" style="display:none;">${
+         DAYS.filter(d=>d!==assigned).map(d=>`<button data-d="${d}" data-assign="${id}">${d}</button>`).join('')
+       }</div>`
     : '';
   // Skip lives only on pool cards: a placed account is already a decision, and
   // its top-right corner belongs to the reorder/unassign controls.
@@ -1140,7 +1173,7 @@ function cardHTML(a, stop, total){
       <input type="text" maxlength="40" placeholder="Round Rock" value="${escapeAttr(city||'')}" data-labelinput="${escapeAttr(a.id)}">
       <button class="save" data-labelsave="${escapeAttr(a.id)}">Save</button>
     </div>
-    ${qaRow}
+    ${qaRow}${navRow}
   </div>`;
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -1267,6 +1300,18 @@ function bindCards(){
     b.addEventListener('click', e=>{
       e.stopPropagation();
       moveInDay(b.dataset.move, parseInt(b.dataset.dir, 10));
+    });
+  });
+  // Day picker on a placed card. Toggle only — the day buttons inside it are
+  // ordinary [data-assign] buttons and are already wired above.
+  root.querySelectorAll('[data-moveday]').forEach(b=>{
+    b.addEventListener('click', e=>{
+      e.stopPropagation();
+      const row = root.querySelector(`[data-moverow="${cssEsc(b.dataset.moveday)}"]`);
+      if(!row) return;
+      const showing = row.style.display !== 'none';
+      row.style.display = showing ? 'none' : 'flex';
+      b.setAttribute('aria-expanded', showing ? 'false' : 'true');
     });
   });
   // SF link: toggle paste box

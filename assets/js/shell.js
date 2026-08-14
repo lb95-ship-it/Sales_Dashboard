@@ -25,7 +25,12 @@
     { id: 'route',    href: 'route-planning.html', label: 'Route',    icon: 'pin' },
     { id: 'sales',    href: 'sales.html',          label: 'Sales',    icon: 'chart' },
     { id: 'rx',       href: 'prescriptions.html',  label: 'Rx',       icon: 'rx' },
-    { id: 'strategy', href: 'strategy.html',       label: 'Strategy', icon: 'target' }
+    { id: 'strategy', href: 'strategy.html',       label: 'Strategy', icon: 'target' },
+    /* Sixth pillar. The label is short because the bottom bar splits its width
+       evenly between however many entries are in this list — "Performance"
+       does not fit six-up on a phone, "Perf" does. The page itself is titled
+       in full. */
+    { id: 'perf',     href: 'performance.html',    label: 'Perf',     icon: 'gauge' }
   ];
 
   /* -------------------------------------------------------------------------
@@ -94,7 +99,9 @@
     rx:     '<path d="M7 20V6h3.6a3.2 3.2 0 0 1 0 6.4H7"/>' +
             '<path d="M10.6 12.4 17 20"/><path d="M13 14.5 17.5 10"/>',
     target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.6"/>' +
-            '<circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none"/>'
+            '<circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none"/>',
+    gauge:  '<path d="M4 16.5a8 8 0 0 1 16 0"/><path d="M12 16.5 16.4 11.9"/>' +
+            '<circle cx="12" cy="16.5" r="1.1" fill="currentColor" stroke="none"/>'
   };
 
   function icon(name) {

@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Performance &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1786688991">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Field-ride evaluations. Card, pill, button, input and empty state come
+     from shell.css; page-scoped here are the movement lists, the section
+     bars and the entry form.
+     ----------------------------------------------------------------------- */
+
+  /* 16px stops iOS zooming the page on focus; shell.css sets 15px. */
+  .entry .input, .entry .select, .entry .textarea { font-size: 16px; }
+  .entry { display: grid; gap: var(--s-3); }
+  .entry label {
+    display: grid; gap: 4px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+  .entry-row { display: grid; gap: var(--s-3); }
+  @media (min-width: 620px) {
+    .entry-row.two   { grid-template-columns: 1fr 1fr; }
+    .entry-row.three { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .msg { font-size: var(--fs-sm); margin-top: var(--s-2); }
+  .msg.err { color: var(--red); }
+  .preview {
+    margin-top: var(--s-3);
+    padding: var(--s-3);
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
+  }
+
+  /* Movement — the point of the page. Three buckets, colour-coded the way the
+     rest of the app codes state: green resolved, amber persistent, red new. */
+  .move-group + .move-group { margin-top: var(--s-4); }
+  .move-head {
+    display: flex; align-items: baseline; gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .move-head b { font-size: var(--fs-lg); font-weight: 500; letter-spacing: 0; }
+  .move-group.good .move-head { color: var(--green); }
+  .move-group.same .move-head { color: var(--amber); }
+  .move-group.new  .move-head { color: var(--red); }
+  .move-list { display: grid; gap: var(--s-2); margin-top: var(--s-2); }
+  .move-item {
+    display: grid; grid-template-columns: 62px 1fr; gap: var(--s-3);
+    align-items: baseline;
+    font-size: var(--fs-sm);
+    line-height: 1.45;
+  }
+  .cid {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--ink-mid);
+    padding: 2px var(--s-2);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-pill);
+    text-align: center;
+  }
+  .move-note { display: block; color: var(--ink-light); font-size: var(--fs-xs); margin-top: 2px; }
+
+  /* Section bars. The fill is the score; the number beside it is the count of
+     flagged criteria, which is where the attention goes. */
+  .sect { display: grid; gap: var(--s-1); margin-top: var(--s-3); }
+  .sect-top {
+    display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3);
+    font-size: var(--fs-sm);
+  }
+  .sect-score { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
+  .sect-score .delta.up   { color: var(--green); }
+  .sect-score .delta.down { color: var(--red); }
+  .bar { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--teal); border-radius: 4px; }
+  .bar.warn > span { background: var(--amber); }
+  .bar.bad  > span { background: var(--red); }
+
+  /* Working list — a tick, nothing else. No dates, no owners, no log. */
+  .work { display: grid; gap: var(--s-1); }
+  .work-item {
+    display: grid; grid-template-columns: 20px 62px 1fr; gap: var(--s-3);
+    align-items: baseline;
+    padding: var(--s-2) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .work-item:last-child { border-bottom: none; }
+  .work-item input { width: 17px; height: 17px; margin: 0; accent-color: var(--green); cursor: pointer; }
+  .work-item.is-done .work-text { color: var(--ink-light); text-decoration: line-through; }
+
+  /* History */
+  .hist {
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-3) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--fs-sm);
+  }
+  .hist:last-child { border-bottom: none; }
+  .hist .when { font-family: var(--font-mono); font-size: var(--fs-xs); min-width: 92px; }
+  .hist .pct { font-family: var(--font-mono); font-weight: 500; }
+  .hist .spacer { flex: 1; }
+  .link-btn {
+    background: none; border: none; padding: 0;
+    font: inherit; font-size: var(--fs-xs);
+    color: var(--ink-light); cursor: pointer;
+  }
+  .link-btn:hover { color: var(--red); }
+
+  /* Same toast as prescriptions.html. Copied rather than promoted to
+     shell.css, which would be a change to every page for one page's sake. */
+  .toast {
+    position: fixed; left: 50%;
+    bottom: calc(var(--nav-h) + var(--s-5) + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink); color: var(--white);
+    font-size: var(--fs-sm); font-weight: 500;
+    padding: var(--s-2) var(--s-5);
+    border-radius: var(--r-pill);
+    opacity: 0; pointer-events: none; white-space: nowrap; z-index: 60;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (min-width: 900px) {
+    .toast { bottom: var(--s-6); left: calc(50% + (var(--sidebar-w) / 2)); }
+  }
+</style>
+</head>
+<body data-page="perf">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Performance</h1>
+    <span class="eyebrow mono" id="headPill"></span>
+  </header>
+
+  <div id="views"></div>
+
+  <!-- ===================== ENTRY ===================== -->
+  <section class="card" id="entryCard" style="margin-top:var(--s-5);">
+    <div class="card-head">
+      <h2 id="entryTitle">Add a field ride</h2>
+      <button class="btn btn-sm" id="entryToggle">Add</button>
+    </div>
+
+    <div class="entry" id="entryBody" hidden>
+      <div class="entry-row two">
+        <label>Date<input class="input" id="fDate" type="date"></label>
+        <label>Scale
+          <select class="select" id="fScale">
+            <option value="3">1&ndash;3 (needs / meets / exceeds)</option>
+            <option value="5">1&ndash;5</option>
+          </select>
+        </label>
+      </div>
+      <div class="entry-row two">
+        <label>Evaluator<input class="input" id="fEvaluator" type="text" placeholder="Name"></label>
+        <label>Territory<input class="input" id="fTerritory" type="text" placeholder="Austin / Waco"></label>
+      </div>
+
+      <div class="entry-row three">
+        <label>Territory mgmt <span id="maxTER" class="mono"></span>
+          <input class="input" id="fTER" type="number" inputmode="numeric" min="0">
+        </label>
+        <label>Preparation <span id="maxPRE" class="mono"></span>
+          <input class="input" id="fPRE" type="number" inputmode="numeric" min="0">
+        </label>
+        <label>Sales presentation <span id="maxSAL" class="mono"></span>
+          <input class="input" id="fSAL" type="number" inputmode="numeric" min="0">
+        </label>
+      </div>
+
+      <label>Flagged criteria &mdash; one per line
+        <textarea class="textarea" id="fFlagged" rows="6"
+                  placeholder="SAL-05 Relationship building | open with a personal statement&#10;TER-06 Route planning"></textarea>
+      </label>
+      <p class="hint">
+        Criterion id, then what it was. Anything after a <code>|</code> is the
+        evaluator&rsquo;s note. Only the items marked below &ldquo;meets&rdquo;
+        &mdash; the rest is not worth typing.
+      </p>
+
+      <div class="row">
+        <button class="btn btn-primary" id="saveBtn">Save field ride</button>
+        <button class="btn" id="cancelBtn">Cancel</button>
+      </div>
+      <div class="msg" id="entryMsg"></div>
+      <div class="preview" id="entryPreview" hidden></div>
+    </div>
+  </section>
+
+  <p class="hint" style="text-align:center; margin-top:var(--s-4);">
+    Evaluations stay in this browser. They are never committed to the repo and
+    never leave your device.
+  </p>
+
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/data-store.js?v=1786691532"></script>
+<script src="assets/js/shell.js?v=1786689985"></script>
+<script>
+/* ===========================================================================
+   Performance — field-ride movement (Phase 6.2, entry half)
+
+   What this page answers: did the things flagged last time stop being
+   flagged. That is the only question a stack of evaluation PDFs cannot
+   answer, and it is the reason to type anything in here at all.
+
+   Deliberately NOT stored: the twenty-odd criteria that were fine. Movement
+   is a question about the flagged set, so asking for full scores would be
+   entry work that buys nothing. Section subtotals carry the overall picture.
+
+   The scale is not stable — 1-5 in May 2026, 1-3 in July 2026 — so scaleMax
+   rides on each evaluation and percentages are always computed against the
+   scale that evaluation was actually marked on.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  var evals = [];
+  var confirmId = null;      // evaluation queued for removal — never on one tap
+
+  /* The fixed criterion spine. Counts are what turn a subtotal into a
+     percentage; the ids are what make two evaluations comparable. */
+  var SPINE = [
+    { key: 'TER', count: 8,  name: 'Territory management' },
+    { key: 'PRE', count: 2,  name: 'Preparation' },
+    { key: 'SAL', count: 20, name: 'Sales presentation' }
+  ];
+
+  function spineOf(key) {
+    for (var i = 0; i < SPINE.length; i++) if (SPINE[i].key === key) return SPINE[i];
+    return null;
+  }
+
+  /* --- Dates ---------------------------------------------------------------
+     Plain YYYY-MM-DD in local time; parsing a bare ISO string would read as
+     UTC and land a day early west of Greenwich. */
+  function parseISO(iso) { return new Date(iso + 'T00:00:00'); }
+
+  function dispDate(iso) {
+    return parseISO(iso).toLocaleDateString('en-US',
+      { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  /* --- Flagged-criteria parsing --------------------------------------------
+     One per line: "SAL-05 label text | evaluator note". The id is normalised
+     (sal5 -> SAL-05) and checked against the spine, because a typo'd id is a
+     comparison that silently fails to match next time. */
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  function parseFlagged(raw) {
+    var rows = [], bad = [];
+    var lines = String(raw || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+
+      var m = line.match(/^([A-Za-z]{3})[-\s]?(\d{1,2})\b[\s.:-]*(.*)$/);
+      var sp = m ? spineOf(m[1].toUpperCase()) : null;
+      var num = m ? parseInt(m[2], 10) : 0;
+      if (!sp || num < 1 || num > sp.count) { bad.push(line); continue; }
+
+      var rest = m[3] || '';
+      var cut = rest.indexOf('|');
+      rows.push({
+        id: sp.key + '-' + pad(num),
+        label: (cut === -1 ? rest : rest.slice(0, cut)).trim(),
+        note: (cut === -1 ? '' : rest.slice(cut + 1)).trim(),
+        worked: false
+      });
+    }
+    return { rows: rows, bad: bad };
+  }
+
+  /* --- Derived numbers ------------------------------------------------------ */
+
+  function sectionMax(key, ev) { return spineOf(key).count * ev.scaleMax; }
+
+  function totals(ev) {
+    var got = 0, max = 0, complete = true;
+    for (var i = 0; i < SPINE.length; i++) {
+      var v = ev.sections[SPINE[i].key];
+      if (typeof v !== 'number') { complete = false; continue; }
+      got += v;
+      max += sectionMax(SPINE[i].key, ev);
+    }
+    return { got: got, max: max, complete: complete,
+             pct: max ? Math.round((got / max) * 100) : null };
+  }
+
+  function flaggedIds(ev) {
+    return ev.flagged.map(function (f) { return f.id; });
+  }
+
+  function sorted() {
+    return evals.slice().sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+  }
+
+  /* --- State ---------------------------------------------------------------- */
+
+  function load() {
+    evals = Store.performance.readEvals().filter(function (e) {
+      return e && typeof e === 'object' && e.date && Array.isArray(e.flagged);
+    });
+  }
+
+  function save() {
+    Store.performance.writeEvals(evals);
+    writeSummary();
+  }
+
+  /* Home reads this. Counts and one percentage — never the evaluation itself,
+     which carries a manager's assessment and stays on this page. */
+  function writeSummary() {
+    var list = sorted();
+    var latest = list[0] || null;
+    if (!latest) {
+      Store.performance.writeSummary({ lastEvalDate: null, lastEvalPct: null,
+                                       flagged: 0, working: 0 });
+      return;
+    }
+    var working = latest.flagged.filter(function (f) { return !f.worked; }).length;
+    Store.performance.writeSummary({
+      lastEvalDate: latest.date,
+      lastEvalPct: totals(latest).pct,
+      flagged: latest.flagged.length,
+      working: working
+    });
+  }
+
+  /* --- Save an evaluation ---------------------------------------------------- */
+
+  function num(id) {
+    var v = document.getElementById(id).value.trim();
+    if (v === '') return null;
+    var n = parseInt(v, 10);
+    return isNaN(n) ? null : n;
+  }
+
+  function saveEval() {
+    var msg = document.getElementById('entryMsg');
+    msg.textContent = ''; msg.className = 'msg';
+
+    var date = document.getElementById('fDate').value;
+    if (!date) { fail(msg, 'Set the date of the field ride.'); return; }
+
+    var scaleMax = parseInt(document.getElementById('fScale').value, 10) || 3;
+    var parsed = parseFlagged(document.getElementById('fFlagged').value);
+    if (parsed.bad.length) {
+      fail(msg, 'Could not read ' + parsed.bad.length + ' line' +
+        (parsed.bad.length === 1 ? '' : 's') + ': "' + parsed.bad[0] +
+        '". Each line starts with a criterion id — TER-01 to TER-08, ' +
+        'PRE-01 to PRE-02, SAL-01 to SAL-20.');
+      return;
+    }
+
+    var sections = {};
+    var over = null;
+    for (var i = 0; i < SPINE.length; i++) {
+      var key = SPINE[i].key;
+      var v = num('f' + key);
+      if (v !== null && v > SPINE[i].count * scaleMax) { over = SPINE[i]; }
+      sections[key] = v;
+    }
+    if (over) {
+      fail(msg, over.name + ' cannot be more than ' + (over.count * scaleMax) +
+        ' on a 1–' + scaleMax + ' scale.');
+      return;
+    }
+
+    evals.push({
+      id: 'e' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+      date: date,
+      evaluator: document.getElementById('fEvaluator').value.trim(),
+      territory: document.getElementById('fTerritory').value.trim(),
+      scaleMax: scaleMax,
+      sections: sections,
+      flagged: parsed.rows,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    save();
+    closeEntry();
+    render();
+    toast('Saved');
+  }
+
+  function fail(el, text) { el.textContent = text; el.className = 'msg err'; }
+
+  /* --- Entry panel ----------------------------------------------------------- */
+
+  function openEntry() {
+    document.getElementById('entryBody').hidden = false;
+    document.getElementById('entryToggle').textContent = 'Close';
+    syncMaxLabels();
+  }
+
+  function closeEntry() {
+    var b = document.getElementById('entryBody');
+    b.hidden = true;
+    document.getElementById('entryToggle').textContent = 'Add';
+    ['fDate', 'fEvaluator', 'fTerritory', 'fTER', 'fPRE', 'fSAL', 'fFlagged']
+      .forEach(function (id) { document.getElementById(id).value = ''; });
+    document.getElementById('entryMsg').textContent = '';
+    document.getElementById('entryPreview').hidden = true;
+  }
+
+  /* The section maxima depend on the scale, so they are shown next to each
+     box and move when the scale changes — 8 criteria are worth 24 on a 1-3
+     form and 40 on a 1-5 one. */
+  function syncMaxLabels() {
+    var scaleMax = parseInt(document.getElementById('fScale').value, 10) || 3;
+    for (var i = 0; i < SPINE.length; i++) {
+      document.getElementById('max' + SPINE[i].key).textContent =
+        '/ ' + (SPINE[i].count * scaleMax);
+    }
+  }
+
+  function previewFlagged() {
+    var box = document.getElementById('entryPreview');
+    var parsed = parseFlagged(document.getElementById('fFlagged').value);
+    if (!parsed.rows.length && !parsed.bad.length) { box.hidden = true; return; }
+
+    var html = parsed.rows.map(function (r) {
+      return '<span class="cid">' + r.id + '</span> ' + Shell.escapeHtml(r.label);
+    }).join('<br>');
+    if (parsed.bad.length) {
+      html += (html ? '<br>' : '') + '<span style="color:var(--red)">Not read: ' +
+              Shell.escapeHtml(parsed.bad.join(' / ')) + '</span>';
+    }
+    box.innerHTML = html;
+    box.hidden = false;
+  }
+
+  /* --- Views ------------------------------------------------------------------ */
+
+  function movementHtml(latest, prev) {
+    var was = flaggedIds(prev), now = flaggedIds(latest);
+
+    var resolved = prev.flagged.filter(function (f) { return now.indexOf(f.id) === -1; });
+    var still    = latest.flagged.filter(function (f) { return was.indexOf(f.id) !== -1; });
+    var fresh    = latest.flagged.filter(function (f) { return was.indexOf(f.id) === -1; });
+
+    function grp(cls, title, list) {
+      if (!list.length) return '';
+      return '<div class="move-group ' + cls + '">' +
+               '<div class="move-head"><b>' + list.length + '</b>' + title + '</div>' +
+               '<div class="move-list">' + list.map(function (f) {
+                 return '<div class="move-item"><span class="cid">' + f.id + '</span>' +
+                        '<span>' + Shell.escapeHtml(f.label || '') +
+                        (f.note ? '<span class="move-note">' + Shell.escapeHtml(f.note) + '</span>' : '') +
+                        '</span></div>';
+               }).join('') + '</div>' +
+             '</div>';
+    }
+
+    var scaleNote = latest.scaleMax !== prev.scaleMax
+      ? '<p class="hint" style="margin-top:var(--s-3);">These two were marked on ' +
+        'different scales (1&ndash;' + prev.scaleMax + ' then 1&ndash;' + latest.scaleMax +
+        '), so only the flagged items are compared here, never the scores.</p>'
+      : '';
+
+    return '<section class="card">' +
+             cardHead('Movement', 'since ' + dispDate(prev.date)) +
+             grp('good', 'no longer flagged', resolved) +
+             grp('same', 'still flagged', still) +
+             grp('new',  'newly flagged', fresh) +
+             (resolved.length + still.length + fresh.length === 0
+               ? '<p class="hint">Nothing was flagged in either field ride.</p>' : '') +
+             scaleNote +
+           '</section>';
+  }
+
+  function cardHead(title, sub) {
+    return '<div class="card-head"><h2>' + title + '</h2>' +
+           (sub ? '<span class="eyebrow mono">' + sub + '</span>' : '') + '</div>';
+  }
+
+  function sectionsHtml(latest, prev) {
+    var t = totals(latest);
+    var html = cardHead('Where it sits',
+      t.pct === null ? 'flagged by section' : t.got + ' / ' + t.max + ' · ' + t.pct + '%');
+
+    for (var i = 0; i < SPINE.length; i++) {
+      var sp = SPINE[i];
+      var v = latest.sections[sp.key];
+      var max = sectionMax(sp.key, latest);
+      var pct = typeof v === 'number' && max ? Math.round((v / max) * 100) : null;
+
+      var flagged = latest.flagged.filter(function (f) {
+        return f.id.indexOf(sp.key) === 0;
+      }).length;
+
+      /* Delta only when the previous evaluation has the same section AND was
+         marked on the same scale — percentage points across different scales
+         would be a made-up number. */
+      var delta = '';
+      if (prev && prev.scaleMax === latest.scaleMax && typeof prev.sections[sp.key] === 'number' && pct !== null) {
+        var pPct = Math.round((prev.sections[sp.key] / sectionMax(sp.key, prev)) * 100);
+        var d = pct - pPct;
+        if (d !== 0) {
+          delta = ' <span class="delta ' + (d > 0 ? 'up' : 'down') + '">' +
+                  (d > 0 ? '+' : '') + d + 'pp</span>';
+        }
+      }
+
+      var tone = pct === null ? '' : (pct >= 80 ? '' : (pct >= 60 ? ' warn' : ' bad'));
+
+      html += '<div class="sect">' +
+                '<div class="sect-top"><span>' + sp.name +
+                  (flagged ? ' <span class="cid">' + flagged + ' flagged</span>' : '') + '</span>' +
+                  '<span class="sect-score">' +
+                    (pct === null ? 'not entered' : v + ' / ' + max + ' · ' + pct + '%' + delta) +
+                  '</span>' +
+                '</div>' +
+                '<div class="bar' + tone + '"><span style="width:' + (pct === null ? 0 : pct) + '%"></span></div>' +
+              '</div>';
+    }
+    return '<section class="card" style="margin-top:var(--s-4);">' + html + '</section>';
+  }
+
+  function workingHtml(latest) {
+    if (!latest.flagged.length) return '';
+    var done = latest.flagged.filter(function (f) { return f.worked; }).length;
+
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+             cardHead('Working on', done + ' of ' + latest.flagged.length + ' ticked') +
+             '<div class="work" data-eval="' + latest.id + '">' +
+               latest.flagged.map(function (f, i) {
+                 return '<label class="work-item' + (f.worked ? ' is-done' : '') + '">' +
+                          '<input type="checkbox" data-role="worked" data-idx="' + i + '"' +
+                            (f.worked ? ' checked' : '') + '>' +
+                          '<span class="cid">' + f.id + '</span>' +
+                          '<span class="work-text">' + Shell.escapeHtml(f.label || f.id) + '</span>' +
+                        '</label>';
+               }).join('') +
+             '</div>' +
+           '</section>';
+  }
+
+  function historyHtml(list) {
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+             cardHead('Field rides', list.length + ' recorded') +
+             list.map(function (ev) {
+               var t = totals(ev);
+               return '<div class="hist">' +
+                        '<span class="when">' + dispDate(ev.date) + '</span>' +
+                        '<span class="pct">' + (t.pct === null ? '—' : t.pct + '%') + '</span>' +
+                        '<span class="hint">' + ev.flagged.length + ' flagged' +
+                          (ev.evaluator ? ' · ' + Shell.escapeHtml(ev.evaluator) : '') +
+                          ' · 1–' + ev.scaleMax + '</span>' +
+                        '<span class="spacer"></span>' +
+                        (confirmId === ev.id
+                          ? '<button class="btn btn-sm btn-danger" data-role="removeyes" data-id="' + ev.id + '">Remove</button>' +
+                            '<button class="btn btn-sm" data-role="removeno">Cancel</button>'
+                          : '<button class="link-btn" data-role="remove" data-id="' + ev.id + '">Remove</button>') +
+                      '</div>';
+             }).join('') +
+           '</section>';
+  }
+
+  function render() {
+    var host = document.getElementById('views');
+    var list = sorted();
+    var pill = document.getElementById('headPill');
+
+    if (!list.length) {
+      host.innerHTML = '<div class="empty"><strong>No field rides recorded</strong>' +
+        'Add the last one — date, the three section scores, and the criteria that ' +
+        'were marked below “meets”. The second one is where movement appears.</div>';
+      pill.textContent = '';
+      return;
+    }
+
+    var latest = list[0], prev = list[1] || null;
+    var t = totals(latest);
+    pill.textContent = dispDate(latest.date) + (t.pct === null ? '' : ' · ' + t.pct + '%');
+
+    var html = '';
+    if (prev) {
+      html += movementHtml(latest, prev);
+    } else {
+      html += '<section class="card">' +
+             cardHead('Movement', 'needs a second field ride') +
+                '<p class="hint">One evaluation recorded. As soon as there are two, this ' +
+                'shows which of the ' + latest.flagged.length + ' flagged criteria stopped ' +
+                'being flagged — and which did not.</p>' +
+              '</section>';
+    }
+    html += sectionsHtml(latest, prev);
+    html += workingHtml(latest);
+    html += historyHtml(list);
+    host.innerHTML = html;
+  }
+
+  /* --- Toast ------------------------------------------------------------------ */
+
+  var toastTimer;
+  function toast(m) {
+    var t = document.getElementById('toast');
+    t.textContent = m;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2000);
+  }
+
+  /* --- Wiring ----------------------------------------------------------------- */
+
+  Shell.ready(function () {
+    load();
+    render();
+
+    document.getElementById('entryToggle').addEventListener('click', function () {
+      if (document.getElementById('entryBody').hidden) openEntry(); else closeEntry();
+    });
+    document.getElementById('cancelBtn').addEventListener('click', closeEntry);
+    document.getElementById('saveBtn').addEventListener('click', saveEval);
+    document.getElementById('fScale').addEventListener('change', syncMaxLabels);
+    document.getElementById('fFlagged').addEventListener('blur', previewFlagged);
+
+    /* Delegated, so the views can re-render freely without rebinding. */
+    document.getElementById('views').addEventListener('change', function (e) {
+      var box = e.target.closest('[data-role="worked"]');
+      if (!box) return;
+      var host = e.target.closest('[data-eval]');
+      var ev = null, i;
+      for (i = 0; i < evals.length; i++) if (evals[i].id === host.getAttribute('data-eval')) ev = evals[i];
+      if (!ev) return;
+      var idx = parseInt(box.getAttribute('data-idx'), 10);
+      if (!ev.flagged[idx]) return;
+      ev.flagged[idx].worked = box.checked;
+      ev.updatedAt = new Date().toISOString();
+      save();
+      render();
+    });
+
+    document.getElementById('views').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-role]');
+      if (!btn) return;
+      var role = btn.getAttribute('data-role');
+
+      if (role === 'remove') {
+        confirmId = btn.getAttribute('data-id'); render();
+      } else if (role === 'removeno') {
+        confirmId = null; render();
+      } else if (role === 'removeyes') {
+        var id = btn.getAttribute('data-id');
+        evals = evals.filter(function (x) { return x.id !== id; });
+        confirmId = null;
+        save(); render();
+        toast('Removed');
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

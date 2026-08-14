@@ -35,6 +35,8 @@
     prescriberRoster: 'th_prescribers_roster',    // Prescriptions (internal)
     prescriberFollow: 'th_prescribers_followups', // Prescriptions (internal)
     prescriberSummary:'th_prescribers_summary',   // Prescriptions -> Home
+    perfEvals:        'th_performance_evals',     // Performance (internal)
+    perfSummary:      'th_performance_summary',   // Performance -> Home
     routeBoardWeek:   'th_route.week.v2'          // Route Board (READ ONLY here)
   };
 
@@ -227,6 +229,47 @@
     writeRoster: function (roster) { return set(KEYS.prescriberRoster, roster); }
   };
 
+  /* -------------------------------------------------------------------------
+     Performance. Coaching items carry a manager's assessment of the rep, so
+     this is the most sensitive thing in the store: device-local, never in the
+     repo, and never in an export unless it is explicitly asked for.
+     ------------------------------------------------------------------------- */
+  var performance = {
+    /* [{ id, date, evaluator, territory, scaleMax, sections{TER,PRE,SAL},
+         flagged[{id,label,note,worked}], createdAt, updatedAt }]
+
+       Only the flagged criteria are stored, not all thirty scores: movement
+       between field rides is a question about the flagged set, and asking for
+       the other twenty-two rows buys nothing.
+
+       scaleMax rides on each evaluation because the scale is NOT stable — the
+       May 2026 form used 1-5, the July 2026 one used 1-3. Nothing here may
+       assume a fixed maximum, and two evaluations on different scales must
+       never be compared as raw scores. */
+    readEvals: function () {
+      var a = get(KEYS.perfEvals, []);
+      return Array.isArray(a) ? a : [];
+    },
+    writeEvals: function (list) {
+      return set(KEYS.perfEvals, Array.isArray(list) ? list : []);
+    },
+
+    readSummary: function () { return get(KEYS.perfSummary, null); },
+
+    /* Merged, not replaced. Home's Performance card is fed by more than one
+       part of the page — evaluations now, rankings later — built in different
+       phases. A writer that replaced the whole object would blank whichever
+       fields it does not own. */
+    writeSummary: function (patch) {
+      var cur = get(KEYS.perfSummary, {}) || {};
+      var out = {}, k;
+      for (k in cur) if (Object.prototype.hasOwnProperty.call(cur, k)) out[k] = cur[k];
+      for (k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) out[k] = patch[k];
+      out.updatedAt = new Date().toISOString();
+      return set(KEYS.perfSummary, out);
+    }
+  };
+
   /* Read-only window into Route Board's own store. No writer here on purpose.
      Shape: { primary, follow, top25only, assign, order }. `assign` maps an
      account id to a day key, which is what Home counts. */
@@ -260,6 +303,7 @@
     schedule: schedule,
     bonus: bonus,
     prescribers: prescribers,
+    performance: performance,
     routeBoard: routeBoard
   };
 

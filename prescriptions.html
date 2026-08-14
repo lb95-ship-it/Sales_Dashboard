@@ -296,11 +296,29 @@
     <div class="row" style="justify-content:center; gap:var(--s-4); margin-top:var(--s-8);">
       <button class="btn btn-sm" id="openImportBtn">Import new export</button>
       <button class="btn btn-sm" id="resetBtn">Reset follow-up data</button>
+      <button class="btn btn-sm" id="clearDataBtn">Clear prescriber data</button>
     </div>
     <div class="row" id="resetConfirm" hidden style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
       <span class="hint">Clear every follow-up tick, flag and note? Prescription data is kept.</span>
       <button class="btn btn-sm btn-danger" id="resetYes">Yes, clear</button>
       <button class="btn btn-sm" id="resetNo">Cancel</button>
+    </div>
+
+    <!-- Two clears, not one, and deliberately labelled differently.
+
+         The roster is disposable — a fresh dispensing export rebuilds it, so
+         clearing it is styled as an ordinary button. The ticks, flags and
+         notes are typed by hand and nothing can bring them back, so wiping
+         those is a separate red button rather than a side effect of clearing
+         the import. The counts in the confirmation line are filled in at open
+         time, so what is about to go is named, not implied. -->
+    <div id="clearConfirm" hidden style="margin-top:var(--s-3);">
+      <p class="hint" id="clearConfirmText" style="text-align:center; max-width:60ch; margin:0 auto;"></p>
+      <div class="row" style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
+        <button class="btn btn-sm" id="clearImportedYes">Clear imported data</button>
+        <button class="btn btn-sm btn-danger" id="clearAllYes">Clear everything</button>
+        <button class="btn btn-sm" id="clearNo">Cancel</button>
+      </div>
     </div>
   </section>
 
@@ -1021,6 +1039,67 @@
     toast('Imported ✓');
   }
 
+  /* --- Clearing ------------------------------------------------------------
+     Split in two on purpose. th_prescribers_roster and th_prescribers_summary
+     are rebuildable from a dispensing export; th_prescribers_followups is not
+     — every tick, flag and note in it was typed by hand. So the cheap clear
+     and the expensive one are separate buttons, and the confirmation counts
+     what each will take rather than asking "are you sure".
+     ------------------------------------------------------------------------- */
+
+  /* Doctors carrying anything hand-typed: a flag, a note, or at least one
+     prescription ticked off. This is the number that cannot be got back. */
+  function typedCount() {
+    return Object.keys(followups).reduce(function (n, id) {
+      var fu = followups[id] || {};
+      var done = fu.done || {};
+      var ticked = Object.keys(done).some(function (k) { return done[k]; });
+      var has = !!fu.flagged || !!String(fu.notes || '').trim() || ticked;
+      return n + (has ? 1 : 0);
+    }, 0);
+  }
+
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+  function showClearConfirm() {
+    var docs = roster ? roster.prescribers.length : 0;
+    var scripts = roster ? roster.prescribers.reduce(function (n, p) {
+      return n + (p.orders ? p.orders.length : 0);
+    }, 0) : 0;
+    var typed = typedCount();
+
+    var html = '<b>Clear imported data</b> removes ' + plural(docs, 'doctor') + ' and ' +
+               plural(scripts, 'prescription') + '. ';
+    html += typed
+      ? 'Your ticks, flags and notes on ' + plural(typed, 'doctor') +
+        ' are kept — a fresh export re-imports the rest.<br>' +
+        '<b>Clear everything</b> deletes those as well. They were typed by hand ' +
+        'and nothing can bring them back.'
+      : 'Nothing hand-typed is stored yet, so <b>Clear everything</b> removes the ' +
+        'same thing — there are no notes to lose.';
+
+    document.getElementById('clearConfirmText').innerHTML = html;
+    document.getElementById('clearConfirm').hidden = false;
+  }
+
+  function clearData(includeNotes) {
+    Store.remove(Store.KEYS.prescriberRoster);
+    Store.remove(Store.KEYS.prescriberSummary);
+    if (includeNotes) {
+      Store.remove(Store.KEYS.prescriberFollow);
+      followups = {};
+    }
+    roster = null;
+    showAll = {};
+    clearPreview();
+    document.getElementById('pasteBox').value = '';
+    document.getElementById('importMsg').textContent = '';
+    document.getElementById('clearConfirm').hidden = true;
+    /* First-run import view: there is no roster left to cancel back to. */
+    showImport(true);
+    toast(includeNotes ? 'All prescriber data cleared' : 'Imported data cleared');
+  }
+
   /* --- Toast -------------------------------------------------------------- */
 
   var toastTimer;
@@ -1145,6 +1224,7 @@
     });
 
     document.getElementById('resetBtn').addEventListener('click', function () {
+      document.getElementById('clearConfirm').hidden = true;
       document.getElementById('resetConfirm').hidden = false;
     });
     document.getElementById('resetNo').addEventListener('click', function () {
@@ -1157,6 +1237,20 @@
       document.getElementById('resetConfirm').hidden = true;
       renderAll();
       toast('Follow-up data cleared');
+    });
+
+    document.getElementById('clearDataBtn').addEventListener('click', function () {
+      document.getElementById('resetConfirm').hidden = true;
+      showClearConfirm();
+    });
+    document.getElementById('clearNo').addEventListener('click', function () {
+      document.getElementById('clearConfirm').hidden = true;
+    });
+    document.getElementById('clearImportedYes').addEventListener('click', function () {
+      clearData(false);
+    });
+    document.getElementById('clearAllYes').addEventListener('click', function () {
+      clearData(true);
     });
 
     window.addEventListener('pagehide', function () {

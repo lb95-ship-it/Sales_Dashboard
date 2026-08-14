@@ -176,8 +176,33 @@
   @media (min-width: 900px) {
     #routeBoardFrame { height: calc(100vh - 210px); min-height: 560px; }
   }
-  
-  
+
+  /* -----------------------------------------------------------------------
+     Wider column, this page only.
+
+     The Route Board's own container queries need ~820px of frame before it
+     leaves the cramped stacked layout, and the shell's reading column caps
+     at --content-max (640px). Widen it here rather than globally — no other
+     page wants this.
+
+     Bounded against the space beside the fixed 216px rail rather than raw
+     vw: the rail is `position:fixed`, so a plain centred 1100px box slides
+     underneath it at 1180px (iPad landscape), and a 96vw box overflows
+     horizontally in the 900–1179px band where .page is offset by the rail.
+     The max() keeps the column clear of the rail when space is tight and
+     lets it centre normally once the viewport is wide enough.
+     ----------------------------------------------------------------------- */
+  body[data-page="route"] .page {
+    max-width: min(1100px, 96vw);
+  }
+  @media (min-width: 900px) {
+    body[data-page="route"] .page {
+      max-width: min(1100px, calc(100vw - var(--sidebar-w) - var(--s-4)));
+      margin-left: max(var(--sidebar-w), calc((100vw - 1100px) / 2));
+      margin-right: auto;
+    }
+  }
+
 
   /* Theme hooks. These are set on the host ELEMENT, so they beat the
      component's own `:host{}` defaults (id selector vs :host) and inherit

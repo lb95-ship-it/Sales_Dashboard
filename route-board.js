@@ -300,6 +300,11 @@ const CSS = `  :host{
     font-size:14px; cursor:pointer; line-height:1;
   }
   .card .x:hover{color:var(--wed); background:var(--wed-soft);}
+  /* Skipped: still readable, clearly out of play. Shown only when the
+     Show skipped chip is on, and always after the live pool. */
+  .card.skipped{opacity:0.5;}
+  .card.skipped:hover{opacity:0.8;}
+  .card .x.unskip:hover{color:var(--mon); background:var(--mon-soft);}
 
   /* Quick-assign row (tap targets, mobile-friendly) */
   .qa{display:flex; gap:3px; margin-top:6px;}
@@ -420,6 +425,7 @@ const MARKUP = `<div id="app">
           <span class="lbl" title="Show only accounts whose note allows this day, plus everyone with no stated day">Fits</span>
         </div>
         <div class="filters" id="filters"></div>
+        <div class="filters" id="skipRow"></div>
       </div>
       <div class="source-list" id="sourceList" data-day="_src"></div>
     </aside>
@@ -619,6 +625,7 @@ const TERRITORIES = Object.keys(BOOK.territoryOrder);
 // dropped: an import that removes accounts must not silently delete the work
 // attached to them, because reverting the import has to bring them back.
 let annotations = { sfLinks: {}, orphanSfLinks: {}, labels: {}, orphanLabels: {},
+                    skipped: {}, orphanSkipped: {},
                     schedules: {}, orphanSchedules: {} };
 (function loadAnnotations(){
   const s = readJSON(STORE.annotations);
@@ -640,6 +647,16 @@ let annotations = { sfLinks: {}, orphanSfLinks: {}, labels: {}, orphanLabels: {}
       if(!v) return;
       if(ACCOUNTS[id]) annotations.labels[id] = v;
       else annotations.orphanLabels[id] = v;
+    });
+  }
+  // Accounts taken out of the pool. Stored as a set of ids that are true;
+  // anything false or missing is in play, so an old file with `false` values
+  // reads the same as one without them.
+  if(s.skipped && typeof s.skipped === 'object'){
+    Object.keys(s.skipped).forEach(id=>{
+      if(!s.skipped[id]) return;
+      if(ACCOUNTS[id]) annotations.skipped[id] = true;
+      else annotations.orphanSkipped[id] = true;
     });
   }
   // Corrected visit windows. Same quarantine rule as the links: an account
@@ -673,6 +690,7 @@ function saveAnnotations(){
   lsSet(STORE.annotations, JSON.stringify({
     sfLinks:   Object.assign({}, annotations.orphanSfLinks, annotations.sfLinks),
     labels:    Object.assign({}, annotations.orphanLabels, annotations.labels),
+    skipped:   Object.assign({}, annotations.orphanSkipped, annotations.skipped),
     schedules: Object.assign({}, annotations.orphanSchedules, annotations.schedules)
   }));
 }
@@ -745,6 +763,13 @@ function removeFromOrder(id, day){
 }
 // index === undefined appends; otherwise inserts at that position.
 function assignTo(id, day, index){
+  // Putting a skipped account on a day is an un-skip: it is plainly back in
+  // play, and a dimmed card in a day column with no way to restore it would
+  // be a dead end. Reachable by revealing skipped accounts and dragging one.
+  if(annotations.skipped[id]){
+    delete annotations.skipped[id];
+    saveAnnotations();
+  }
   const prev = week.assign[id];
   if(prev) removeFromOrder(id, prev);
   week.assign[id] = day;
@@ -804,7 +829,9 @@ function moveInDay(id, dir){
 })();
 
 // ---- Transient view state (not persisted) ---------------------------
-let view = { search: '', activeTags: new Set(), fitsDay: null };
+// showSkipped is view state, not stored: a skip is a lasting decision, but
+// wanting to look at what you skipped is a moment.
+let view = { search: '', activeTags: new Set(), fitsDay: null, showSkipped: false };
 
 // Directions URL from place URL (extract name for one-tap nav)
 function dirUrl(a){
@@ -1026,6 +1053,13 @@ function cardHTML(a, stop, total){
          <button class="rm" data-unassign="${id}" title="Remove from day" aria-label="Remove from day">&times;</button>
        </div>`
     : '';
+  // Skip lives only on pool cards: a placed account is already a decision, and
+  // its top-right corner belongs to the reorder/unassign controls.
+  const skipped = !!annotations.skipped[a.id];
+  const skipCtl = assigned ? ''
+    : (skipped
+        ? `<button class="x unskip" data-unskip="${id}" title="Put back in the pool" aria-label="Put back in the pool">&#8630;</button>`
+        : `<button class="x" data-skip="${id}" title="Skip — take out of the pool" aria-label="Skip this account">&times;</button>`);
   const stopBadge = assigned ? `<span class="stopno">${stop}</span>` : '';
   const qaRow = !assigned ? `<div class="qa">${DAYS.map(d=>`<button data-d="${d}" data-assign="${id}">${d}</button>`).join('')}</div>` : '';
   const sf = annotations.sfLinks[a.id];
@@ -1047,8 +1081,8 @@ function cardHTML(a, stop, total){
       + `</div>`;
   }
 
-  return `<div class="card${assigned?' placed':''}${clash?' conflict':''}" draggable="true" data-id="${id}" style="--src-color:${terrColor(a.territories[0])}">
-    ${ctl}
+  return `<div class="card${assigned?' placed':''}${clash?' conflict':''}${skipped?' skipped':''}" draggable="true" data-id="${id}" style="--src-color:${terrColor(a.territories[0])}">
+    ${ctl}${skipCtl}
 <div class="card-name" title="${escapeAttr(a.name)}">${stopBadge}${escapeHtml(a.name)}</div>
     ${cityHTML}
     ${noteHTML}
@@ -1098,9 +1132,18 @@ function render(){
   // Source (unassigned): only accounts from selected territories, not yet assigned
   const srcEl = root.getElementById('sourceList');
   const unassigned = pool.filter(a=>!week.assign[a.id] && matchesFilter(a));
-  srcEl.innerHTML = unassigned.length ? unassigned.map(cardHTML).join('')
-    : '<div class="empty">All accounts in this territory are placed.</div>';
-  root.getElementById('srcCount').textContent = unassigned.length + ' left';
+  // Skipped accounts leave the pool but are not deleted. When revealed they go
+  // last, behind everything still in play.
+  const skippedList = unassigned.filter(a=>annotations.skipped[a.id]);
+  const inPool = unassigned.filter(a=>!annotations.skipped[a.id]);
+  const shown = view.showSkipped ? inPool.concat(skippedList) : inPool;
+
+  srcEl.innerHTML = shown.length ? shown.map(a=>cardHTML(a)).join('')
+    : (skippedList.length && !view.showSkipped
+        ? '<div class="empty">Everything left here is skipped. Show skipped to see it.</div>'
+        : '<div class="empty">All accounts in this territory are placed.</div>');
+  root.getElementById('srcCount').textContent = inPool.length + ' left';
+  renderSkipToggle(skippedList.length);
 
   // Days: every assigned account, from ANY territory (never wiped by switching)
   const daysEl = root.getElementById('days');
@@ -1118,11 +1161,26 @@ function render(){
   // Progress: placed count across the whole week, and any day clashes
   const clashes = placed.filter(a=>!fitsDay(schedFor(a), week.assign[a.id])).length;
   root.getElementById('progress').innerHTML =
-    placed.length + ' placed · ' + unassigned.length + ' in pool'
+    placed.length + ' placed · ' + inPool.length + ' in pool'
+    + (skippedList.length ? ' · ' + skippedList.length + ' skipped' : '')
     + (clashes ? ' · <span class="conflict-pill">' + clashes + ' off-day</span>' : '');
 
   bindCards();
   saveWeek();
+}
+
+/* The toggle only exists when there is something to reveal, or while it is on
+   — a chip that always says "0 skipped" is noise on a narrow column. */
+function renderSkipToggle(n){
+  const row = root.getElementById('skipRow');
+  if(!row) return;
+  if(!n && !view.showSkipped){ row.innerHTML = ''; return; }
+  row.innerHTML = `<span class="chip${view.showSkipped?' on':''}" id="showSkipped">`
+    + `Show skipped${n ? ' (' + n + ')' : ''}</span>`;
+  row.querySelector('#showSkipped').onclick = ()=>{
+    view.showSkipped = !view.showSkipped;
+    render();
+  };
 }
 
 // ---- Interaction ----
@@ -1174,6 +1232,13 @@ function bindCards(){
       setSfLink(b.dataset.sfsave, root.querySelector(`[data-sfinput="${cssEsc(b.dataset.sfsave)}"]`).value);
     });
   });
+  // Skip / un-skip. stopPropagation so the click does not also start a drag.
+  root.querySelectorAll('[data-skip]').forEach(b=>{
+    b.addEventListener('click', e=>{ e.stopPropagation(); setSkipped(b.dataset.skip, true); });
+  });
+  root.querySelectorAll('[data-unskip]').forEach(b=>{
+    b.addEventListener('click', e=>{ e.stopPropagation(); setSkipped(b.dataset.unskip, false); });
+  });
   // City label: same three pieces as the SF link above — toggle, save, Enter.
   root.querySelectorAll('[data-labeledit]').forEach(b=>{
     b.addEventListener('click', e=>{
@@ -1210,6 +1275,11 @@ function bindCards(){
 function setSfLink(id, rawVal){
   const val = (rawVal||'').trim();
   if(val) annotations.sfLinks[id] = val; else delete annotations.sfLinks[id];
+  saveAnnotations();
+  render();
+}
+function setSkipped(id, on){
+  if(on) annotations.skipped[id] = true; else delete annotations.skipped[id];
   saveAnnotations();
   render();
 }
@@ -1639,10 +1709,21 @@ function parseAnnText(text){
       if(v) labels[id] = v; else problems.push(id+': label is not usable text — skipped.');
     });
   }
-  if(!Object.keys(links).length && !Object.keys(schedules).length && !Object.keys(labels).length){
-    throw new Error('No usable Salesforce links, visit windows or city labels found.');
+  // Skipped set. Same reason as labels: annForExport writes it, so the restore
+  // path has to read it back.
+  const skipped = {};
+  if(obj.skipped && typeof obj.skipped === 'object'){
+    Object.keys(obj.skipped).forEach(id=>{
+      if(!obj.skipped[id]) return;
+      if(!PLACE_ID_RE.test(id)){ problems.push(id+': not a Google place ID — skipped.'); return; }
+      skipped[id] = true;
+    });
   }
-  return {links:links, schedules:schedules, labels:labels, problems:problems};
+  if(!Object.keys(links).length && !Object.keys(schedules).length
+     && !Object.keys(labels).length && !Object.keys(skipped).length){
+    throw new Error('No usable Salesforce links, visit windows, city labels or skips found.');
+  }
+  return {links:links, schedules:schedules, labels:labels, skipped:skipped, problems:problems};
 }
 function showAnnPreview(parsed){
   pendingAnn = parsed;
@@ -1655,12 +1736,14 @@ function showAnnPreview(parsed){
   const nameOf = id => ACCOUNTS[id] ? ACCOUNTS[id].name : id + ' (not in current book)';
   const schedN = Object.keys(parsed.schedules).length;
   const labelN = Object.keys(parsed.labels || {}).length;
+  const skipN  = Object.keys(parsed.skipped || {}).length;
   let h = '<div class="add">+ '+added.length+' new link(s)</div>'
         + listSample(added.map(id=>({name:nameOf(id)})),5)
         + '<div class="upd">~ '+changed.length+' link(s) would be replaced</div>'
         + listSample(changed.map(id=>({name:nameOf(id)})),5)
         + (schedN ? '<div class="upd">~ '+schedN+' visit window override(s)</div>' : '')
-        + (labelN ? '<div class="upd">~ '+labelN+' city label(s)</div>' : '');
+        + (labelN ? '<div class="upd">~ '+labelN+' city label(s)</div>' : '')
+        + (skipN ? '<div class="upd">~ '+skipN+' skipped account(s)</div>' : '');
   if(parsed.problems.length){
     h += '<div class="del" style="margin-top:8px;">'+parsed.problems.length+' entr(ies) skipped:</div><ul>'
       +  parsed.problems.slice(0,6).map(p=>'<li>'+escapeHtml(p)+'</li>').join('')+'</ul>';
@@ -1695,6 +1778,7 @@ function annForExport(){
   return JSON.stringify({
     sfLinks:   Object.assign({}, annotations.orphanSfLinks, annotations.sfLinks),
     labels:    Object.assign({}, annotations.orphanLabels, annotations.labels),
+    skipped:   Object.assign({}, annotations.orphanSkipped, annotations.skipped),
     schedules: Object.assign({}, annotations.orphanSchedules, annotations.schedules)
   }, null, 2);
 }
@@ -1926,6 +2010,10 @@ function buildDataPanel(){
     Object.keys(pendingAnn.labels || {}).forEach(id=>{
       if(ACCOUNTS[id]) annotations.labels[id] = pendingAnn.labels[id];
       else annotations.orphanLabels[id] = pendingAnn.labels[id];
+    });
+    Object.keys(pendingAnn.skipped || {}).forEach(id=>{
+      if(ACCOUNTS[id]) annotations.skipped[id] = true;
+      else annotations.orphanSkipped[id] = true;
     });
     saveAnnotations();
     clearAnnPreview();

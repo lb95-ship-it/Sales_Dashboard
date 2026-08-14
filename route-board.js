@@ -210,6 +210,13 @@ const CSS = `  :host{
     font-size:11.5px; color:var(--accent); margin-top:3px; line-height:1.3;
     white-space:pre-line; font-style:italic;
   }
+  /* City / disambiguation label. Same size and spacing as the note it sits
+     above, but upright and neutral: seven accounts are called Texas State
+     Optical and this line is what tells them apart, so it has to read as a
+     fact about the account rather than as another note. */
+  .card-city{
+    font-size:11.5px; color:var(--ink-dim); margin-top:3px; line-height:1.3;
+  }
   .sched{
     display:inline-flex; align-items:center; gap:4px; margin-top:4px;
     font-family:var(--mono); font-size:10px; line-height:1.4;
@@ -611,7 +618,8 @@ const TERRITORIES = Object.keys(BOOK.territoryOrder);
 // Links whose account is not in the CURRENT book are quarantined rather than
 // dropped: an import that removes accounts must not silently delete the work
 // attached to them, because reverting the import has to bring them back.
-let annotations = { sfLinks: {}, orphanSfLinks: {}, schedules: {}, orphanSchedules: {} };
+let annotations = { sfLinks: {}, orphanSfLinks: {}, labels: {}, orphanLabels: {},
+                    schedules: {}, orphanSchedules: {} };
 (function loadAnnotations(){
   const s = readJSON(STORE.annotations);
   if(!s) return;
@@ -621,6 +629,17 @@ let annotations = { sfLinks: {}, orphanSfLinks: {}, schedules: {}, orphanSchedul
       if(typeof v !== 'string') return;
       if(ACCOUNTS[id]) annotations.sfLinks[id] = v;
       else annotations.orphanSfLinks[id] = v;
+    });
+  }
+  // City / disambiguation labels. The book carries no city, address or
+  // coordinates, so this is the only thing separating the seven accounts
+  // named Texas State Optical. Same quarantine rule as the links.
+  if(s.labels && typeof s.labels === 'object'){
+    Object.keys(s.labels).forEach(id=>{
+      const v = sanitizeLabel(s.labels[id]);
+      if(!v) return;
+      if(ACCOUNTS[id]) annotations.labels[id] = v;
+      else annotations.orphanLabels[id] = v;
     });
   }
   // Corrected visit windows. Same quarantine rule as the links: an account
@@ -634,6 +653,13 @@ let annotations = { sfLinks: {}, orphanSfLinks: {}, schedules: {}, orphanSchedul
     });
   }
 })();
+/* A place name, not a paragraph. Trimmed, single-line and capped so a paste
+   accident cannot push the card layout around. */
+function sanitizeLabel(v){
+  if(typeof v !== 'string') return null;
+  const s = v.replace(/\s+/g, ' ').trim().slice(0, 40);
+  return s || null;
+}
 function sanitizeSchedule(v){
   if(!v || typeof v !== 'object') return null;
   const days = Array.isArray(v.days) ? DAYS.filter(d=>v.days.indexOf(d) !== -1) : [];
@@ -646,6 +672,7 @@ function sanitizeSchedule(v){
 function saveAnnotations(){
   lsSet(STORE.annotations, JSON.stringify({
     sfLinks:   Object.assign({}, annotations.orphanSfLinks, annotations.sfLinks),
+    labels:    Object.assign({}, annotations.orphanLabels, annotations.labels),
     schedules: Object.assign({}, annotations.orphanSchedules, annotations.schedules)
   }));
 }
@@ -983,6 +1010,10 @@ function terrColor(terr){
 // stop / total are supplied only for cards sitting in a day column.
 function cardHTML(a, stop, total){
   const tagStr = a.tags.map(t=>`<span class="tag">${t.split(' ')[0]}</span>`).join('');
+  // Never written into `note` — build-book.ps1 regenerates that field, so
+  // anything typed here would be lost on the next book import.
+  const city = annotations.labels[a.id];
+  const cityHTML = city ? `<div class="card-city">${escapeHtml(city)}</div>` : '';
   const noteHTML = a.note ? `<div class="card-note">${escapeHtml(a.note)}</div>` : '';
   const assigned = week.assign[a.id];
   const id = escapeAttr(a.id);
@@ -1019,6 +1050,7 @@ function cardHTML(a, stop, total){
   return `<div class="card${assigned?' placed':''}${clash?' conflict':''}" draggable="true" data-id="${id}" style="--src-color:${terrColor(a.territories[0])}">
     ${ctl}
 <div class="card-name" title="${escapeAttr(a.name)}">${stopBadge}${escapeHtml(a.name)}</div>
+    ${cityHTML}
     ${noteHTML}
     ${schedHTML}
     <div class="card-tags">${tagStr}<span class="terr-mini" title="${escapeAttr(a.territories.join(', '))}">${terrLabel(a)}</span></div>
@@ -1028,10 +1060,15 @@ function cardHTML(a, stop, total){
       ${sf
         ? `<a class="sf" href="${escapeAttr(sf)}" target="_blank" rel="noopener">SF</a><button class="sf-add" data-sfedit="${escapeAttr(a.id)}" title="Edit link">✎</button>`
         : `<button class="sf-add" data-sfedit="${escapeAttr(a.id)}">＋ SF link</button>`}
+      <button class="sf-add" data-labeledit="${escapeAttr(a.id)}"${city ? ' title="Edit city"' : ''}>${city ? '✎ city' : '＋ city'}</button>
     </div>
     <div class="sf-pop" data-sfpop="${escapeAttr(a.id)}" style="display:none;">
       <input type="url" placeholder="Paste Salesforce URL" value="${escapeAttr(sf||'')}" data-sfinput="${escapeAttr(a.id)}">
       <button class="save" data-sfsave="${escapeAttr(a.id)}">Save</button>
+    </div>
+    <div class="sf-pop" data-labelpop="${escapeAttr(a.id)}" style="display:none;">
+      <input type="text" maxlength="40" placeholder="Round Rock" value="${escapeAttr(city||'')}" data-labelinput="${escapeAttr(a.id)}">
+      <button class="save" data-labelsave="${escapeAttr(a.id)}">Save</button>
     </div>
     ${qaRow}
   </div>`;
@@ -1137,6 +1174,30 @@ function bindCards(){
       setSfLink(b.dataset.sfsave, root.querySelector(`[data-sfinput="${cssEsc(b.dataset.sfsave)}"]`).value);
     });
   });
+  // City label: same three pieces as the SF link above — toggle, save, Enter.
+  root.querySelectorAll('[data-labeledit]').forEach(b=>{
+    b.addEventListener('click', e=>{
+      e.stopPropagation();
+      const pop = root.querySelector(`[data-labelpop="${cssEsc(b.dataset.labeledit)}"]`);
+      if(!pop) return;
+      const showing = pop.style.display !== 'none';
+      pop.style.display = showing ? 'none' : 'flex';
+      if(!showing){ const inp = pop.querySelector('input'); inp.focus(); inp.select(); }
+    });
+  });
+  root.querySelectorAll('[data-labelsave]').forEach(b=>{
+    b.addEventListener('click', e=>{
+      e.stopPropagation();
+      setLabel(b.dataset.labelsave, root.querySelector(`[data-labelinput="${cssEsc(b.dataset.labelsave)}"]`).value);
+    });
+  });
+  root.querySelectorAll('[data-labelinput]').forEach(inp=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); setLabel(inp.dataset.labelinput, inp.value); }
+    });
+    inp.closest('.card').setAttribute('draggable','true');
+    inp.addEventListener('mousedown', e=>e.stopPropagation());
+  });
   // Enter to save in the paste box; prevent drag from starting on inputs
   root.querySelectorAll('[data-sfinput]').forEach(inp=>{
     inp.addEventListener('keydown', e=>{
@@ -1149,6 +1210,12 @@ function bindCards(){
 function setSfLink(id, rawVal){
   const val = (rawVal||'').trim();
   if(val) annotations.sfLinks[id] = val; else delete annotations.sfLinks[id];
+  saveAnnotations();
+  render();
+}
+function setLabel(id, rawVal){
+  const val = sanitizeLabel(rawVal);
+  if(val) annotations.labels[id] = val; else delete annotations.labels[id];
   saveAnnotations();
   render();
 }
@@ -1294,6 +1361,9 @@ function exportLists(){
     out.push(DAYFULL[d].toUpperCase());
     inDay.forEach((a,i)=>{
       let line = '  ' + (i+1) + '. ' + a.name;
+      // The label goes on the name line, not into the note: with seven
+      // accounts sharing a name the printed plan is unreadable without it.
+      if(annotations.labels[a.id]) line += ' — ' + annotations.labels[a.id];
       if(a.note) line += '  ('+a.note.replace(/\n/g,' ')+')';
       out.push(line);
       out.push('    Map: ' + a.url);
@@ -1559,10 +1629,20 @@ function parseAnnText(text){
       if(s) schedules[id] = s; else problems.push(id+': not a usable visit window — skipped.');
     });
   }
-  if(!Object.keys(links).length && !Object.keys(schedules).length){
-    throw new Error('No usable Salesforce links or visit windows found.');
+  // City labels. Read here because annForExport writes them — exporting a
+  // field the importer drops would lose them on the restore it exists for.
+  const labels = {};
+  if(obj.labels && typeof obj.labels === 'object'){
+    Object.keys(obj.labels).forEach(id=>{
+      if(!PLACE_ID_RE.test(id)){ problems.push(id+': not a Google place ID — skipped.'); return; }
+      const v = sanitizeLabel(obj.labels[id]);
+      if(v) labels[id] = v; else problems.push(id+': label is not usable text — skipped.');
+    });
   }
-  return {links:links, schedules:schedules, problems:problems};
+  if(!Object.keys(links).length && !Object.keys(schedules).length && !Object.keys(labels).length){
+    throw new Error('No usable Salesforce links, visit windows or city labels found.');
+  }
+  return {links:links, schedules:schedules, labels:labels, problems:problems};
 }
 function showAnnPreview(parsed){
   pendingAnn = parsed;
@@ -1574,11 +1654,13 @@ function showAnnPreview(parsed){
   });
   const nameOf = id => ACCOUNTS[id] ? ACCOUNTS[id].name : id + ' (not in current book)';
   const schedN = Object.keys(parsed.schedules).length;
+  const labelN = Object.keys(parsed.labels || {}).length;
   let h = '<div class="add">+ '+added.length+' new link(s)</div>'
         + listSample(added.map(id=>({name:nameOf(id)})),5)
         + '<div class="upd">~ '+changed.length+' link(s) would be replaced</div>'
         + listSample(changed.map(id=>({name:nameOf(id)})),5)
-        + (schedN ? '<div class="upd">~ '+schedN+' visit window override(s)</div>' : '');
+        + (schedN ? '<div class="upd">~ '+schedN+' visit window override(s)</div>' : '')
+        + (labelN ? '<div class="upd">~ '+labelN+' city label(s)</div>' : '');
   if(parsed.problems.length){
     h += '<div class="del" style="margin-top:8px;">'+parsed.problems.length+' entr(ies) skipped:</div><ul>'
       +  parsed.problems.slice(0,6).map(p=>'<li>'+escapeHtml(p)+'</li>').join('')+'</ul>';
@@ -1612,6 +1694,7 @@ function bookForExport(){
 function annForExport(){
   return JSON.stringify({
     sfLinks:   Object.assign({}, annotations.orphanSfLinks, annotations.sfLinks),
+    labels:    Object.assign({}, annotations.orphanLabels, annotations.labels),
     schedules: Object.assign({}, annotations.orphanSchedules, annotations.schedules)
   }, null, 2);
 }
@@ -1839,6 +1922,10 @@ function buildDataPanel(){
     Object.keys(pendingAnn.schedules).forEach(id=>{
       if(ACCOUNTS[id]) annotations.schedules[id] = pendingAnn.schedules[id];
       else annotations.orphanSchedules[id] = pendingAnn.schedules[id];
+    });
+    Object.keys(pendingAnn.labels || {}).forEach(id=>{
+      if(ACCOUNTS[id]) annotations.labels[id] = pendingAnn.labels[id];
+      else annotations.orphanLabels[id] = pendingAnn.labels[id];
     });
     saveAnnotations();
     clearAnnPreview();

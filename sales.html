@@ -264,6 +264,21 @@
     <span class="eyebrow mono" id="hdrSub">Bonus Tracker</span>
   </header>
 
+  <!-- Two tools, one page — the same [data-tabs] mechanism Route Planning
+       uses. Shell.tabs() wires this automatically; nothing on this page
+       needs to know about it. -->
+  <div class="subtabs" role="tablist" aria-label="Sales tools"
+       data-tabs data-default="bonus">
+    <button data-panel="bonus">Bonus Tracker</button>
+    <button data-panel="keyaccts">Key Accounts</button>
+  </div>
+
+  <!-- ===================== BONUS TRACKER =====================
+       Everything inside this panel is the original page, unchanged: the
+       upload slots, the dashboard and the flow between them all still run
+       off #uploadView and #dashView. The panel is only a wrapper. -->
+  <section class="tabpanel" data-panel="bonus" role="tabpanel" aria-label="Bonus Tracker">
+
   <!-- ===================== UPLOAD ===================== -->
   <section id="uploadView">
 
@@ -344,6 +359,19 @@
       <p class="stat-label">Reading PDFs&hellip;</p>
     </div>
     <div id="dashContent"></div>
+  </section>
+
+  </section><!-- /Bonus Tracker panel -->
+
+  <!-- ===================== KEY ACCOUNTS =====================
+       Structure only. The worksheet reader is Phase 4.1; this panel exists
+       now so the split can be tested without the bonus tracker changing. -->
+  <section class="tabpanel" data-panel="keyaccts" role="tabpanel" aria-label="Key Accounts" hidden>
+    <div class="empty">
+      <strong>Not built yet</strong>
+      This is where the Key Account worksheets will be read and shown.
+      The Bonus Tracker beside it is unchanged.
+    </div>
   </section>
 
 </main>

@@ -147,7 +147,34 @@ const CSS = `  :host{
   .source-list{overflow-y:auto; flex:1; padding:8px; min-height:0;}
   .source-list.dragover{background:var(--accent-soft);}
 
-  /* Day columns */
+  /* Day columns.
+
+     The wrapper exists so the five columns can carry a header row of their
+     own — the source column has one, and the expand control belongs with the
+     thing it expands rather than up in the app toolbar. */
+  .days-wrap{flex:1; display:flex; flex-direction:column; min-height:0; min-width:0;}
+  .days-head{
+    padding:7px 12px; border-bottom:1px solid var(--line); flex-shrink:0;
+    display:flex; align-items:center; gap:10px; background:var(--panel);
+  }
+  .days-title{font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim);}
+  .days-sub{font-size:11px; color:var(--ink-faint); font-family:var(--mono); margin-left:auto;}
+  .expand-btn{
+    background:transparent; border:1px solid var(--line); border-radius:6px;
+    padding:3px 9px; font-family:var(--sans); font-size:11.5px; color:var(--ink-dim);
+    cursor:pointer; white-space:nowrap; transition:.12s;
+  }
+  .expand-btn:hover{color:var(--ink); border-color:var(--ink-faint);}
+  .expand-btn[aria-pressed="true"]{color:var(--accent); border-color:var(--accent-line);}
+
+  /* Expanded: the account list steps aside and the days take the whole frame.
+     Transient — no storage key, so a reload is always back to the split view.
+
+     min-width drops to 0 here ONLY. In the split view a day column below
+     150px is unreadable next to the source list; expanded, five columns have
+     the whole frame and the flex basis already sizes them evenly. */
+  .board.expanded .source{display:none;}
+  .board.expanded .day{min-width:0;}
   .days{flex:1; display:flex; overflow-x:auto; min-height:0;}
   .day{
     flex:1 1 0; min-width:150px; border-right:1px solid var(--line);
@@ -430,7 +457,15 @@ const MARKUP = `<div id="app">
       <div class="source-list" id="sourceList" data-day="_src"></div>
     </aside>
 
-    <div class="days" id="days"></div>
+    <section class="days-wrap">
+      <div class="days-head">
+        <span class="days-title">Days</span>
+        <span class="days-sub" id="daysSub"></span>
+        <button class="expand-btn" id="expandBtn" aria-pressed="false"
+                title="Fill the board with the five days and hide the account list">Expand</button>
+      </div>
+      <div class="days" id="days"></div>
+    </section>
   </div>
 </div>
 
@@ -831,7 +866,8 @@ function moveInDay(id, dir){
 // ---- Transient view state (not persisted) ---------------------------
 // showSkipped is view state, not stored: a skip is a lasting decision, but
 // wanting to look at what you skipped is a moment.
-let view = { search: '', activeTags: new Set(), fitsDay: null, showSkipped: false };
+let view = { search: '', activeTags: new Set(), fitsDay: null, showSkipped: false,
+             expanded: false };
 
 // Directions URL from place URL (extract name for one-tap nav)
 function dirUrl(a){
@@ -1158,6 +1194,11 @@ function render(){
     </div>`;
   }).join('');
 
+  // Mirrors the "N left" on the source column, so each half of the board
+  // states its own total without a trip to the toolbar pill.
+  const subEl = root.getElementById('daysSub');
+  if(subEl) subEl.textContent = placed.length + ' placed';
+
   // Progress: placed count across the whole week, and any day clashes
   const clashes = placed.filter(a=>!fitsDay(schedFor(a), week.assign[a.id])).length;
   root.getElementById('progress').innerHTML =
@@ -1167,6 +1208,21 @@ function render(){
 
   bindCards();
   saveWeek();
+}
+
+/* Expanded is a CSS class on .board and nothing more: no re-render, so a drag
+   in progress is undisturbed and the day columns keep their scroll positions.
+   Deliberately not persisted — a reload always comes back to the split view. */
+function applyExpanded(){
+  const board = root.querySelector('.board');
+  const btn = root.getElementById('expandBtn');
+  if(!board || !btn) return;
+  board.classList.toggle('expanded', view.expanded);
+  btn.textContent = view.expanded ? 'Collapse' : 'Expand';
+  btn.setAttribute('aria-pressed', view.expanded ? 'true' : 'false');
+  btn.title = view.expanded
+    ? 'Show the account list again'
+    : 'Fill the board with the five days and hide the account list';
 }
 
 /* The toggle only exists when there is something to reveal, or while it is on
@@ -1385,6 +1441,12 @@ function buildControls(){
   });
 
   root.getElementById('search').oninput = e=>{ view.search=e.target.value; render(); };
+
+  // Expand / collapse the day board. Pure view state, so no render() here.
+  root.getElementById('expandBtn').onclick = ()=>{
+    view.expanded = !view.expanded;
+    applyExpanded();
+  };
 
   // "Fits" day filter — single select, click again to clear.
   const fitsRow = root.getElementById('fitsRow');

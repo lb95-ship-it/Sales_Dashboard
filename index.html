@@ -154,6 +154,27 @@
       </div>
     </a>
 
+    <!-- Key accounts ------------------------------------------------------
+         Sits beside the bonus card because both are the Sales pillar, and the
+         question it answers — which accounts want attention — is a this-week
+         question even though the worksheets themselves are standing records. -->
+    <a class="card card-link" href="sales.html">
+      <div class="card-head">
+        <h2>Key accounts</h2>
+        <span id="kaBadge"></span>
+      </div>
+      <div id="kaBody"></div>
+      <div class="card-foot row-between">
+        <span class="stat-label" id="kaFoot"></span>
+        <span class="card-cta">Open Sales
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+        </span>
+      </div>
+    </a>
+
     <!-- Follow-ups -------------------------------------------------------- -->
     <a class="card card-link" href="prescriptions.html">
       <div class="card-head">
@@ -186,7 +207,7 @@
 
 </main>
 
-<script src="assets/js/data-store.js?v=1788042729"></script>
+<script src="assets/js/data-store.js?v=1788044961"></script>
 <script src="assets/js/shell.js?v=1786689985"></script>
 <script>
 /* ===========================================================================
@@ -366,6 +387,56 @@
                        (daysOld(s.updatedAt) >= STALE_DAYS ? ' · ' + ageNote(s.updatedAt) : '');
   }
 
+  /* --- Key accounts ------------------------------------------------------- */
+
+  function renderKeyAccts() {
+    var s = Store.keyAccounts.readSummary();
+    var body = document.getElementById('kaBody');
+    var badge = document.getElementById('kaBadge');
+    var foot = document.getElementById('kaFoot');
+
+    if (!s || !s.total) {
+      badge.outerHTML = '<span class="pill" id="kaBadge">No worksheets</span>';
+      body.innerHTML = empty('Import your Key Account Worksheets to see which accounts need attention.');
+      foot.textContent = 'Key Accounts';
+      return;
+    }
+
+    var attention = (s.atRisk || 0) + (s.watch || 0);
+    var steps = s.openSteps || 0;
+
+    /* Names, not just a count. "2 need attention" makes you open the page to
+       find out which two; naming them is the whole value of a Home card. */
+    var named = (s.attention || []).map(Shell.escapeHtml).join(', ');
+    var more = attention - (s.attention || []).length;
+
+    body.innerHTML =
+      '<div class="stat-row">' +
+        '<span class="stat">' +
+          '<span class="stat-value"' +
+            (s.atRisk ? ' style="color:var(--red)"' : (attention ? ' style="color:var(--amber)"' : '')) +
+            '>' + attention + '</span>' +
+          '<span class="stat-label">need attention</span>' +
+        '</span>' +
+        '<span class="stat">' +
+          '<span class="stat-value"' + (steps ? ' style="color:var(--amber)"' : '') + '>' + steps + '</span>' +
+          '<span class="stat-label">open next steps</span>' +
+        '</span>' +
+      '</div>' +
+      (named
+        ? '<p class="stat-label" style="margin-top:var(--s-3);">' + named +
+          (more > 0 ? ' and ' + more + ' more' : '') + '</p>'
+        : '');
+
+    badge.outerHTML = '<span class="pill ' +
+      (s.atRisk ? 'pill-bad' : (attention ? 'pill-warn' : 'pill-ok')) + '" id="kaBadge">' +
+      (s.atRisk ? s.atRisk + ' at risk' : (attention ? attention + ' to watch' : 'all healthy')) +
+      '</span>';
+
+    foot.textContent = s.total + (s.total === 1 ? ' account' : ' accounts') +
+                       (daysOld(s.updatedAt) >= STALE_DAYS ? ' · ' + ageNote(s.updatedAt) : '');
+  }
+
   /* --- Prescription follow-ups ------------------------------------------- */
 
   function renderRx() {
@@ -422,6 +493,7 @@
     var stamps = [
       (Store.schedule.readSummary() || {}).updatedAt,
       (Store.bonus.readSummary() || {}).updatedAt,
+      (Store.keyAccounts.readSummary() || {}).updatedAt,
       (Store.prescribers.readSummary() || {}).updatedAt
     ].filter(Boolean);
     if (!stamps.length) { document.getElementById('freshness').textContent = 'no data yet'; return; }
@@ -433,6 +505,7 @@
     renderHero();
     renderRoute();
     renderBonus();
+    renderKeyAccts();
     renderRx();
     renderFreshness();
   }

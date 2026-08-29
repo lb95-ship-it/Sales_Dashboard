@@ -33,6 +33,7 @@
     bonusSummary:     'th_bonus_summary',         // Sales -> Home
     bonusLastUpload:  'th_bonus_lastUpload',      // Sales (internal)
     keyAcctBook:      'th_keyaccts_book',         // Sales / Key Accounts (internal)
+    keyAcctSummary:   'th_keyaccts_summary',      // Sales / Key Accounts -> Home
     prescriberRoster: 'th_prescribers_roster',    // Prescriptions (internal)
     prescriberFollow: 'th_prescribers_followups', // Prescriptions (internal)
     prescriberSummary:'th_prescribers_summary',   // Prescriptions -> Home
@@ -203,14 +204,9 @@
      clinic names, doctor names, contract pricing and sales figures. Device
      local, never committed, never exported unless explicitly asked for.
 
-     There is no summary key and no writer for one. Home is not wired to this
-     yet; adding a summary nothing reads would just be a shape nobody has
-     agreed on. Give Key Accounts a Home card and the summary gets written
-     here, next to the others.
-
-     Wholly replaced on every write, not merged. Nothing here is typed by hand
-     — every field comes from a worksheet — so unlike the prescriber roster
-     there is no second half to protect from a re-import.
+     The book is wholly replaced on every write, not merged. Nothing here is
+     typed by hand — every field comes from a worksheet — so unlike the
+     prescriber roster there is no second half to protect from a re-import.
      ------------------------------------------------------------------------- */
   var keyAccounts = {
     readBook:  function () { return get(KEYS.keyAcctBook, null); },
@@ -220,7 +216,33 @@
         accounts:  Array.isArray(book && book.accounts) ? book.accounts : []
       });
     },
-    clear: function () { return remove(KEYS.keyAcctBook); }
+
+    /* { total, atRisk, watch, openSteps, attention[], updatedAt }
+
+       `updatedAt` is passed in rather than stamped here, and it is the moment
+       the WORKSHEETS were imported, not the moment this line was written. Home
+       ages every card off updatedAt, so stamping it at write time would let a
+       summary rebuilt on page load report six-week-old worksheets as checked
+       today — the same trap the Bonus Tracker avoids by not rewriting its
+       summary when it restores a cached report. */
+    readSummary: function () { return get(KEYS.keyAcctSummary, null); },
+    writeSummary: function (s) {
+      return set(KEYS.keyAcctSummary, {
+        total:     s.total || 0,
+        atRisk:    s.atRisk || 0,
+        watch:     s.watch || 0,
+        openSteps: s.openSteps || 0,
+        attention: Array.isArray(s.attention) ? s.attention : [],
+        updatedAt: s.updatedAt || new Date().toISOString()
+      });
+    },
+
+    /* Both keys go together. A summary left behind after the book was cleared
+       would keep a Home card reporting accounts that are no longer there. */
+    clear: function () {
+      remove(KEYS.keyAcctSummary);
+      return remove(KEYS.keyAcctBook);
+    }
   };
 
   var prescribers = {

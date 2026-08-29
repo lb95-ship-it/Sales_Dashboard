@@ -621,7 +621,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788042729"></script>
+<script src="assets/js/data-store.js?v=1788044961"></script>
 <script src="assets/js/shell.js?v=1786689985"></script>
 <script>
 /* ===========================================================================
@@ -1803,6 +1803,7 @@
     staged = null;
     document.getElementById('kaPreview').hidden = true;
     document.getElementById('kaFile').value = '';
+    writeSummary();
     showBook();
   }
 
@@ -1838,6 +1839,54 @@
     if (n === 'purchasing')  return 'pill-ok';
     if (n === 'not visited') return 'pill-bad';
     return 'pill-accent';
+  }
+
+  /* --- Summary for Home --------------------------------------------------- */
+
+  /* Section 9's Status column is free text, so this reads as a deny-list: a
+     row counts as open unless it is explicitly marked finished. Getting it
+     wrong in this direction shows an action item that is actually done, which
+     you notice and close; the other direction hides work silently. */
+  var DONE_STATES = ['done', 'complete', 'completed', 'closed', 'finished', 'n/a'];
+
+  function openSteps(a) {
+    var tbl = a.nextSteps;
+    if (!tbl.rows.length) return 0;
+    var col = -1, i;
+    for (i = 0; i < tbl.heads.length; i++) {
+      if (norm(tbl.heads[i]) === 'status') { col = i; break; }
+    }
+    var n = 0;
+    tbl.rows.forEach(function (row) {
+      /* No Status column at all still counts. An action item written down and
+         never marked is exactly the thing worth surfacing. */
+      var st = col >= 0 ? norm(row[col]) : '';
+      if (DONE_STATES.indexOf(st) === -1) n++;
+    });
+    return n;
+  }
+
+  /* What Home shows: which accounts want attention, and how much is open.
+     Both fall straight out of the worksheets — nothing here asks for a second
+     round of data entry to feed a card. */
+  function writeSummary() {
+    if (!book || !book.accounts.length) return;
+    var atRisk = [], watch = [], steps = 0;
+    book.accounts.forEach(function (a) {
+      var c = healthClass(a.health);
+      if (c === 'h-risk') atRisk.push(a.profile.name);
+      else if (c === 'h-moderate') watch.push(a.profile.name);
+      steps += openSteps(a);
+    });
+    Store.keyAccounts.writeSummary({
+      total:     book.accounts.length,
+      atRisk:    atRisk.length,
+      watch:     watch.length,
+      openSteps: steps,
+      /* At-risk names first — if only three fit, those are the three. */
+      attention: atRisk.concat(watch).slice(0, 3),
+      updatedAt: book.generated
+    });
   }
 
   function figure(sales, label) {
@@ -2179,6 +2228,13 @@
 
     book = Store.keyAccounts.readBook();
     if (book && !Array.isArray(book.accounts)) book = null;
+
+    /* Backfill for a book imported before Home had a card to feed. Safe to run
+       on every load: the summary is derived entirely from the book, and its
+       updatedAt is the book's own import time, so rewriting it cannot make
+       stale worksheets look freshly checked. */
+    if (book && !Store.keyAccounts.readSummary()) writeSummary();
+
     showBook();
   });
 

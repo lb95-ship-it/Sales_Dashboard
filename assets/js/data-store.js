@@ -32,6 +32,7 @@
     scheduleRoutes:   'th_schedule_routes_',      // prefix + ISO Monday
     bonusSummary:     'th_bonus_summary',         // Sales -> Home
     bonusLastUpload:  'th_bonus_lastUpload',      // Sales (internal)
+    keyAcctBook:      'th_keyaccts_book',         // Sales / Key Accounts (internal)
     prescriberRoster: 'th_prescribers_roster',    // Prescriptions (internal)
     prescriberFollow: 'th_prescribers_followups', // Prescriptions (internal)
     prescriberSummary:'th_prescribers_summary',   // Prescriptions -> Home
@@ -193,6 +194,35 @@
     writeLastUpload: function (report) { return set(KEYS.bonusLastUpload, report); }
   };
 
+  /* -------------------------------------------------------------------------
+     Key Accounts. One imported Key Account Worksheet per account:
+
+       { generated, accounts: [{ id, file, importedAt, sections… }] }
+
+     Same class of data as the account book and the prescriber roster — real
+     clinic names, doctor names, contract pricing and sales figures. Device
+     local, never committed, never exported unless explicitly asked for.
+
+     There is no summary key and no writer for one. Home is not wired to this
+     yet; adding a summary nothing reads would just be a shape nobody has
+     agreed on. Give Key Accounts a Home card and the summary gets written
+     here, next to the others.
+
+     Wholly replaced on every write, not merged. Nothing here is typed by hand
+     — every field comes from a worksheet — so unlike the prescriber roster
+     there is no second half to protect from a re-import.
+     ------------------------------------------------------------------------- */
+  var keyAccounts = {
+    readBook:  function () { return get(KEYS.keyAcctBook, null); },
+    writeBook: function (book) {
+      return set(KEYS.keyAcctBook, {
+        generated: new Date().toISOString(),
+        accounts:  Array.isArray(book && book.accounts) ? book.accounts : []
+      });
+    },
+    clear: function () { return remove(KEYS.keyAcctBook); }
+  };
+
   var prescribers = {
     /* { needFollowUp, flagged } — how many prescriptions are still waiting on
        a follow-up, and how many doctors are flagged high priority.
@@ -302,6 +332,7 @@
     isoMonday: isoMonday,
     schedule: schedule,
     bonus: bonus,
+    keyAccounts: keyAccounts,
     prescribers: prescribers,
     performance: performance,
     routeBoard: routeBoard

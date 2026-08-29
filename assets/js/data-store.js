@@ -287,12 +287,26 @@
      repo, and never in an export unless it is explicitly asked for.
      ------------------------------------------------------------------------- */
   var performance = {
-    /* [{ id, date, evaluator, territory, scaleMax, sections{TER,PRE,SAL},
-         flagged[{id,label,note,worked}], createdAt, updatedAt }]
+    /* [{ id, date, rep, evaluator, territory, scaleMax, scale[{score,label}],
+         sections{TER,PRE,SAL}, criteria[{id,label,score,option,note}],
+         flagged[{id,label,note,worked}], distribution, reported{got,max,pct},
+         narrative{strengths,improvements,overall}, actionItems[{text,owner,due}],
+         source, file, createdAt, updatedAt }]
 
-       Only the flagged criteria are stored, not all thirty scores: movement
-       between field rides is a question about the flagged set, and asking for
-       the other twenty-two rows buys nothing.
+       All thirty criteria are now stored, along with the evaluator's note on
+       each. The original shape kept only the flagged ones on the grounds that
+       the other twenty-two were entry work that bought nothing — which was
+       true while the scores were typed in by hand. They are read out of the
+       evaluation PDF now, so that cost is gone and keeping them buys a
+       per-criterion history across rides.
+
+       `flagged` is still written, derived as the criteria sitting at the
+       bottom of that evaluation's scale. It stays because `worked` hangs off
+       it — the one field on this page that is typed rather than extracted, and
+       the one thing a re-import must preserve.
+
+       Evaluations entered by hand before this carry no `criteria`, so anything
+       reading it must tolerate its absence rather than assume a PDF import.
 
        scaleMax rides on each evaluation because the scale is NOT stable — the
        May 2026 form used 1-5, the July 2026 one used 1-3. Nothing here may

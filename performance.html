@@ -142,6 +142,117 @@
   @media (min-width: 900px) {
     .toast { bottom: var(--s-6); left: calc(50% + (var(--sidebar-w) / 2)); }
   }
+
+  /* -----------------------------------------------------------------------
+     Evaluation upload + the views that only exist once a PDF has been read.
+     ----------------------------------------------------------------------- */
+  .ev-drop {
+    display: block;
+    background: var(--white);
+    border: 1px dashed var(--ink-faint);
+    border-radius: var(--r-lg);
+    padding: var(--s-7) var(--s-4);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .ev-drop:hover, .ev-drop.is-over { border-color: var(--teal); background: var(--teal-dim); }
+  .ev-drop-title { font-size: var(--fs-lg); font-weight: 500; display: block; }
+  .ev-drop-sub { font-size: var(--fs-sm); color: var(--ink-light); margin-top: var(--s-2); display: block; }
+  input[type=file] { display: none; }
+
+  .ev-file {
+    display: flex; align-items: flex-start; gap: var(--s-3);
+    padding: var(--s-3);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: var(--r-md);
+    margin-bottom: var(--s-2);
+  }
+  .ev-file.is-new    { border-left-color: var(--green); }
+  .ev-file.is-update { border-left-color: var(--teal); }
+  .ev-file.is-bad    { border-left-color: var(--red); }
+  .ev-file-name { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
+  .ev-file-why  { font-size: var(--fs-xs); color: var(--red); margin-top: 2px; }
+
+  /* Overall percentage per ride. A bar each, oldest at the top, so the shape
+     of the run is readable without a charting library. */
+  .trend { display: grid; gap: var(--s-2); }
+  .trend-row { display: grid; grid-template-columns: 74px 1fr 44px; align-items: center; gap: var(--s-3); }
+  .trend-when { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
+  .trend-bar { background: var(--bg); border-radius: var(--r-pill); height: 8px; overflow: hidden; }
+  .trend-bar > span { display: block; height: 100%; background: var(--teal); border-radius: var(--r-pill); }
+  .trend-pct { font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 500; text-align: right; }
+  .trend-delta { font-family: var(--font-mono); font-size: var(--fs-xs); }
+  .trend-delta.up   { color: var(--green); }
+  .trend-delta.down { color: var(--red); }
+
+  /* Per-criterion history: one row per criterion, one dot per ride. */
+  .crit { display: grid; gap: var(--s-2); }
+  .crit-row {
+    display: grid; grid-template-columns: 56px 1fr auto; gap: var(--s-3);
+    align-items: baseline;
+    padding-bottom: var(--s-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  .crit-row:last-child { border-bottom: none; }
+  .crit-id { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
+  .crit-label { font-size: var(--fs-sm); color: var(--ink-mid); line-height: 1.4; }
+  .crit-dots { display: flex; gap: 4px; align-items: center; }
+  .crit-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--white); flex-shrink: 0;
+  }
+  .crit-dot.s-low  { background: var(--red); }
+  .crit-dot.s-mid  { background: var(--amber); }
+  .crit-dot.s-high { background: var(--green); }
+  .crit-dot.s-none { background: var(--rule); color: var(--ink-light); }
+
+  /* Suggestions, graded by why they are being raised. */
+  .sugg { display: grid; gap: var(--s-2); }
+  .sugg-item {
+    padding: var(--s-3);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--ink-faint);
+    border-radius: var(--r-md);
+  }
+  .sugg-item.is-bad   { border-left-color: var(--red); }
+  .sugg-item.is-warn  { border-left-color: var(--amber); }
+  .sugg-item.is-good  { border-left-color: var(--green); }
+  .sugg-head { font-size: var(--fs-sm); font-weight: 500; }
+  .sugg-why  { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; line-height: 1.45; }
+  .sugg-list { margin: var(--s-2) 0 0; padding: 0; list-style: none; display: grid; gap: var(--s-1); }
+  .sugg-list li {
+    font-size: var(--fs-sm); color: var(--ink-mid); line-height: 1.4;
+    padding-left: var(--s-3); position: relative;
+  }
+  .sugg-list li::before {
+    content: ''; position: absolute; left: 0; top: 0.55em;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--ink-faint);
+  }
+
+  .note-block { font-size: var(--fs-sm); color: var(--ink-mid); line-height: 1.55; white-space: pre-wrap; }
+  .note-head {
+    font-family: var(--font-mono); font-size: var(--fs-xs);
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-light);
+    margin-bottom: var(--s-2);
+  }
+  .note-sec { margin-bottom: var(--s-5); }
+  .note-sec:last-child { margin-bottom: 0; }
+
+  .ai { display: grid; gap: var(--s-2); }
+  .ai-item {
+    display: grid; grid-template-columns: 1fr auto; gap: var(--s-3);
+    padding: var(--s-3);
+    background: var(--bg); border-radius: var(--r-md);
+    align-items: baseline;
+  }
+  .ai-text { font-size: var(--fs-sm); line-height: 1.45; }
+  .ai-due  { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); white-space: nowrap; }
 </style>
 </head>
 <body data-page="perf">
@@ -154,12 +265,51 @@
     <span class="eyebrow mono" id="headPill"></span>
   </header>
 
+  <!-- ===================== UPLOAD =====================
+       The primary way in. Everything the old form asked you to type is already
+       in the evaluation PDF, so it is read from there instead. -->
+  <section class="card" id="uploadCard">
+    <div class="card-head">
+      <h2>Upload field ride evaluations</h2>
+      <span class="pill" id="evCount"></span>
+    </div>
+
+    <label class="ev-drop" id="evDrop">
+      <span class="ev-drop-title">Choose evaluation PDFs</span>
+      <span class="ev-drop-sub" id="evDropSub">
+        Tap to pick files, or drag them here. Add every ride you have &mdash;
+        progress only appears once there are two.
+      </span>
+      <input type="file" id="evFile" multiple accept="application/pdf,.pdf">
+    </label>
+
+    <div class="msg err" id="evErr" hidden style="margin-top:var(--s-4);"></div>
+
+    <div id="evPreview" hidden style="margin-top:var(--s-4);">
+      <p class="section-label"><span id="evPreviewLabel">Ready to import</span></p>
+      <div id="evFileList"></div>
+      <div class="row" style="margin-top:var(--s-3);">
+        <button class="btn btn-primary" id="evApplyBtn" style="flex:1;">Add these rides</button>
+        <button class="btn" id="evDiscardBtn">Discard</button>
+      </div>
+    </div>
+
+    <p class="hint" style="margin-top:var(--s-4);">
+      Evaluations are read in your browser and stay on this device. A field ride
+      evaluation is your manager&rsquo;s assessment of you &mdash; it is never
+      uploaded and never committed to the repo.
+    </p>
+  </section>
+
   <div id="views"></div>
 
-  <!-- ===================== ENTRY ===================== -->
+  <!-- ===================== ENTRY =====================
+       Kept as a fallback, below the upload rather than above it. If a PDF ever
+       fails to parse, or an evaluation arrives as a scan with no text in it,
+       this is still a way to record the ride rather than losing it. -->
   <section class="card" id="entryCard" style="margin-top:var(--s-5);">
     <div class="card-head">
-      <h2 id="entryTitle">Add a field ride</h2>
+      <h2 id="entryTitle">Add a field ride by hand</h2>
       <button class="btn btn-sm" id="entryToggle">Add</button>
     </div>
 
@@ -218,7 +368,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="assets/js/data-store.js?v=1788044961"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="assets/js/data-store.js?v=1788046736"></script>
 <script src="assets/js/shell.js?v=1786689985"></script>
 <script>
 /* ===========================================================================
@@ -455,6 +606,762 @@
     box.hidden = false;
   }
 
+  /* =========================================================================
+     Reading the evaluation PDF
+
+     The form is a generated document with a real text layer, so this reads
+     positioned text rather than doing anything clever with images. Everything
+     below is driven by geometry, because the layout is what carries the
+     meaning: the answer to a criterion is not next to it in reading order, it
+     is in a column to the right of it.
+
+     Two properties of the document do the heavy lifting.
+
+     First, the CHOSEN option is rendered as one item carrying a whole phrase
+     ("Meets Expectations"), while the printed legend above it is split into
+     separate words. Matching a complete phrase therefore finds the answer and
+     cannot be fooled by the legend sitting right beside it.
+
+     Second, a criterion's label and the evaluator's note both live in the left
+     column and are told apart by where their LINE begins — the label at the
+     criterion id's own x, the note indented past it. Classifying word by word
+     instead of line by line tears a wrapped label in half.
+
+     Nothing here hard-codes the 1-3 scale. The scoring key is parsed off page
+     one, because this form has already changed scale once (1-5 in May 2026,
+     1-3 in July 2026) and a percentage computed against the wrong maximum is
+     wrong silently.
+     ========================================================================= */
+
+  var ID_RE = /^(TER|PRE|SAL)-(\d{2})$/;
+
+  function nrm(s) {
+    return String(s == null ? '' : s).replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  /* y measured from the top so reading order is ascending; pdf.js reports a
+     PDF-space matrix with y counted from the bottom. */
+  function itemsOf(tc, vp) {
+    return tc.items
+      .filter(function (i) { return String(i.str).trim(); })
+      .map(function (i) {
+        return { s: nrm(i.str), x: Math.round(i.transform[4]),
+                 y: Math.round(vp.height - i.transform[5]) };
+      })
+      .sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+  }
+
+  /* Items sharing a baseline. 3pt of tolerance is what stops a wrapped note
+     from being read as a new row. */
+  function toLines(items) {
+    var lines = [];
+    items.forEach(function (i) {
+      var hit = null;
+      for (var k = 0; k < lines.length; k++) {
+        if (Math.abs(lines[k].y - i.y) <= 3) { hit = lines[k]; break; }
+      }
+      if (hit) hit.parts.push(i); else lines.push({ y: i.y, parts: [i] });
+    });
+    lines.forEach(function (l) { l.parts.sort(function (a, b) { return a.x - b.x; }); });
+    return lines.sort(function (a, b) { return a.y - b.y; });
+  }
+
+  function lineText(l) { return nrm(l.parts.map(function (p) { return p.s; }).join(' ')); }
+
+  /* "07 / 02 / 2026" -> "2026-07-02", local, to match the rest of the page. */
+  function pdfDate(raw) {
+    var m = String(raw || '').match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/);
+    if (!m) return '';
+    return m[3] + '-' + pad(parseInt(m[1], 10)) + '-' + pad(parseInt(m[2], 10));
+  }
+
+  function readScale(items) {
+    var out = [], cur = null;
+    items.filter(function (i) { return i.y > 120 && i.y < 175; }).forEach(function (i) {
+      if (/^\d$/.test(i.s)) {
+        if (cur) out.push(cur);
+        cur = { score: parseInt(i.s, 10), words: [] };
+      } else if (cur && /^[A-Za-z]/.test(i.s)) {
+        cur.words.push(i.s);
+      }
+    });
+    if (cur) out.push(cur);
+
+    var seen = {}, clean = [];
+    out.forEach(function (o) {
+      if (!o.words.length) return;
+      var label = o.words.join(' '), k = label.toLowerCase();
+      if (!seen[k]) { seen[k] = 1; clean.push({ score: o.score, label: label }); }
+    });
+    return clean;
+  }
+
+  /* Four labelled columns. A value belongs to the last column heading that
+     starts at or before it, which holds even when a value is wider than the
+     heading above it. */
+  function readHeader(items) {
+    var lines = toLines(items), labelLine = null, valueLine = null;
+    for (var i = 0; i < lines.length; i++) {
+      var t = lineText(lines[i]).toUpperCase();
+      if (t.indexOf('REPRESENTATIVE') !== -1 && t.indexOf('EVALUATOR') !== -1) {
+        labelLine = lines[i]; valueLine = lines[i + 1] || null; break;
+      }
+    }
+    if (!labelLine || !valueLine) return {};
+
+    var cols = [];
+    labelLine.parts.forEach(function (p) {
+      var up = p.s.toUpperCase();
+      if (up === 'REPRESENTATIVE' || up === 'TERRITORY' || up === 'EVALUATOR' || up === 'DATE') {
+        cols.push({ x: p.x, parts: [] });
+      }
+    });
+    if (cols.length !== 4) return {};
+
+    valueLine.parts.forEach(function (p) {
+      var at = 0;
+      for (var c = 0; c < cols.length; c++) if (p.x >= cols[c].x - 8) at = c;
+      cols[at].parts.push(p.s);
+    });
+
+    var KEYS = ['rep', 'territory', 'evaluator', 'date'], out = {};
+    cols.forEach(function (c, i) { out[KEYS[i]] = nrm(c.parts.join(' ')); });
+    return out;
+  }
+
+  function readCriteria(pages, optionLabels) {
+    var out = [], isAnswer = {}, isLegendWord = {};
+    optionLabels.forEach(function (l) {
+      isAnswer[l.toLowerCase()] = true;
+      l.split(/\s+/).forEach(function (w) { isLegendWord[w.toLowerCase()] = true; });
+    });
+
+    pages.forEach(function (items) {
+      var lines = toLines(items), marks = [];
+      lines.forEach(function (l, i) {
+        if (l.parts.length && ID_RE.test(l.parts[0].s)) {
+          marks.push({ at: i, id: l.parts[0].s, x: l.parts[0].x });
+        }
+      });
+
+      marks.forEach(function (mark, k) {
+        var end = (k + 1 < marks.length) ? marks[k + 1].at : lines.length;
+        var block = lines.slice(mark.at, end);
+
+        var pick = '', pickX = -1, legendX = Infinity;
+        block.forEach(function (l) {
+          l.parts.forEach(function (p) {
+            var lc = p.s.toLowerCase();
+            if (isAnswer[lc]) { if (p.x > pickX) { pickX = p.x; pick = p.s; } }
+            else if (isLegendWord[lc] && p.x > 200) { legendX = Math.min(legendX, p.x); }
+          });
+        });
+        var cut = Math.min(legendX, pickX >= 0 ? pickX : Infinity);
+        cut = (isFinite(cut) ? cut : 300) - 5;
+
+        var label = [], note = [];
+        block.forEach(function (l, li) {
+          var left = l.parts.filter(function (p) { return p.x < cut; });
+          if (li === 0) left = left.slice(1);              /* drop the id itself */
+          if (!left.length) return;
+          var text = nrm(left.map(function (p) { return p.s; }).join(' '));
+          if (!text) return;
+          if (Math.abs(left[0].x - mark.x) <= 2) label.push(text);
+          else note.push(text);
+        });
+
+        out.push({ id: mark.id, label: nrm(label.join(' ')),
+                   note: nrm(note.join(' ')), option: pick });
+      });
+    });
+    return out;
+  }
+
+  /* The document's own score summary. Parsed so the import can be checked
+     against it rather than trusted — see verify() below. */
+  function readSummary(pages) {
+    var res = { totals: null, sections: {}, distribution: {} };
+    pages.forEach(function (items) {
+      var lines = toLines(items);
+      if (!lines.length) return;
+      if (lineText(lines[0]).toLowerCase().indexOf('score summary') === -1) return;
+
+      lines.forEach(function (l) {
+        var t = lineText(l);
+        var tot = t.match(/^(\d+)\s+(\d+)\s+(\d+)%\s+([\d.]+)$/);
+        if (tot) { res.totals = { got: +tot[1], max: +tot[2], pct: +tot[3] }; return; }
+        var row = t.match(/^(.+?)\s+(\d+)\s+(\d+)\s*\/\s*(\d+)\s+(\d+)%$/);
+        if (row) {
+          res.sections[nrm(row[1]).toLowerCase()] =
+            { items: +row[2], got: +row[3], max: +row[4], pct: +row[5] };
+        }
+      });
+    });
+    return res;
+  }
+
+  function readNarrative(pages) {
+    var HEADS = [
+      { key: 'strengths',    match: 'key strengths observed' },
+      { key: 'improvements', match: 'areas for improvement' },
+      { key: 'overall',      match: 'overall evaluator comments' },
+      { key: 'selfAssess',   match: "rep's self-assessment" }
+    ];
+    var out = {};
+    pages.forEach(function (items) {
+      var lines = toLines(items), found = [];
+      lines.forEach(function (l, i) {
+        var t = lineText(l).toLowerCase();
+        HEADS.forEach(function (h) { if (t.indexOf(h.match) === 0) found.push({ key: h.key, at: i }); });
+      });
+      found.forEach(function (f, i) {
+        var end = (i + 1 < found.length) ? found[i + 1].at : lines.length, body = [];
+        for (var r = f.at + 1; r < end; r++) {
+          var t = lineText(lines[r]);
+          if (t) body.push(t);
+        }
+        var text = nrm(body.join(' '));
+        /* Unfilled fields still carry the template's own prompt text. */
+        if (/^(Rep's comments|Agreed upon coaching|Describe )/i.test(text)) text = '';
+        if (text) out[f.key] = text;
+      });
+    });
+    return out;
+  }
+
+  /* A row is not a line: item text wraps over several baselines while owner and
+     due date sit on their own baseline in columns to the right. The table's own
+     header gives the column edges, and a column ends just before the next one
+     STARTS — not at the midpoint between headings, because the action-item
+     column is wide with a short heading and overruns any midpoint. */
+  function readActionItems(pages) {
+    var out = [];
+    pages.forEach(function (items) {
+      var lines = toLines(items), headAt = -1, cols = null;
+
+      for (var i = 0; i < lines.length && headAt === -1; i++) {
+        var seen = {};
+        lines[i].parts.forEach(function (p) { seen[p.s.toUpperCase()] = p.x; });
+        if (seen['ACTION'] !== undefined && seen['OWNER'] !== undefined) {
+          headAt = i;
+          cols = {
+            num:   seen['#'] !== undefined ? seen['#'] : 60,
+            text:  seen['ACTION'],
+            owner: seen['OWNER'],
+            due:   seen['DUE'] !== undefined ? seen['DUE'] : seen['OWNER'] + 90,
+            tail:  seen['PRIORITY'] !== undefined ? seen['PRIORITY'] : 1e9
+          };
+        }
+      }
+      if (headAt === -1) return;
+
+      var EDGE = 8;
+      var bText = cols.text - EDGE, bOwner = cols.owner - EDGE;
+      var bDue = cols.due - EDGE, bTail = cols.tail - EDGE;
+
+      var rows = [];
+      for (var r = headAt + 1; r < lines.length; r++) {
+        var first = lines[r].parts[0];
+        if (first && first.x < bText && /^\d+$/.test(first.s)) rows.push({ at: r });
+      }
+
+      rows.forEach(function (row, k) {
+        var end = (k + 1 < rows.length) ? rows[k + 1].at : lines.length;
+        var text = [], owner = [], due = [];
+        for (var r = row.at; r < end; r++) {
+          lines[r].parts.forEach(function (p) {
+            if (p.x < bText) return;
+            if (p.x < bOwner) text.push(p.s);
+            else if (p.x < bDue) owner.push(p.s);
+            else if (p.x < bTail) due.push(p.s);
+            /* past bTail sit the priority and status dropdowns, left on
+               "— Select —" by the form and carrying nothing to import */
+          });
+        }
+        var body = nrm(text.join(' '));
+        if (!body || /^describe the action item/i.test(body)) return;
+        out.push({ text: body,
+                   owner: nrm(owner.join(' ')).replace(/^Rep\s*\/\s*Manager$/i, ''),
+                   due: pdfDate(nrm(due.join(' '))) });
+      });
+    });
+    return out;
+  }
+
+  function parsePdf(bytes) {
+    return window.pdfjsLib.getDocument({ data: bytes }).promise.then(function (pdf) {
+      var jobs = [];
+      for (var p = 1; p <= pdf.numPages; p++) {
+        jobs.push(pdf.getPage(p).then(function (page) {
+          var vp = page.getViewport({ scale: 1 });
+          return page.getTextContent().then(function (tc) { return itemsOf(tc, vp); });
+        }));
+      }
+      return Promise.all(jobs);
+    }).then(function (pages) {
+      var head = readHeader(pages[0] || []);
+      var scale = readScale(pages[0] || []);
+      if (!scale.length) {
+        scale = [{ score: 1, label: 'Needs Improvement' },
+                 { score: 2, label: 'Meets Expectations' },
+                 { score: 3, label: 'Exceeds Expectations' }];
+      }
+      var byLabel = {};
+      scale.forEach(function (s) { byLabel[s.label.toLowerCase()] = s.score; });
+
+      var criteria = readCriteria(pages, scale.map(function (s) { return s.label; }))
+        .map(function (c) {
+          var sc = byLabel[c.option.toLowerCase()];
+          c.score = typeof sc === 'number' ? sc : null;
+          return c;
+        });
+
+      return {
+        rep: head.rep || '', territory: head.territory || '',
+        evaluator: head.evaluator || '', date: pdfDate(head.date),
+        scale: scale,
+        scaleMax: scale.reduce(function (m, s) { return Math.max(m, s.score); }, 0),
+        criteria: criteria,
+        summary: readSummary(pages),
+        narrative: readNarrative(pages),
+        actionItems: readActionItems(pages)
+      };
+    });
+  }
+
+  /* --- Turning a parse into a stored evaluation ---------------------------- */
+
+  /* The document totals its own scores, so the import is checkable rather than
+     merely hopeful: sum the criteria this parser found and compare against the
+     summary page the manager's form printed. A mismatch means the extraction
+     drifted, and it is reported instead of quietly recording wrong numbers. */
+  function verify(p) {
+    var problems = [];
+    if (p.criteria.length !== 30) {
+      problems.push('found ' + p.criteria.length + ' criteria, expected 30');
+    }
+    var unscored = p.criteria.filter(function (c) { return c.score === null; });
+    if (unscored.length) {
+      problems.push(unscored.length + ' criteria have no score marked');
+    }
+    if (p.summary.totals) {
+      var got = p.criteria.reduce(function (a, c) { return a + (c.score || 0); }, 0);
+      if (got !== p.summary.totals.got) {
+        problems.push('scores add to ' + got + ' but the form says ' + p.summary.totals.got);
+      }
+    }
+    if (!p.date) problems.push('no evaluation date found');
+    return problems;
+  }
+
+  function sectionTotals(criteria) {
+    var out = {};
+    SPINE.forEach(function (sp) {
+      var got = 0, any = false;
+      criteria.forEach(function (c) {
+        if (c.id.indexOf(sp.key) === 0 && typeof c.score === 'number') { got += c.score; any = true; }
+      });
+      if (any) out[sp.key] = got;
+    });
+    return out;
+  }
+
+  function toEval(p, fileName) {
+    /* "Flagged" now means scored at the bottom of whatever scale this form
+       used. Deriving it keeps every view built for the typed-in model working
+       untouched, and it is the same set a person would have typed by hand. */
+    var low = p.scale.reduce(function (m, s) { return Math.min(m, s.score); }, 99);
+    var flagged = p.criteria
+      .filter(function (c) { return c.score === low; })
+      .map(function (c) {
+        return { id: c.id, label: c.label, note: c.note, worked: false };
+      });
+
+    return {
+      id: 'ev' + Date.now() + Math.random().toString(36).slice(2, 7),
+      date: p.date,
+      rep: p.rep,
+      evaluator: p.evaluator,
+      territory: p.territory,
+      scaleMax: p.scaleMax,
+      scale: p.scale,
+      sections: sectionTotals(p.criteria),
+      criteria: p.criteria,
+      flagged: flagged,
+      distribution: p.summary.distribution || {},
+      reported: p.summary.totals || null,
+      narrative: p.narrative || {},
+      actionItems: p.actionItems || [],
+      source: 'pdf',
+      file: fileName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  /* --- Import flow --------------------------------------------------------- */
+
+  var staged = null;
+
+  function evErr(msg) {
+    var el = document.getElementById('evErr');
+    el.textContent = msg || '';
+    el.hidden = !msg;
+  }
+
+  function evSub(msg) {
+    document.getElementById('evDropSub').textContent = msg ||
+      'Tap to pick files, or drag them here. Add every ride you have — progress only appears once there are two.';
+  }
+
+  function readOnePdf(file) {
+    return file.arrayBuffer().then(function (buf) {
+      return parsePdf(new Uint8Array(buf));
+    }).then(function (p) {
+      var problems = verify(p);
+      if (problems.length) {
+        return { fileName: file.name, ok: false, reason: problems.join('; ') };
+      }
+      return { fileName: file.name, ok: true, ev: toEval(p, file.name) };
+    }).catch(function () {
+      return { fileName: file.name, ok: false,
+               reason: 'Could not read this as a field ride evaluation. If it is a scan rather than a generated PDF there is no text in it to extract.' };
+    });
+  }
+
+  function handlePdfs(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    evErr('');
+    evSub('Reading ' + files.length + (files.length === 1 ? ' evaluation…' : ' evaluations…'));
+
+    if (!window.pdfjsLib) {
+      evSub('');
+      evErr('The PDF reader failed to load. It comes from a CDN — check your connection and reload.');
+      return;
+    }
+
+    Promise.all(files.map(readOnePdf)).then(function (results) {
+      var byDate = {};
+      evals.forEach(function (e) { byDate[e.date] = true; });
+      results.forEach(function (r) { if (r.ok) r.isUpdate = !!byDate[r.ev.date]; });
+      staged = results;
+      evSub('');
+      renderPdfPreview();
+    });
+  }
+
+  function renderPdfPreview() {
+    var good = staged.filter(function (r) { return r.ok; });
+    var bad  = staged.filter(function (r) { return !r.ok; });
+    var news = good.filter(function (r) { return !r.isUpdate; }).length;
+    var upd  = good.length - news;
+
+    var bits = [];
+    if (news) bits.push(news + (news === 1 ? ' new ride' : ' new rides'));
+    if (upd)  bits.push(upd + (upd === 1 ? ' update' : ' updates'));
+    if (bad.length) bits.push(bad.length + ' skipped');
+    document.getElementById('evPreviewLabel').textContent =
+      bits.length ? bits.join(' · ') : 'Nothing to import';
+
+    document.getElementById('evFileList').innerHTML = staged.map(function (r) {
+      if (!r.ok) {
+        return '<div class="ev-file is-bad"><div style="min-width:0;">' +
+          '<div style="font-size:var(--fs-sm);font-weight:500;">Skipped</div>' +
+          '<div class="ev-file-name">' + Shell.escapeHtml(r.fileName) + '</div>' +
+          '<div class="ev-file-why">' + Shell.escapeHtml(r.reason) + '</div>' +
+          '</div></div>';
+      }
+      var t = totals(r.ev);
+      return '<div class="ev-file ' + (r.isUpdate ? 'is-update' : 'is-new') + '">' +
+        '<div style="min-width:0;flex:1;">' +
+          '<div style="font-size:var(--fs-sm);font-weight:500;">' + dispDate(r.ev.date) +
+            ' · ' + (t.pct === null ? '—' : t.pct + '%') + '</div>' +
+          '<div class="ev-file-name">' + Shell.escapeHtml(r.fileName) + '</div>' +
+          '<div class="hint">' + r.ev.flagged.length + ' below expectations · 1–' +
+            r.ev.scaleMax + ' scale' +
+            (r.ev.evaluator ? ' · ' + Shell.escapeHtml(r.ev.evaluator) : '') + '</div>' +
+        '</div>' +
+        '<span class="pill ' + (r.isUpdate ? 'pill-accent' : 'pill-ok') + '">' +
+          (r.isUpdate ? 'replaces' : 'new') + '</span>' +
+        '</div>';
+    }).join('');
+
+    document.getElementById('evPreview').hidden = false;
+    document.getElementById('evApplyBtn').disabled = good.length === 0;
+  }
+
+  function applyPdfImport() {
+    staged.forEach(function (r) {
+      if (!r.ok) return;
+      var at = -1;
+      for (var i = 0; i < evals.length; i++) if (evals[i].date === r.ev.date) at = i;
+      if (at >= 0) {
+        /* Re-importing the same ride refreshes everything the PDF knows but
+           keeps the ticks, which are the one thing on this page you typed and
+           nothing can reconstruct. */
+        var wasWorked = {};
+        (evals[at].flagged || []).forEach(function (f) { if (f.worked) wasWorked[f.id] = true; });
+        r.ev.flagged.forEach(function (f) { if (wasWorked[f.id]) f.worked = true; });
+        r.ev.id = evals[at].id;
+        r.ev.createdAt = evals[at].createdAt || r.ev.createdAt;
+        evals[at] = r.ev;
+      } else {
+        evals.push(r.ev);
+      }
+    });
+    staged = null;
+    document.getElementById('evPreview').hidden = true;
+    document.getElementById('evFile').value = '';
+    save();
+    render();
+    toast('Field rides updated');
+  }
+
+  function discardPdfImport() {
+    staged = null;
+    document.getElementById('evPreview').hidden = true;
+    document.getElementById('evFile').value = '';
+    evErr('');
+  }
+
+  /* --- Progress views ------------------------------------------------------ */
+
+  function pctOf(ev) { return totals(ev).pct; }
+
+  /* Oldest first — a run of rides reads as a progression, and newest-first
+     would show improvement as a downward slope. */
+  function chrono() {
+    return evals.slice().sort(function (a, b) {
+      return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
+    });
+  }
+
+  function trendHtml(list) {
+    if (list.length < 2) return '';
+    var rows = list.map(function (ev, i) {
+      var pct = pctOf(ev);
+      var prev = i > 0 ? pctOf(list[i - 1]) : null;
+      var d = (pct !== null && prev !== null) ? pct - prev : null;
+      var scaleNote = (i > 0 && list[i - 1].scaleMax !== ev.scaleMax);
+      return '<div class="trend-row">' +
+        '<span class="trend-when">' + dispDate(ev.date) + '</span>' +
+        '<span class="trend-bar"><span style="width:' + (pct === null ? 0 : pct) + '%"></span></span>' +
+        '<span class="trend-pct">' + (pct === null ? '—' : pct + '%') +
+          (d === null || scaleNote ? '' :
+            ' <span class="trend-delta ' + (d > 0 ? 'up' : (d < 0 ? 'down' : '')) + '">' +
+            (d > 0 ? '+' : '') + d + '</span>') +
+        '</span>' +
+        '</div>';
+    }).join('');
+
+    /* Any scale change is called out rather than absorbed. Two evaluations on
+       different scales are not directly comparable and the page must not imply
+       that they are. */
+    var mixed = false;
+    for (var i = 1; i < list.length; i++) if (list[i].scaleMax !== list[0].scaleMax) mixed = true;
+
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+      cardHead('Overall', list.length + ' rides') +
+      '<div class="trend">' + rows + '</div>' +
+      (mixed ? '<p class="hint" style="margin-top:var(--s-3);">The scoring scale ' +
+        'changed between these rides, so the percentages are comparable but the ' +
+        'raw point totals are not.</p>' : '') +
+      '</section>';
+  }
+
+  /* Per-criterion history. Only criteria that were ever below the top of the
+     scale are listed: thirty rows of green dots is not a progress view, it is
+     a table nobody reads. */
+  function criteriaTrendHtml(list) {
+    var withCriteria = list.filter(function (e) { return e.criteria && e.criteria.length; });
+    if (withCriteria.length < 2) return '';
+
+    var seen = {}, order = [];
+    withCriteria.forEach(function (ev) {
+      ev.criteria.forEach(function (c) {
+        if (!seen[c.id]) { seen[c.id] = { id: c.id, label: c.label, scores: {} }; order.push(c.id); }
+        if (c.label && !seen[c.id].label) seen[c.id].label = c.label;
+        seen[c.id].scores[ev.date] = c.score;
+      });
+    });
+
+    var rows = order.map(function (id) { return seen[id]; }).filter(function (r) {
+      var interesting = false;
+      withCriteria.forEach(function (ev) {
+        var s = r.scores[ev.date];
+        if (typeof s === 'number' && s < ev.scaleMax) interesting = true;
+      });
+      return interesting;
+    });
+    if (!rows.length) return '';
+
+    order.sort();
+    rows.sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+
+    var html = rows.map(function (r) {
+      var dots = withCriteria.map(function (ev) {
+        var s = r.scores[ev.date];
+        var cls = 's-none', txt = '·';
+        if (typeof s === 'number') {
+          txt = String(s);
+          cls = s === ev.scaleMax ? 's-high' : (s <= 1 ? 's-low' : 's-mid');
+        }
+        return '<span class="crit-dot ' + cls + '" title="' + dispDate(ev.date) + '">' + txt + '</span>';
+      }).join('');
+      return '<div class="crit-row">' +
+        '<span class="crit-id">' + r.id + '</span>' +
+        '<span class="crit-label">' + Shell.escapeHtml(r.label || '') + '</span>' +
+        '<span class="crit-dots">' + dots + '</span>' +
+        '</div>';
+    }).join('');
+
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+      cardHead('Criterion by criterion',
+               'oldest to newest · ' + rows.length + ' ever below top marks') +
+      '<div class="crit">' + html + '</div>' +
+      '</section>';
+  }
+
+  /* --- Suggestions ---------------------------------------------------------
+     Rules over your own evaluations, not generated advice. Every line here can
+     be traced back to a number the manager wrote down, which is the only kind
+     of suggestion this page has any standing to make. */
+  function suggestionsHtml(list) {
+    var latest = list[list.length - 1];
+    if (!latest || !latest.criteria || !latest.criteria.length) return '';
+
+    var items = [];
+    var byId = {};
+    list.forEach(function (ev) {
+      (ev.criteria || []).forEach(function (c) {
+        if (!byId[c.id]) byId[c.id] = [];
+        byId[c.id].push({ date: ev.date, score: c.score, max: ev.scaleMax, label: c.label, note: c.note });
+      });
+    });
+
+    /* Persistently low: bottom of the scale on the last two or more rides. */
+    var persistent = [];
+    Object.keys(byId).forEach(function (id) {
+      var h = byId[id];
+      if (h.length < 2) return;
+      var tail = h.slice(-2);
+      if (tail.every(function (r) { return r.score === 1; })) persistent.push(h[h.length - 1]);
+    });
+    /* Grouped into one entry, not one per criterion. Eight cards carrying the
+       same sentence is a wall you scroll past; the criteria themselves are the
+       information, so they are the body and the sentence is said once. */
+    if (persistent.length) {
+      items.push({
+        cls: 'is-bad',
+        head: persistent.length === 1
+          ? 'Still at the bottom of the scale'
+          : persistent.length + ' still at the bottom of the scale',
+        why: 'Marked lowest on the last two rides — these are the ones to take into the next call.',
+        list: persistent.map(function (r) { return r.label || r.id; })
+      });
+    }
+
+    /* Went backwards since the previous ride. */
+    if (list.length >= 2) {
+      var prev = list[list.length - 2];
+      var prevScore = {};
+      (prev.criteria || []).forEach(function (c) { prevScore[c.id] = c.score; });
+      latest.criteria.forEach(function (c) {
+        var was = prevScore[c.id];
+        if (typeof was === 'number' && typeof c.score === 'number' && c.score < was &&
+            prev.scaleMax === latest.scaleMax) {
+          items.push({ cls: 'is-warn', head: c.label || c.id,
+            why: 'Dropped from ' + was + ' to ' + c.score + ' since ' + dispDate(prev.date) + '.' });
+        }
+      });
+    }
+
+    /* Improved — worth stating, so the view is a progress view and not only a
+       list of faults. */
+    if (list.length >= 2) {
+      var prev2 = list[list.length - 2];
+      var pmap = {};
+      (prev2.criteria || []).forEach(function (c) { pmap[c.id] = c.score; });
+      var gained = latest.criteria.filter(function (c) {
+        return typeof pmap[c.id] === 'number' && typeof c.score === 'number' &&
+               c.score > pmap[c.id] && prev2.scaleMax === latest.scaleMax;
+      });
+      if (gained.length) {
+        items.push({ cls: 'is-good',
+          head: gained.length + ' improved since ' + dispDate(prev2.date),
+          why: '',
+          list: gained.map(function (c) { return c.label || c.id; }) });
+      }
+    }
+
+    /* Weakest section on the latest ride. */
+    var worst = null;
+    SPINE.forEach(function (sp) {
+      var v = latest.sections[sp.key];
+      if (typeof v !== 'number') return;
+      var pct = Math.round((v / (sp.count * latest.scaleMax)) * 100);
+      if (!worst || pct < worst.pct) worst = { name: sp.name, pct: pct };
+    });
+    if (worst && worst.pct < 100) {
+      items.push({ cls: 'is-warn', head: 'Weakest section: ' + worst.name,
+        why: worst.pct + '% on the most recent ride.' });
+    }
+
+    if (!items.length) return '';
+
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+      cardHead('Where to focus', 'from your own evaluations') +
+      '<div class="sugg">' + items.map(function (s) {
+        return '<div class="sugg-item ' + s.cls + '">' +
+          '<div class="sugg-head">' + Shell.escapeHtml(s.head) + '</div>' +
+          (s.why ? '<div class="sugg-why">' + Shell.escapeHtml(s.why) + '</div>' : '') +
+          (s.list && s.list.length
+            ? '<ul class="sugg-list">' + s.list.map(function (x) {
+                return '<li>' + Shell.escapeHtml(x) + '</li>';
+              }).join('') + '</ul>'
+            : '') +
+          '</div>';
+      }).join('') + '</div></section>';
+  }
+
+  /* The manager's own words, shown as written. Nothing here is summarised or
+     reworded — it is the assessment, and paraphrasing it would change it. */
+  function narrativeHtml(latest) {
+    var n = latest.narrative || {};
+    var secs = [
+      { k: 'strengths',    t: 'Key strengths observed' },
+      { k: 'improvements', t: 'Areas for improvement' },
+      { k: 'overall',      t: 'Overall comments' }
+    ].filter(function (s) { return n[s.k]; });
+    if (!secs.length) return '';
+
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+      cardHead('From ' + (latest.evaluator ? Shell.escapeHtml(latest.evaluator) : 'your manager'),
+               dispDate(latest.date)) +
+      secs.map(function (s) {
+        return '<div class="note-sec"><div class="note-head">' + s.t + '</div>' +
+               '<div class="note-block">' + Shell.escapeHtml(n[s.k]) + '</div></div>';
+      }).join('') +
+      '</section>';
+  }
+
+  function actionItemsHtml(latest) {
+    var items = latest.actionItems || [];
+    if (!items.length) return '';
+    return '<section class="card" style="margin-top:var(--s-4);">' +
+      cardHead('Agreed action items', dispDate(latest.date)) +
+      '<div class="ai">' + items.map(function (a) {
+        return '<div class="ai-item">' +
+          '<span class="ai-text">' + Shell.escapeHtml(a.text) + '</span>' +
+          '<span class="ai-due">' + (a.due ? dispDate(a.due) : (a.owner || '')) + '</span>' +
+          '</div>';
+      }).join('') + '</div>' +
+      '<p class="hint" style="margin-top:var(--s-3);">Read from the evaluation. ' +
+      'Nothing to tick here &mdash; the ticks that matter are on the flagged criteria above.</p>' +
+      '</section>';
+  }
+
   /* --- Views ------------------------------------------------------------------ */
 
   function movementHtml(latest, prev) {
@@ -587,10 +1494,13 @@
     var list = sorted();
     var pill = document.getElementById('headPill');
 
+    document.getElementById('evCount').textContent =
+      list.length ? list.length + (list.length === 1 ? ' ride' : ' rides') : 'none yet';
+
     if (!list.length) {
       host.innerHTML = '<div class="empty"><strong>No field rides recorded</strong>' +
-        'Add the last one — date, the three section scores, and the criteria that ' +
-        'were marked below “meets”. The second one is where movement appears.</div>';
+        'Upload an evaluation PDF above. Everything is read from it — scores, the ' +
+        'evaluator’s notes, and the action items. Upload two and progress appears.</div>';
       pill.textContent = '';
       return;
     }
@@ -610,8 +1520,16 @@
                 'being flagged — and which did not.</p>' +
               '</section>';
     }
+    /* Chronological for anything that reads as a progression, newest-first for
+       the rest — `list` is already newest-first. */
+    var runs = chrono();
+    html += suggestionsHtml(runs);
+    html += trendHtml(runs);
     html += sectionsHtml(latest, prev);
+    html += criteriaTrendHtml(runs);
     html += workingHtml(latest);
+    html += narrativeHtml(latest);
+    html += actionItemsHtml(latest);
     html += historyHtml(list);
     host.innerHTML = html;
   }
@@ -630,8 +1548,30 @@
   /* --- Wiring ----------------------------------------------------------------- */
 
   Shell.ready(function () {
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
     load();
     render();
+
+    /* --- Upload --- */
+    var drop = document.getElementById('evDrop');
+    document.getElementById('evFile').addEventListener('change', function () {
+      handlePdfs(this.files);
+    });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('is-over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('is-over'); });
+    });
+    drop.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files) handlePdfs(e.dataTransfer.files);
+    });
+    document.getElementById('evApplyBtn').addEventListener('click', applyPdfImport);
+    document.getElementById('evDiscardBtn').addEventListener('click', discardPdfImport);
 
     document.getElementById('entryToggle').addEventListener('click', function () {
       if (document.getElementById('entryBody').hidden) openEntry(); else closeEntry();

@@ -369,7 +369,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788046736"></script>
+<script src="assets/js/data-store.js?v=1788047292"></script>
 <script src="assets/js/shell.js?v=1786689985"></script>
 <script>
 /* ===========================================================================
@@ -383,9 +383,10 @@
    is a question about the flagged set, so asking for full scores would be
    entry work that buys nothing. Section subtotals carry the overall picture.
 
-   The scale is not stable — 1-5 in May 2026, 1-3 in July 2026 — so scaleMax
-   rides on each evaluation and percentages are always computed against the
-   scale that evaluation was actually marked on.
+   scaleMax rides on each evaluation rather than being a constant, and
+   percentages are always computed against the scale that evaluation was
+   actually marked on. Every evaluation so far has been 1-3; this is insurance
+   against the form being revised, not a record of it having been.
    =========================================================================== */
 (function () {
   'use strict';
@@ -579,9 +580,10 @@
     document.getElementById('entryPreview').hidden = true;
   }
 
-  /* The section maxima depend on the scale, so they are shown next to each
-     box and move when the scale changes — 8 criteria are worth 24 on a 1-3
-     form and 40 on a 1-5 one. */
+  /* The section maxima depend on the scale, so they are shown next to each box
+     and move with the selector — 8 criteria are worth 24 at 1-3, 40 at 1-5.
+     The selector keeps a 1-5 option only so a revised form could still be
+     recorded by hand; every evaluation to date has been 1-3. */
   function syncMaxLabels() {
     var scaleMax = parseInt(document.getElementById('fScale').value, 10) || 3;
     for (var i = 0; i < SPINE.length; i++) {
@@ -628,9 +630,9 @@
      instead of line by line tears a wrapped label in half.
 
      Nothing here hard-codes the 1-3 scale. The scoring key is parsed off page
-     one, because this form has already changed scale once (1-5 in May 2026,
-     1-3 in July 2026) and a percentage computed against the wrong maximum is
-     wrong silently.
+     one instead — not because the form has ever changed, but because reading
+     the key the document prints costs nothing, while a percentage computed
+     against a maximum that was assumed rather than read is wrong silently.
      ========================================================================= */
 
   var ID_RE = /^(TER|PRE|SAL)-(\d{2})$/;

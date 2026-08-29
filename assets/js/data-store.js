@@ -308,10 +308,11 @@
        Evaluations entered by hand before this carry no `criteria`, so anything
        reading it must tolerate its absence rather than assume a PDF import.
 
-       scaleMax rides on each evaluation because the scale is NOT stable — the
-       May 2026 form used 1-5, the July 2026 one used 1-3. Nothing here may
-       assume a fixed maximum, and two evaluations on different scales must
-       never be compared as raw scores. */
+       scaleMax rides on each evaluation rather than being a constant. Every
+       evaluation so far has been marked 1-3; this is defensive, not a record
+       of a change that happened. It is cheap insurance against the form being
+       revised, and it is what lets two evaluations be refused a raw-score
+       comparison if they were ever marked on different scales. */
     readEvals: function () {
       var a = get(KEYS.perfEvals, []);
       return Array.isArray(a) ? a : [];

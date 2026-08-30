@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Key Accounts &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1788052303">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Key Accounts' own layout. Card, pill, button, input, section-label and
+     the type scale all come from shell.css; what is here is the worksheet
+     drop zone, the import report and the account card.
+
+     Every rule is still prefixed .ka-. The prefix was originally there to
+     keep these off the Bonus Tracker's rules when the two shared a page;
+     it stays because the class names it guards ("head", "row", "name",
+     "figs") are generic enough to collide with anything added to shell.css
+     later.
+     ----------------------------------------------------------------------- */
+
+  /* Drop zone. A <label> wrapping a hidden file input, so tapping it opens the
+     picker on a phone while dragging a file onto it works on the laptop. */
+  .ka-drop {
+    display: block;
+    background: var(--white);
+    border: 1px dashed var(--ink-faint);
+    border-radius: var(--r-lg);
+    padding: var(--s-7) var(--s-4);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .ka-drop:hover, .ka-drop.is-over { border-color: var(--teal); background: var(--teal-dim); }
+  /* The input is inside the label, so hiding it costs nothing — the whole
+     drop zone is the control. On sales.html this rule was the Bonus Tracker's
+     and applied to both tools by accident of sharing a stylesheet. */
+  .ka-drop input[type=file] { display: none; }
+  /* Both are spans inside a <label>, so without this they run together on one
+     line — the same reason the Bonus Tracker's .slot-* spans are blocks. */
+  .ka-drop-title { display: block; font-size: var(--fs-lg); font-weight: 500; }
+  .ka-drop-sub {
+    display: block;
+    font-size: var(--fs-sm); color: var(--ink-light); margin-top: var(--s-2);
+  }
+
+  /* Import report — one line per file, so a workbook that failed says so next
+     to its own name instead of collapsing into a single error. */
+  .ka-file {
+    display: flex; align-items: flex-start; gap: var(--s-3);
+    padding: var(--s-3);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: var(--r-md);
+    margin-bottom: var(--s-2);
+  }
+  .ka-file.is-new    { border-left-color: var(--green); }
+  .ka-file.is-update { border-left-color: var(--teal); }
+  .ka-file.is-bad    { border-left-color: var(--red); }
+  .ka-file-name {
+    font-family: var(--font-mono); font-size: var(--fs-xs);
+    color: var(--ink-light);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ka-file-acct { font-size: var(--fs-sm); font-weight: 500; }
+  .ka-file-why  { font-size: var(--fs-xs); color: var(--red); margin-top: 2px; }
+
+  /* Search + filter chips, matching the prescriber roster. */
+  .ka-search { position: relative; }
+  .ka-search svg {
+    position: absolute; left: var(--s-3); top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; stroke: var(--ink-faint); fill: none; stroke-width: 2;
+    pointer-events: none;
+  }
+  .ka-search .input { padding-left: 36px; }
+  .ka-chips {
+    display: flex; gap: var(--s-1); align-items: center;
+    overflow-x: auto; padding-bottom: var(--s-1);
+    scrollbar-width: none;
+  }
+  .ka-chips::-webkit-scrollbar { display: none; }
+  .ka-chips > .lbl { font-size: var(--fs-xs); color: var(--ink-light); flex-shrink: 0; }
+  .ka-chip {
+    flex-shrink: 0;
+    padding: var(--s-1) var(--s-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-pill);
+    background: var(--white);
+    color: var(--ink-mid);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .ka-chip:hover { border-color: var(--ink-faint); }
+  .ka-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+
+  /* Account card. The left edge carries the health assessment from section 10,
+     which is the one field that says whether this account needs attention. */
+  .ka-acct {
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .ka-acct.h-excellent { border-left-color: var(--green); }
+  .ka-acct.h-healthy   { border-left-color: var(--green); }
+  .ka-acct.h-moderate  { border-left-color: var(--amber); }
+  .ka-acct.h-risk      { border-left-color: var(--red); }
+
+  .ka-head {
+    display: block; width: 100%;
+    padding: var(--s-4);
+    background: none; border: none; cursor: pointer;
+    font: inherit; color: inherit; text-align: left;
+  }
+  .ka-name { font-size: var(--fs-lg); font-weight: 500; }
+  .ka-meta { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
+  .ka-pills { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: var(--s-3); }
+
+  /* Headline sales figures, shown collapsed so the card is worth reading
+     without opening it. */
+  .ka-figs {
+    display: flex; flex-wrap: wrap; gap: var(--s-5);
+    margin-top: var(--s-3);
+  }
+  .ka-fig-val { font-family: var(--font-mono); font-size: var(--fs-base); font-weight: 500; }
+  .ka-fig-val.pos { color: var(--green); }
+  .ka-fig-val.neg { color: var(--red); }
+  .ka-fig-lbl {
+    font-size: var(--fs-xs); color: var(--ink-light);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+
+  /* Expanded body — one block per worksheet section, in worksheet order. */
+  .ka-body { padding: 0 var(--s-4) var(--s-4); }
+  .ka-sec { margin-top: var(--s-5); }
+  .ka-sec:first-child { margin-top: var(--s-2); }
+  .ka-sec-title {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    padding-bottom: var(--s-2);
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: var(--s-3);
+  }
+  /* Label above value, not beside it. Several of these questions run to a full
+     line of text ("Are they utilizing a combination post-op drop for LASIK"),
+     and a two-column row would leave the answer squeezed against the edge on a
+     phone. */
+  .ka-row { margin-bottom: var(--s-3); }
+  .ka-row:last-child { margin-bottom: 0; }
+  .ka-row-lbl { font-size: var(--fs-xs); color: var(--ink-light); }
+  .ka-row-val { font-size: var(--fs-sm); color: var(--ink); white-space: pre-wrap; }
+  .ka-row-val.is-empty { color: var(--ink-faint); font-style: italic; }
+
+  .ka-tbl-wrap { overflow-x: auto; }
+  table.ka-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  table.ka-tbl th {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    text-align: left;
+    white-space: nowrap;
+    padding: 0 var(--s-3) var(--s-2) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.ka-tbl td {
+    padding: var(--s-2) var(--s-3) var(--s-2) 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-mid);
+    vertical-align: top;
+  }
+  table.ka-tbl tr:last-child td { border-bottom: none; }
+</style>
+</head>
+
+<body data-page="keyaccts">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Key Accounts</h1>
+    <span class="eyebrow mono">Worksheets</span>
+  </header>
+
+
+  <!-- ---- Import ---- -->
+  <section id="kaImportView">
+    <p class="section-label">
+      <span>Import worksheets</span>
+      <span class="mono">.xlsx</span>
+    </p>
+
+    <label class="ka-drop" id="kaDrop">
+      <span class="ka-drop-title">Choose Key Account Worksheets</span>
+      <span class="ka-drop-sub" id="kaDropSub">
+        Tap to pick files, or drag them here. Select as many as you like &mdash;
+        each workbook is one account.
+      </span>
+      <input type="file" id="kaFile" multiple accept=".xlsx,.xlsm,.xls">
+    </label>
+
+    <div class="err" id="kaErr" hidden style="margin-top:var(--s-4);"></div>
+
+    <div id="kaPreview" hidden style="margin-top:var(--s-5);">
+      <p class="section-label"><span id="kaPreviewLabel">Ready to import</span></p>
+      <div id="kaFileList"></div>
+      <div class="row" style="margin-top:var(--s-4);">
+        <button class="btn btn-primary" id="kaApplyBtn" style="flex:1;">Add to Key Accounts</button>
+        <button class="btn" id="kaDiscardBtn">Discard</button>
+      </div>
+    </div>
+
+    <div class="row" id="kaBackRow" hidden style="justify-content:center; margin-top:var(--s-5);">
+      <button class="btn btn-sm" id="kaBackBtn">Back to accounts</button>
+    </div>
+
+    <p class="hint" style="text-align:center; margin-top:var(--s-5);">
+      Worksheets are read in your browser and kept on this device only.
+      Nothing is uploaded and nothing is committed to the repo.
+    </p>
+  </section>
+
+  <!-- ---- Accounts ---- -->
+  <section id="kaBookView" hidden>
+    <p class="hint" id="kaAsOf" style="margin-bottom:var(--s-3);"></p>
+
+    <div class="ka-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      <input type="search" class="input" id="kaSearch"
+             placeholder="Search account, doctor, city or notes&hellip;"
+             aria-label="Search key accounts">
+    </div>
+
+    <div class="ka-chips" id="kaStatusRow" style="margin-top:var(--s-2);"></div>
+    <div class="ka-chips" id="kaHealthRow" style="margin-top:var(--s-1);"></div>
+
+    <div class="stack" id="kaList" style="margin-top:var(--s-4);"></div>
+    <div class="empty" id="kaNoMatch" hidden></div>
+
+    <div class="row" style="justify-content:center; gap:var(--s-4); margin-top:var(--s-8);">
+      <button class="btn btn-sm" id="kaAddBtn">Import worksheets</button>
+      <button class="btn btn-sm" id="kaClearBtn">Clear key accounts</button>
+    </div>
+    <div id="kaClearConfirm" hidden style="margin-top:var(--s-3);">
+      <p class="hint" id="kaClearText" style="text-align:center; max-width:60ch; margin:0 auto;"></p>
+      <div class="row" style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
+        <button class="btn btn-sm btn-danger" id="kaClearYes">Yes, clear</button>
+        <button class="btn btn-sm" id="kaClearNo">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="assets/js/data-store.js?v=1788053950"></script>
+<script src="assets/js/shell.js?v=1788054234"></script>
+<script>
+/* ===========================================================================
+   Key Accounts — the worksheet reader, page-scoped.
+
+   The shape of the source file drove every decision here.
+
+   A Key Account Worksheet is not a table. It is a printed form: one workbook
+   is ONE account, laid out vertically as numbered sections, with the field
+   name in column A and the answer in column B. Some sections are genuine
+   tables (decision makers, missed opportunities, the action plan, next steps),
+   some are label/value pairs, and some are tick boxes — U+2610 unticked,
+   U+2611 ticked, per the workbook's own data validation.
+
+   So this reads by LABEL, never by cell address. Row numbers in the 5.21.26
+   template are stable only until someone inserts a row for a fifth doctor,
+   which is a thing that will happen. Sections are found by their "N." heading,
+   fields by their label text in column A, and tables by their header row. A
+   worksheet missing a section parses fine with that section left empty — the
+   template already skips 4 and 8.
+
+   Numbers and dates are taken as Excel DISPLAYS them (raw:false), not as
+   serials. The worksheet is the source of truth for its own formatting: if a
+   figure reads "$1,240" in Excel it should read "$1,240" here, and re-deriving
+   that from a float is a way to introduce rounding nobody typed.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  /* SheetJS. .xlsx is a zip, so a library is unavoidable; this is the same
+     arrangement as pdf.js on the Bonus Tracker. Loaded lazily on first use so
+     the tab costs nothing until a file is actually picked, and every byte of
+     parsing happens locally — the workbook is never uploaded anywhere. */
+  var XLSX_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+
+  /* Written as escapes on purpose. These are the ballot-box glyphs the
+     worksheet's data validation offers, and they are invisible in a diff and
+     easy to mangle in an editor if spelled literally. */
+  var BOX_EMPTY  = '☐';   /* the unticked box */
+  var TICKS = ['☑', '☒', '✓', '✔', 'x', 'X'];
+
+  var STATUSES = ['Purchasing', 'Sampling', 'Prescribing', 'Not Visited'];
+  var HEALTHS  = ['Excellent', 'Healthy', 'Moderate Opportunity', 'At Risk/Lost'];
+
+  var DROP_SUB = 'Tap to pick files, or drag them here. Select as many as you ' +
+                 'like — each workbook is one account.';
+
+  var book     = null;   /* { generated, accounts: [] } */
+  var staged   = null;   /* [{ fileName, ok, account, reason, isUpdate }] */
+  var expanded = {};     /* account id -> true */
+  var filter   = { q: '', status: '', health: '' };
+
+  var esc = Shell.escapeHtml;
+
+  /* --- Cell + label helpers ---------------------------------------------- */
+
+  /* The bare character in both regexes below is U+00A0, a non-breaking
+     space. Excel leaves them behind wherever a label was pasted in from the
+     printed form, and .trim() only strips the ends — one sitting inside a
+     label would break the match silently. */
+  function norm(s) {
+    return String(s == null ? '' : s)
+      .replace(/ /g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function cell(grid, r, c) {
+    var row = grid[r];
+    if (!row) return '';
+    var v = row[c];
+    if (v === undefined || v === null) return '';
+    return String(v).replace(/ /g, ' ').trim();
+  }
+
+  /* The validation list offers only the two ballot boxes, but a form filled in
+     a hurry picks up X and a check mark too, and Excel's own check-box control
+     writes U+2612. Treat them all as ticked rather than dropping an answer. */
+  function isTicked(v) {
+    return TICKS.indexOf(String(v).trim()) !== -1;
+  }
+  function isBox(v) {
+    return String(v).trim() === BOX_EMPTY || isTicked(v);
+  }
+
+  function findSections(grid) {
+    var out = [], r, m;
+    for (r = 0; r < grid.length; r++) {
+      m = /^(\d+)\.\s*(.+)$/.exec(cell(grid, r, 0));
+      if (m) out.push({ num: parseInt(m[1], 10), title: m[2].trim(), row: r });
+    }
+    for (var i = 0; i < out.length; i++) {
+      out[i].end = (i + 1 < out.length) ? out[i + 1].row : grid.length;
+    }
+    return out;
+  }
+
+  /* Number first, heading text as the fallback. The template numbers its
+     sections 1, 2, 3, 5, 6, 7, 9, 10 — the gaps are already there, so a
+     workbook that renumbers after an edit must still resolve. */
+  function pickSection(secs, num, keyword) {
+    var i;
+    for (i = 0; i < secs.length; i++) if (secs[i].num === num) return secs[i];
+    for (i = 0; i < secs.length; i++) {
+      if (norm(secs[i].title).indexOf(norm(keyword)) !== -1) return secs[i];
+    }
+    return null;
+  }
+
+  function labelRow(grid, sec, label) {
+    if (!sec) return -1;
+    var want = norm(label);
+    for (var r = sec.row + 1; r < sec.end; r++) {
+      if (norm(cell(grid, r, 0)) === want) return r;
+    }
+    return -1;
+  }
+
+  /* The answer for one label row. A ticked box takes its meaning from the
+     column header above it ("Yes"/"No"), which is why headerRow is passed in;
+     a box ticked under no header can only mean yes. */
+  function rowValue(grid, r, headerRow, lastCol) {
+    if (r < 0) return '';
+    var top = lastCol === undefined ? 6 : lastCol;
+    var c, v;
+    for (c = 1; c <= top; c++) {
+      if (isTicked(cell(grid, r, c))) {
+        var h = headerRow >= 0 ? cell(grid, headerRow, c) : '';
+        return h || 'Yes';
+      }
+    }
+    for (c = 1; c <= top; c++) {
+      v = cell(grid, r, c);
+      if (v && !isBox(v)) return v;
+    }
+    return '';
+  }
+
+  function tickedLabels(grid, headerRow, boxRow, lastCol) {
+    var out = [];
+    for (var c = 1; c <= lastCol; c++) {
+      if (isTicked(cell(grid, boxRow, c))) {
+        var h = cell(grid, headerRow, c);
+        if (h) out.push(h);
+      }
+    }
+    return out;
+  }
+
+  function readTable(grid, headerRow, endRow, cols) {
+    var heads = [], c;
+    for (c = 0; c < cols; c++) heads.push(cell(grid, headerRow, c));
+    var rows = [];
+    for (var r = headerRow + 1; r < endRow; r++) {
+      var vals = [], any = false;
+      for (c = 0; c < cols; c++) {
+        var v = cell(grid, r, c);
+        if (isBox(v)) v = isTicked(v) ? 'Yes' : '';
+        vals.push(v);
+        if (v) any = true;
+      }
+      if (any) rows.push(vals);
+    }
+    return { heads: heads, rows: rows };
+  }
+
+  function pairs(grid, sec, labels) {
+    var out = [];
+    for (var i = 0; i < labels.length; i++) {
+      var r = labelRow(grid, sec, labels[i]);
+      if (r < 0) continue;
+      out.push({ label: cell(grid, r, 0), value: rowValue(grid, r, -1) });
+    }
+    return out;
+  }
+
+  function slug(s) {
+    return norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'account';
+  }
+
+  /* Is this a Key Account Worksheet at all?
+
+     SheetJS is lenient by design — it will happily read a text file, a CSV or
+     somebody's unrelated spreadsheet into a grid rather than throwing, so
+     "parsed without error" says nothing about whether the right file was
+     picked. Without this check every stray file lands on the blank-template
+     message, which sends you looking for an Account Name in a file that never
+     had one. Two numbered section headings, or the Account Name label itself,
+     is enough to tell the form apart from anything else. */
+  function looksLikeWorksheet(grid, secs) {
+    if (secs.length >= 2) return true;
+    for (var r = 0; r < grid.length; r++) {
+      if (norm(cell(grid, r, 0)) === 'account name') return true;
+    }
+    return false;
+  }
+
+  /* --- The worksheet parser ---------------------------------------------- */
+
+  var SALES_LABELS = [
+    'Trailing 12 Months Sales', 'Last 6 Months Sales', 'Last Month Sales',
+    'Growth % over 6 months', 'Target Goal', 'Opportunity Pipeline of Pillars'
+  ];
+
+  function parseWorksheet(grid, fileName, sheetName, secs) {
+    var s1  = pickSection(secs, 1,  'key account worksheet');
+    var s2  = pickSection(secs, 2,  'decision makers');
+    var s3  = pickSection(secs, 3,  'current pillars');
+    var s5  = pickSection(secs, 5,  'account activity');
+    var s6  = pickSection(secs, 6,  'missed business');
+    var s7  = pickSection(secs, 7,  'business plan');
+    var s9  = pickSection(secs, 9,  'next steps');
+    var s10 = pickSection(secs, 10, 'overall account assessment');
+
+    /* ---- 1. Profile ---- */
+    var profile = {
+      name:       rowValue(grid, labelRow(grid, s1, 'Account Name')),
+      type:       rowValue(grid, labelRow(grid, s1, 'Account Type')),
+      address:    rowValue(grid, labelRow(grid, s1, 'Primary Location Address')),
+      satellites: rowValue(grid, labelRow(grid, s1, 'Number of Satellite Locations')),
+      mds:        rowValue(grid, labelRow(grid, s1, 'Number of MDs')),
+      ods:        rowValue(grid, labelRow(grid, s1, 'Number of ODs')),
+      totalDocs:  rowValue(grid, labelRow(grid, s1, 'Total Number Doctors')),
+      specialty:  rowValue(grid, labelRow(grid, s1, 'Primary Specialty/Focus')),
+      notes:      rowValue(grid, labelRow(grid, s1, 'Notes'))
+    };
+
+    /* Account Status is a header row of four labels with the boxes on the row
+       beneath it, so it needs both rows — and more than one can be ticked. */
+    var statusHead = labelRow(grid, s1, 'Account Status');
+    var status = statusHead >= 0 ? tickedLabels(grid, statusHead, statusHead + 1, 5) : [];
+
+    /* ---- 2. Decision makers ---- */
+    var people = { heads: [], rows: [] };
+    var peopleHead = labelRow(grid, s2, 'Name');
+    if (peopleHead >= 0) people = readTable(grid, peopleHead, s2.end, 7);
+
+    /* ---- 3. Pillars, then the sales figures beneath them ---- */
+    var pillars = { heads: [], rows: [] };
+    var pillarHead = labelRow(grid, s3, 'Business Pillar / Product Line');
+    if (pillarHead >= 0) {
+      /* The pillar rows stop where the sales figures start. Both live inside
+         section 3, so this table cannot simply run to the section end. */
+      var pillarEnd = s3.end;
+      for (var si = 0; si < SALES_LABELS.length; si++) {
+        var lr = labelRow(grid, s3, SALES_LABELS[si]);
+        if (lr > pillarHead && lr < pillarEnd) pillarEnd = lr;
+      }
+      pillars = readTable(grid, pillarHead, pillarEnd, 5);
+    }
+    var sales = pairs(grid, s3, SALES_LABELS);
+
+    /* ---- 5. Activity ----
+       Read generically rather than by a list of labels. This section is a run
+       of seventeen questions in the 5.21.26 template and is the part of the
+       form most likely to grow another one. */
+    var activity = [];
+    var actHead = labelRow(grid, s5, 'Activity');
+    if (s5) {
+      for (var r5 = s5.row + 1; r5 < s5.end; r5++) {
+        if (r5 === actHead) continue;
+        var lbl = cell(grid, r5, 0);
+        if (!lbl) continue;
+        activity.push({ label: lbl, value: rowValue(grid, r5, actHead) });
+      }
+    }
+
+    /* ---- 6. Missed opportunities ---- */
+    var missed = { heads: [], rows: [] };
+    var missedHead = labelRow(grid, s6, 'Opportunity Identified');
+    if (missedHead >= 0) missed = readTable(grid, missedHead, s6.end, 3);
+
+    /* ---- 7. Objectives, then the action plan ---- */
+    var objectives = pairs(grid, s7, ['Objective 1', 'Objective 2', 'Objective 3']);
+    var plan = { heads: [], rows: [] };
+    var planHead = labelRow(grid, s7, 'Priority');
+    if (planHead >= 0) plan = readTable(grid, planHead, s7.end, 5);
+
+    /* ---- 9. Next steps ---- */
+    var nextSteps = { heads: [], rows: [] };
+    var nextHead = labelRow(grid, s9, 'Action Item');
+    if (nextHead >= 0) nextSteps = readTable(grid, nextHead, s9.end, 4);
+
+    /* ---- 10. Assessment ---- */
+    var health = rowValue(grid, labelRow(grid, s10, 'Account Health Status'));
+    /* In a blank template that cell holds the legend of choices rather than a
+       choice. Anything still carrying three or more slash-separated options is
+       the prompt, not an answer. */
+    if (health.split('/').length >= 3) health = '';
+    var summary = rowValue(grid, labelRow(grid, s10, 'Summary Notes'));
+
+    return {
+      id:         slug(profile.name),
+      file:       fileName,
+      sheet:      sheetName,
+      importedAt: new Date().toISOString(),
+      profile:    profile,
+      status:     status,
+      people:     people,
+      pillars:    pillars,
+      sales:      sales,
+      activity:   activity,
+      missed:     missed,
+      objectives: objectives,
+      plan:       plan,
+      nextSteps:  nextSteps,
+      health:     health,
+      summary:    summary
+    };
+  }
+
+  /* --- Reading the files -------------------------------------------------- */
+
+  var xlsxPromise = null;
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (xlsxPromise) return xlsxPromise;
+    xlsxPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = XLSX_SRC;
+      s.onload = function () {
+        if (window.XLSX) resolve(window.XLSX); else reject(new Error('empty'));
+      };
+      s.onerror = function () {
+        xlsxPromise = null;            /* let a retry hit the network again */
+        reject(new Error('network'));
+      };
+      document.head.appendChild(s);
+    });
+    return xlsxPromise;
+  }
+
+  function readArrayBuffer(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload  = function () { resolve(new Uint8Array(fr.result)); };
+      fr.onerror = function () { reject(new Error('unreadable')); };
+      fr.readAsArrayBuffer(file);
+    });
+  }
+
+  function pickSheetName(wb) {
+    for (var i = 0; i < wb.SheetNames.length; i++) {
+      if (norm(wb.SheetNames[i]).indexOf('key account') === 0) return wb.SheetNames[i];
+    }
+    return wb.SheetNames[0];
+  }
+
+  /* Never rejects. One unreadable file among six should report itself and let
+     the other five import, so every outcome comes back as a result object. */
+  function readOne(file) {
+    return readArrayBuffer(file).then(function (bytes) {
+      var wb = window.XLSX.read(bytes, { type: 'array', cellDates: true });
+      if (!wb.SheetNames.length) {
+        return { fileName: file.name, ok: false, reason: 'The workbook has no sheets.' };
+      }
+      var name = pickSheetName(wb);
+      /* raw:false hands back what Excel shows in the cell — formatted dates and
+         currency rather than serial numbers. defval keeps the rows rectangular,
+         so a blank column B cannot shift column C into its place. */
+      var grid = window.XLSX.utils.sheet_to_json(wb.Sheets[name], {
+        header: 1, raw: false, defval: ''
+      });
+
+      var secs = findSections(grid);
+      if (!looksLikeWorksheet(grid, secs)) {
+        return {
+          fileName: file.name, ok: false,
+          reason: 'This is not a Key Account Worksheet — no numbered sections in it.'
+        };
+      }
+
+      var acct = parseWorksheet(grid, file.name, name, secs);
+      if (!acct.profile.name) {
+        return {
+          fileName: file.name, ok: false,
+          reason: 'No Account Name in section 1 — this looks like the blank template.'
+        };
+      }
+      return { fileName: file.name, ok: true, account: acct };
+    }).catch(function () {
+      return {
+        fileName: file.name, ok: false,
+        reason: 'Not a readable Excel workbook — is it really an .xlsx?'
+      };
+    });
+  }
+
+  function handleFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    showErr('');
+    setDropSub('Reading ' + files.length + (files.length === 1 ? ' file…' : ' files…'));
+
+    loadXlsx().then(function () {
+      return Promise.all(files.map(readOne));
+    }).then(function (results) {
+      var known = {};
+      ((book && book.accounts) ? book.accounts : []).forEach(function (a) {
+        known[a.id] = true;
+      });
+      results.forEach(function (r) { if (r.ok) r.isUpdate = !!known[r.account.id]; });
+      staged = results;
+      setDropSub('');
+      renderPreview();
+    }, function (e) {
+      setDropSub('');
+      showErr(e && e.message === 'network'
+        ? 'The Excel reader failed to load. It comes from a CDN, so check your connection and try again.'
+        : 'Something went wrong reading those files.');
+    });
+  }
+
+  /* --- Import preview ----------------------------------------------------- */
+
+  function renderPreview() {
+    var good = staged.filter(function (r) { return r.ok; });
+    var bad  = staged.filter(function (r) { return !r.ok; });
+    var news = good.filter(function (r) { return !r.isUpdate; }).length;
+    var upd  = good.length - news;
+
+    var bits = [];
+    if (news)       bits.push(news + (news === 1 ? ' new account' : ' new accounts'));
+    if (upd)        bits.push(upd + (upd === 1 ? ' update' : ' updates'));
+    if (bad.length) bits.push(bad.length + ' skipped');
+    document.getElementById('kaPreviewLabel').textContent =
+      bits.length ? bits.join(' · ') : 'Nothing to import';
+
+    document.getElementById('kaFileList').innerHTML = staged.map(function (r) {
+      if (!r.ok) {
+        return '<div class="ka-file is-bad"><div style="min-width:0;">' +
+          '<div class="ka-file-acct">Skipped</div>' +
+          '<div class="ka-file-name">' + esc(r.fileName) + '</div>' +
+          '<div class="ka-file-why">' + esc(r.reason) + '</div>' +
+          '</div></div>';
+      }
+      return '<div class="ka-file ' + (r.isUpdate ? 'is-update' : 'is-new') + '">' +
+        '<div style="min-width:0; flex:1;">' +
+          '<div class="ka-file-acct">' + esc(r.account.profile.name) + '</div>' +
+          '<div class="ka-file-name">' + esc(r.fileName) + '</div>' +
+        '</div>' +
+        '<span class="pill ' + (r.isUpdate ? 'pill-accent' : 'pill-ok') + '">' +
+          (r.isUpdate ? 'replaces' : 'new') + '</span>' +
+        '</div>';
+    }).join('');
+
+    document.getElementById('kaPreview').hidden = false;
+    document.getElementById('kaApplyBtn').disabled = good.length === 0;
+  }
+
+  function applyImport() {
+    var accounts = (book && book.accounts) ? book.accounts.slice() : [];
+    staged.forEach(function (r) {
+      if (!r.ok) return;
+      var at = -1;
+      for (var i = 0; i < accounts.length; i++) {
+        if (accounts[i].id === r.account.id) { at = i; break; }
+      }
+      /* Re-importing an account replaces it outright. The worksheet is the
+         record — unlike the prescriber roster there is no hand-typed half here
+         that a fresh import could destroy. */
+      if (at >= 0) accounts[at] = r.account; else accounts.push(r.account);
+    });
+    accounts.sort(function (a, b) {
+      return a.profile.name.localeCompare(b.profile.name);
+    });
+    book = { generated: new Date().toISOString(), accounts: accounts };
+    if (!Store.keyAccounts.writeBook(book)) {
+      showErr('Saved for this session only — the browser refused to write to storage, ' +
+              'so these accounts will be gone when you close the tab.');
+    }
+    staged = null;
+    document.getElementById('kaPreview').hidden = true;
+    document.getElementById('kaFile').value = '';
+    writeSummary();
+    showBook();
+  }
+
+  function discardImport() {
+    staged = null;
+    document.getElementById('kaPreview').hidden = true;
+    document.getElementById('kaFile').value = '';
+    showErr('');
+  }
+
+  /* --- Account cards ------------------------------------------------------ */
+
+  function healthClass(h) {
+    var n = norm(h);
+    if (!n) return '';
+    if (n.indexOf('excellent') !== -1) return 'h-excellent';
+    if (n.indexOf('healthy') !== -1)   return 'h-healthy';
+    if (n.indexOf('moderate') !== -1)  return 'h-moderate';
+    if (n.indexOf('risk') !== -1 || n.indexOf('lost') !== -1) return 'h-risk';
+    return '';
+  }
+
+  function healthPill(h) {
+    var c = healthClass(h);
+    if (c === 'h-excellent' || c === 'h-healthy') return 'pill-ok';
+    if (c === 'h-moderate') return 'pill-warn';
+    if (c === 'h-risk')     return 'pill-bad';
+    return '';
+  }
+
+  function statusPill(s) {
+    var n = norm(s);
+    if (n === 'purchasing')  return 'pill-ok';
+    if (n === 'not visited') return 'pill-bad';
+    return 'pill-accent';
+  }
+
+  /* --- Summary for Home --------------------------------------------------- */
+
+  /* Section 9's Status column is free text, so this reads as a deny-list: a
+     row counts as open unless it is explicitly marked finished. Getting it
+     wrong in this direction shows an action item that is actually done, which
+     you notice and close; the other direction hides work silently. */
+  var DONE_STATES = ['done', 'complete', 'completed', 'closed', 'finished', 'n/a'];
+
+  function openSteps(a) {
+    var tbl = a.nextSteps;
+    if (!tbl.rows.length) return 0;
+    var col = -1, i;
+    for (i = 0; i < tbl.heads.length; i++) {
+      if (norm(tbl.heads[i]) === 'status') { col = i; break; }
+    }
+    var n = 0;
+    tbl.rows.forEach(function (row) {
+      /* No Status column at all still counts. An action item written down and
+         never marked is exactly the thing worth surfacing. */
+      var st = col >= 0 ? norm(row[col]) : '';
+      if (DONE_STATES.indexOf(st) === -1) n++;
+    });
+    return n;
+  }
+
+  /* What Home shows: which accounts want attention, and how much is open.
+     Both fall straight out of the worksheets — nothing here asks for a second
+     round of data entry to feed a card. */
+  function writeSummary() {
+    if (!book || !book.accounts.length) return;
+    var atRisk = [], watch = [], steps = 0;
+    book.accounts.forEach(function (a) {
+      var c = healthClass(a.health);
+      if (c === 'h-risk') atRisk.push(a.profile.name);
+      else if (c === 'h-moderate') watch.push(a.profile.name);
+      steps += openSteps(a);
+    });
+    Store.keyAccounts.writeSummary({
+      total:     book.accounts.length,
+      atRisk:    atRisk.length,
+      watch:     watch.length,
+      openSteps: steps,
+      /* At-risk names first — if only three fit, those are the three. */
+      attention: atRisk.concat(watch).slice(0, 3),
+      updatedAt: book.generated
+    });
+  }
+
+  function figure(sales, label) {
+    for (var i = 0; i < sales.length; i++) {
+      if (norm(sales[i].label) === norm(label)) return sales[i].value;
+    }
+    return '';
+  }
+
+  function haystack(a) {
+    var parts = [a.profile.name, a.profile.type, a.profile.address, a.profile.specialty,
+                 a.profile.notes, a.health, a.summary, a.status.join(' ')];
+    a.people.rows.forEach(function (row) { parts.push(row.join(' ')); });
+    a.activity.forEach(function (p) { parts.push(p.value); });
+    a.missed.rows.forEach(function (row) { parts.push(row.join(' ')); });
+    a.nextSteps.rows.forEach(function (row) { parts.push(row.join(' ')); });
+    return norm(parts.join(' '));
+  }
+
+  function visible() {
+    var q = norm(filter.q);
+    return book.accounts.filter(function (a) {
+      if (filter.status && a.status.indexOf(filter.status) === -1) return false;
+      if (filter.health && norm(a.health) !== norm(filter.health)) return false;
+      if (q && haystack(a).indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  /* An unanswered field is shown, not hidden. A blank "Are they utilizing a
+     combination post-op drop for cataracts" is a question worth asking on the
+     next visit, and dropping the row would hide that there is one to ask. */
+  function rowHtml(label, value) {
+    var empty = !value;
+    return '<div class="ka-row">' +
+      '<div class="ka-row-lbl">' + esc(label) + '</div>' +
+      '<div class="ka-row-val' + (empty ? ' is-empty' : '') + '">' +
+        esc(empty ? 'not filled in' : value) + '</div>' +
+      '</div>';
+  }
+
+  /* Columns nobody filled are dropped. The decision-maker table has seven and
+     most accounts use four; on a phone that difference is a table you can
+     actually read. Column A always stays — it is what names the row. */
+  function tableHtml(tbl) {
+    if (!tbl.rows.length) return '';
+    var keep = [];
+    for (var c = 0; c < tbl.heads.length; c++) {
+      var used = tbl.rows.some(function (row) { return !!row[c]; });
+      if (used || c === 0) keep.push(c);
+    }
+    return '<div class="ka-tbl-wrap"><table class="ka-tbl"><thead><tr>' +
+      keep.map(function (c) { return '<th>' + esc(tbl.heads[c] || '') + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      tbl.rows.map(function (row) {
+        return '<tr>' + keep.map(function (c) {
+          return '<td>' + esc(row[c] || '') + '</td>';
+        }).join('') + '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
+
+  function sectionHtml(title, inner) {
+    if (!inner) return '';
+    return '<div class="ka-sec"><div class="ka-sec-title">' + esc(title) + '</div>' +
+           inner + '</div>';
+  }
+
+  function bodyHtml(a) {
+    var p = a.profile, out = '';
+
+    var docCount = [p.mds ? p.mds + ' MD' : '', p.ods ? p.ods + ' OD' : '']
+      .filter(Boolean).join(' · ');
+    out += sectionHtml('Account',
+      rowHtml('Account Type', p.type) +
+      rowHtml('Primary Location Address', p.address) +
+      rowHtml('Satellite Locations', p.satellites) +
+      rowHtml('Doctors', p.totalDocs ? p.totalDocs + (docCount ? ' (' + docCount + ')' : '') : docCount) +
+      rowHtml('Primary Specialty/Focus', p.specialty) +
+      rowHtml('Notes', p.notes));
+
+    out += sectionHtml('Decision makers', tableHtml(a.people));
+
+    var pillarInner = tableHtml(a.pillars);
+    if (a.sales.length) {
+      pillarInner += a.sales.map(function (s) { return rowHtml(s.label, s.value); }).join('');
+    }
+    out += sectionHtml('Pillars & business segments', pillarInner);
+
+    if (a.activity.length) {
+      out += sectionHtml('Activity & engagement',
+        a.activity.map(function (s) { return rowHtml(s.label, s.value); }).join(''));
+    }
+
+    out += sectionHtml('Missed opportunities', tableHtml(a.missed));
+
+    var planInner = '';
+    if (a.objectives.length) {
+      planInner += a.objectives.map(function (s) { return rowHtml(s.label, s.value); }).join('');
+    }
+    planInner += tableHtml(a.plan);
+    out += sectionHtml('Business plan', planInner);
+
+    out += sectionHtml('Next steps & follow-up', tableHtml(a.nextSteps));
+
+    if (a.health || a.summary) {
+      out += sectionHtml('Overall assessment',
+        rowHtml('Account Health Status', a.health) + rowHtml('Summary Notes', a.summary));
+    }
+
+    out += '<p class="hint" style="margin-top:var(--s-5);">From ' + esc(a.file) + '</p>';
+    return out;
+  }
+
+  function cardHtml(a) {
+    var p = a.profile;
+    var isOpen = !!expanded[a.id];
+    var meta = [p.type, p.specialty, p.address].filter(Boolean).join(' · ');
+
+    var pills = a.status.map(function (s) {
+      return '<span class="pill ' + statusPill(s) + '">' + esc(s) + '</span>';
+    });
+    if (a.health) {
+      pills.push('<span class="pill ' + healthPill(a.health) + '">' + esc(a.health) + '</span>');
+    }
+
+    /* Three figures on the closed card, so the list is worth scrolling without
+       opening anything. Only ones the worksheet actually carries. */
+    var figs = [
+      { lbl: 'Trailing 12 mo', val: figure(a.sales, 'Trailing 12 Months Sales') },
+      { lbl: 'Last 6 mo',      val: figure(a.sales, 'Last 6 Months Sales') },
+      { lbl: 'Growth 6 mo',    val: figure(a.sales, 'Growth % over 6 months') }
+    ].filter(function (f) { return !!f.val; });
+
+    var figsHtml = figs.length
+      ? '<div class="ka-figs">' + figs.map(function (f) {
+          var tone = '';
+          if (f.lbl === 'Growth 6 mo' && /\d/.test(f.val)) {
+            tone = /^\s*[-(]/.test(f.val) ? ' neg' : ' pos';
+          }
+          return '<div><div class="ka-fig-val' + tone + '">' + esc(f.val) + '</div>' +
+                 '<div class="ka-fig-lbl">' + esc(f.lbl) + '</div></div>';
+        }).join('') + '</div>'
+      : '';
+
+    return '<article class="ka-acct ' + healthClass(a.health) + '">' +
+      '<button type="button" class="ka-head" data-ka-toggle="' + esc(a.id) + '" ' +
+              'aria-expanded="' + (isOpen ? 'true' : 'false') + '">' +
+        '<div class="ka-name">' + esc(p.name) + '</div>' +
+        (meta ? '<div class="ka-meta">' + esc(meta) + '</div>' : '') +
+        (pills.length ? '<div class="ka-pills">' + pills.join('') + '</div>' : '') +
+        figsHtml +
+      '</button>' +
+      (isOpen ? '<div class="ka-body">' + bodyHtml(a) + '</div>' : '') +
+      '</article>';
+  }
+
+  function chipHtml(value, label, on) {
+    return '<button type="button" class="ka-chip" data-ka-chip="' + esc(value) + '" ' +
+           'aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(label) + '</button>';
+  }
+
+  function renderChrome() {
+    var n = book.accounts.length;
+    var when = '';
+    try { when = new Date(book.generated).toLocaleDateString(); } catch (e) {}
+    document.getElementById('kaAsOf').textContent =
+      n + (n === 1 ? ' account' : ' accounts') + (when ? ' · last import ' + when : '');
+
+    /* Only offer a filter that would actually match something. */
+    var statusSeen = {}, healthSeen = {};
+    book.accounts.forEach(function (a) {
+      a.status.forEach(function (s) { statusSeen[s] = true; });
+      if (a.health) healthSeen[a.health] = true;
+    });
+
+    var sRow = STATUSES.filter(function (s) { return statusSeen[s]; });
+    document.getElementById('kaStatusRow').innerHTML = sRow.length
+      ? '<span class="lbl">Status</span>' +
+        sRow.map(function (s) { return chipHtml('s:' + s, s, filter.status === s); }).join('')
+      : '';
+
+    /* Known health values first, in worksheet order, then anything typed that
+       is not on the list rather than silently losing it. */
+    var hRow = HEALTHS.filter(function (h) { return healthSeen[h]; });
+    Object.keys(healthSeen).forEach(function (h) {
+      if (hRow.indexOf(h) === -1) hRow.push(h);
+    });
+    document.getElementById('kaHealthRow').innerHTML = hRow.length
+      ? '<span class="lbl">Health</span>' +
+        hRow.map(function (h) { return chipHtml('h:' + h, h, filter.health === h); }).join('')
+      : '';
+  }
+
+  function renderList() {
+    var list = visible();
+    document.getElementById('kaList').innerHTML = list.map(cardHtml).join('');
+    var none = document.getElementById('kaNoMatch');
+    none.hidden = list.length > 0;
+    if (!list.length) {
+      none.innerHTML = '<strong>Nothing matches</strong>' +
+        'No key account matches that search and filter combination.';
+    }
+  }
+
+  function renderBook() { renderChrome(); renderList(); }
+
+  /* --- View switching ----------------------------------------------------- */
+
+  function showErr(msg) {
+    var el = document.getElementById('kaErr');
+    el.textContent = msg || '';
+    el.hidden = !msg;
+  }
+
+  function setDropSub(msg) {
+    document.getElementById('kaDropSub').textContent = msg || DROP_SUB;
+  }
+
+  function showImport() {
+    document.getElementById('kaImportView').hidden = false;
+    document.getElementById('kaBookView').hidden = true;
+    document.getElementById('kaBackRow').hidden = !(book && book.accounts.length);
+  }
+
+  function showBook() {
+    if (!book || !book.accounts.length) { showImport(); return; }
+    document.getElementById('kaImportView').hidden = true;
+    document.getElementById('kaBookView').hidden = false;
+    document.getElementById('kaClearConfirm').hidden = true;
+    renderBook();
+  }
+
+  /* --- Wiring ------------------------------------------------------------- */
+
+  Shell.ready(function () {
+    var drop  = document.getElementById('kaDrop');
+    var input = document.getElementById('kaFile');
+
+    input.addEventListener('change', function () { handleFiles(this.files); });
+
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) {
+        e.preventDefault(); drop.classList.add('is-over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) {
+        e.preventDefault(); drop.classList.remove('is-over');
+      });
+    });
+    drop.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+    });
+
+    document.getElementById('kaApplyBtn').addEventListener('click', applyImport);
+    document.getElementById('kaDiscardBtn').addEventListener('click', discardImport);
+    document.getElementById('kaBackBtn').addEventListener('click', function () {
+      discardImport(); showBook();
+    });
+    document.getElementById('kaAddBtn').addEventListener('click', function () {
+      showErr(''); showImport(); window.scrollTo(0, 0);
+    });
+
+    document.getElementById('kaSearch').addEventListener('input', function () {
+      filter.q = this.value;
+      renderList();          /* the box lives outside #kaList, so focus survives */
+    });
+
+    /* Chips and cards are delegated. Both lists are re-rendered wholesale, so
+       per-element listeners would have to be rebound on every keystroke. */
+    document.getElementById('kaBookView').addEventListener('click', function (e) {
+      var chip = e.target.closest('[data-ka-chip]');
+      if (chip) {
+        var val = chip.getAttribute('data-ka-chip');
+        var kind = val.slice(0, 1), name = val.slice(2);
+        if (kind === 's') filter.status = filter.status === name ? '' : name;
+        else              filter.health = filter.health === name ? '' : name;
+        renderBook();
+        return;
+      }
+      var head = e.target.closest('[data-ka-toggle]');
+      if (head) {
+        var id = head.getAttribute('data-ka-toggle');
+        expanded[id] = !expanded[id];
+        renderList();
+      }
+    });
+
+    /* Two steps to clear, with the count named rather than implied. A
+       worksheet takes real time to fill in, and re-importing means finding
+       every one of those files again. */
+    document.getElementById('kaClearBtn').addEventListener('click', function () {
+      var n = book.accounts.length;
+      document.getElementById('kaClearText').textContent =
+        'Remove all ' + n + (n === 1 ? ' key account' : ' key accounts') +
+        ' from this device? The worksheets themselves are untouched — you can import them again.';
+      document.getElementById('kaClearConfirm').hidden = false;
+    });
+    document.getElementById('kaClearNo').addEventListener('click', function () {
+      document.getElementById('kaClearConfirm').hidden = true;
+    });
+    document.getElementById('kaClearYes').addEventListener('click', function () {
+      Store.keyAccounts.clear();
+      book = null;
+      expanded = {};
+      filter = { q: '', status: '', health: '' };
+      document.getElementById('kaSearch').value = '';
+      showImport();
+    });
+
+    book = Store.keyAccounts.readBook();
+    if (book && !Array.isArray(book.accounts)) book = null;
+
+    /* Backfill for a book imported before Home had a card to feed. Safe to run
+       on every load: the summary is derived entirely from the book, and its
+       updatedAt is the book's own import time, so rewriting it cannot make
+       stale worksheets look freshly checked. */
+    if (book && !Store.keyAccounts.readSummary()) writeSummary();
+
+    showBook();
+  });
+
+})();
+</script>
+
+</body>
+</html>

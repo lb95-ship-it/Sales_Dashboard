@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/shell.css?v=1786688991">
+<link rel="stylesheet" href="assets/css/shell.css?v=1788052303">
 
 <style>
   /* -----------------------------------------------------------------------
@@ -154,11 +154,32 @@
       </div>
     </a>
 
-    <!-- Key accounts ------------------------------------------------------
-         Sits beside the bonus card because both are the Sales pillar, and the
-         question it answers — which accounts want attention — is a this-week
-         question even though the worksheets themselves are standing records. -->
+    <!-- Lost sales --------------------------------------------------------
+         Directly under the bonus card: both come off the Sales page, and this
+         one names the offices the bonus card's gap is hiding in. -->
     <a class="card card-link" href="sales.html">
+      <div class="card-head">
+        <h2>Lost sales</h2>
+        <span id="lsBadge"></span>
+      </div>
+      <div id="lsBody"></div>
+      <div class="card-foot row-between">
+        <span class="stat-label" id="lsFoot"></span>
+        <span class="card-cta">Open Sales
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+        </span>
+      </div>
+    </a>
+
+    <!-- Key accounts ------------------------------------------------------
+         Sits beside the bonus card because the two were one page until Key
+         Accounts moved to its own, and the question it answers — which
+         accounts want attention — is a this-week question even though the
+         worksheets themselves are standing records. -->
+    <a class="card card-link" href="key-accounts.html">
       <div class="card-head">
         <h2>Key accounts</h2>
         <span id="kaBadge"></span>
@@ -166,7 +187,7 @@
       <div id="kaBody"></div>
       <div class="card-foot row-between">
         <span class="stat-label" id="kaFoot"></span>
-        <span class="card-cta">Open Sales
+        <span class="card-cta">Open Key Accounts
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
@@ -207,8 +228,8 @@
 
 </main>
 
-<script src="assets/js/data-store.js?v=1788047292"></script>
-<script src="assets/js/shell.js?v=1786689985"></script>
+<script src="assets/js/data-store.js?v=1788053950"></script>
+<script src="assets/js/shell.js?v=1788054234"></script>
 <script>
 /* ===========================================================================
    Home — reads only. Every number on this page comes from a summary written
@@ -245,9 +266,24 @@
     return '<p class="stat-label">' + msg + '</p>';
   }
 
+  /* Sign goes before the dollar sign, not after it — "$-1,026" is what you get
+     from formatting a negative number and prefixing "$", and it reads wrong.
+     Only the Lost Sales card passes negatives; the rest are unaffected. */
   function money(n) {
     if (typeof n !== 'number' || isNaN(n)) return '—';
-    return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    return (n < 0 ? '-$' : '$') +
+           Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                     'August', 'September', 'October', 'November', 'December'];
+
+  /* "2026-07" -> "July 2026". The summary stores the ISO month because it sorts;
+     Home is the only place it has to read as English. */
+  function monthLabel(m) {
+    var p = String(m || '').split('-');
+    if (p.length < 2) return '';
+    return (MONTH_NAMES[parseInt(p[1], 10) - 1] || p[1]) + ' ' + p[0];
   }
 
   /* --- Hero: current route from th_schedule_summary ---------------------- */
@@ -387,6 +423,67 @@
                        (daysOld(s.updatedAt) >= STALE_DAYS ? ' · ' + ageNote(s.updatedAt) : '');
   }
 
+  /* --- Lost sales ---------------------------------------------------------
+
+     Reads the newest month only — that is all the summary carries, on purpose.
+     The dollar figure is the sum of every account trading below its own
+     12-month run rate, which is what the manager's report measures; the label
+     says "below run rate" and not "lost" so the card cannot be read as money
+     that has already gone. */
+
+  function renderLostSales() {
+    var s = Store.lostSales.readSummary();
+    var body = document.getElementById('lsBody');
+    var badge = document.getElementById('lsBadge');
+    var foot = document.getElementById('lsFoot');
+
+    if (!s || !s.month) {
+      badge.outerHTML = '<span class="pill" id="lsBadge">No report</span>';
+      body.innerHTML = empty('Paste your monthly lost sales report to see which accounts have fallen off.');
+      foot.textContent = 'Lost Sales';
+      return;
+    }
+
+    var open = s.open || 0;
+    var down = s.accountsDown || 0;
+
+    var named = (s.attention || []).map(Shell.escapeHtml).join(', ');
+    var more = open - (s.attention || []).length;
+
+    body.innerHTML =
+      '<div class="stat-row">' +
+        '<span class="stat">' +
+          '<span class="stat-value"' + (s.belowRunRate < 0 ? ' style="color:var(--red)"' : '') +
+            '>' + money(s.belowRunRate) + '</span>' +
+          '<span class="stat-label">below run rate</span>' +
+        '</span>' +
+        '<span class="stat">' +
+          '<span class="stat-value"' + (open ? ' style="color:var(--amber)"' : '') + '>' + open + '</span>' +
+          '<span class="stat-label">not yet worked</span>' +
+        '</span>' +
+      '</div>' +
+      (named
+        ? '<p class="stat-label" style="margin-top:var(--s-3);">' + named +
+          (more > 0 ? ' and ' + more + ' more' : '') + '</p>'
+        : '') +
+      /* Accounts down more than one month running are the ones a single visit
+         has already failed to fix, so they get their own line rather than
+         being folded into the count above. */
+      (s.running
+        ? '<p class="stat-label" style="margin-top:var(--s-2); color:var(--red);">' +
+          '<b>' + s.running + '</b> down 2+ months running</p>'
+        : '');
+
+    badge.outerHTML = '<span class="pill ' +
+      (open ? 'pill-warn' : (down ? 'pill-ok' : 'pill-ok')) + '" id="lsBadge">' +
+      (open ? open + ' to work' : (down ? 'all worked' : 'nothing down')) +
+      '</span>';
+
+    foot.textContent = monthLabel(s.month) + ' · ' + down + (down === 1 ? ' account' : ' accounts') +
+                       ' down' +
+                       (daysOld(s.updatedAt) >= STALE_DAYS ? ' · ' + ageNote(s.updatedAt) : '');
+  }
+
   /* --- Key accounts ------------------------------------------------------- */
 
   function renderKeyAccts() {
@@ -493,6 +590,7 @@
     var stamps = [
       (Store.schedule.readSummary() || {}).updatedAt,
       (Store.bonus.readSummary() || {}).updatedAt,
+      (Store.lostSales.readSummary() || {}).updatedAt,
       (Store.keyAccounts.readSummary() || {}).updatedAt,
       (Store.prescribers.readSummary() || {}).updatedAt
     ].filter(Boolean);
@@ -505,6 +603,7 @@
     renderHero();
     renderRoute();
     renderBonus();
+    renderLostSales();
     renderKeyAccts();
     renderRx();
     renderFreshness();

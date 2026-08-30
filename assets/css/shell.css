@@ -120,6 +120,13 @@ ul, ol { padding: 0; list-style: none; }
 img, svg { display: block; max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
 
+/* The `hidden` attribute only sets `display: none` at user-agent priority, so
+   any later `display` rule silently defeats it — which is what happened to
+   every `<div class="row" hidden>` in the app: `.row { display: flex }` won,
+   and confirm buttons and apply rows sat on screen from page load. Every tool
+   here toggles visibility by setting `.hidden`, so this has to hold. */
+[hidden] { display: none !important; }
+
 a { color: var(--teal); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
@@ -551,6 +558,14 @@ a.card-link:active { transform: none; }
   border-top: 2px solid transparent;
 }
 .nav a:hover { color: var(--ink-mid); text-decoration: none; }
+/* Seven destinations share the bottom bar, so on the narrowest phones the
+   longest labels ("Strategy", "Accounts") no longer clear their 1/7th of a
+   320px screen at the base size. Only the label shrinks — the icon and the
+   44px touch target are untouched. */
+@media (max-width: 389px) {
+  .nav a { font-size: 10px; padding: var(--s-1) 1px; gap: 2px; }
+  .nav a svg { width: 20px; height: 20px; }
+}
 .nav a svg { width: 22px; height: 22px; stroke: currentColor; fill: none;
              stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .nav a[aria-current='page'] {

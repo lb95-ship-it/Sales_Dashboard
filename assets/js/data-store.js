@@ -32,8 +32,11 @@
     scheduleRoutes:   'th_schedule_routes_',      // prefix + ISO Monday
     bonusSummary:     'th_bonus_summary',         // Sales -> Home
     bonusLastUpload:  'th_bonus_lastUpload',      // Sales (internal)
-    keyAcctBook:      'th_keyaccts_book',         // Sales / Key Accounts (internal)
-    keyAcctSummary:   'th_keyaccts_summary',      // Sales / Key Accounts -> Home
+    keyAcctBook:      'th_keyaccts_book',         // Key Accounts (internal)
+    keyAcctSummary:   'th_keyaccts_summary',      // Key Accounts -> Home
+    lostSalesMonths:  'th_lostsales_months',      // Sales / Lost Sales (internal)
+    lostSalesState:   'th_lostsales_state',       // Sales / Lost Sales (internal)
+    lostSalesSummary: 'th_lostsales_summary',     // Sales / Lost Sales -> Home
     prescriberRoster: 'th_prescribers_roster',    // Prescriptions (internal)
     prescriberFollow: 'th_prescribers_followups', // Prescriptions (internal)
     prescriberSummary:'th_prescribers_summary',   // Prescriptions -> Home
@@ -245,6 +248,87 @@
     }
   };
 
+  /* -------------------------------------------------------------------------
+     Lost Sales — the manager's monthly variance report.
+
+     Two keys, split along the same line as the prescriber roster: one holds
+     what was IMPORTED and is replaced wholesale by a re-import, the other
+     holds what was TYPED and must survive one.
+
+     `months` is a map of "YYYY-MM" -> one month's report, not a single latest
+     report. The whole point of the page is that an account showing up three
+     months running is a different problem from one that showed up once, and
+     that comparison is impossible if each import overwrites the last. Keyed by
+     month rather than appended to a list so re-pasting a month you already
+     imported corrects it instead of double-counting it.
+
+     `state` is keyed by CardCode — the account number from the report, which
+     is stable across months in a way the clinic name is not.
+
+     Both hold real clinic names and real sales figures. localStorage only,
+     never committed, never exported unless explicitly asked for.
+     ------------------------------------------------------------------------- */
+  var lostSales = {
+    /* { "2026-07": { month, importedAt, repNames: [], rows: [] }, … } */
+    readMonths: function () { return get(KEYS.lostSalesMonths, {}) || {}; },
+    writeMonths: function (months) {
+      return set(KEYS.lostSalesMonths, months && typeof months === 'object' ? months : {});
+    },
+
+    /* { [cardCode]: { worked: bool, flagged: bool, updatedAt } }
+
+       Deliberately two booleans and nothing else. The Performance page was
+       rejected for asking its user to type a record of work already done, and
+       the same judgement applies here: a tick and a flag are worth their entry
+       cost, a notes field and a due date are not. */
+    readState: function () { return get(KEYS.lostSalesState, {}) || {}; },
+    writeState: function (state) {
+      return set(KEYS.lostSalesState, state && typeof state === 'object' ? state : {});
+    },
+
+    /* { month, belowRunRate, accountsDown, quiet, running, open, attention[],
+         updatedAt }
+
+       `belowRunRate` is a NUMBER and it is negative — Home formats it, the way
+       it formats the bonus dollars, rather than storing a pre-rendered string.
+
+       `updatedAt` is passed in rather than stamped here, and it is the moment
+       the month was IMPORTED, not the moment this line was written. Home ages
+       every card off updatedAt, so stamping it at write time would let a
+       summary rebuilt on page load — or one rewritten by ticking an account
+       off — report a six-week-old report as arriving today. Same trap the Key
+       Accounts summary avoids. */
+    readSummary: function () { return get(KEYS.lostSalesSummary, null); },
+    writeSummary: function (s) {
+      return set(KEYS.lostSalesSummary, {
+        month:        s.month || '',
+        belowRunRate: typeof s.belowRunRate === 'number' ? s.belowRunRate : 0,
+        accountsDown: s.accountsDown || 0,
+        quiet:        s.quiet || 0,
+        running:      s.running || 0,
+        open:         s.open || 0,
+        attention:    Array.isArray(s.attention) ? s.attention : [],
+        updatedAt:    s.updatedAt || new Date().toISOString()
+      });
+    },
+
+    /* Clearing the reports leaves the ticks and flags alone on purpose: they
+       are the only thing on the page the user typed, and re-importing the same
+       months restores the rows they hang off. The summary goes with the
+       reports, though — one left behind would keep a Home card naming accounts
+       that are no longer on the page. `clearAll` is the one that also drops the
+       ticks, and the page asks separately before calling it. */
+    clear: function () {
+      remove(KEYS.lostSalesSummary);
+      return remove(KEYS.lostSalesMonths);
+    },
+    clearAll: function () {
+      remove(KEYS.lostSalesState);
+      remove(KEYS.lostSalesSummary);
+      return remove(KEYS.lostSalesMonths);
+    }
+  };
+
   var prescribers = {
     /* { needFollowUp, flagged } — how many prescriptions are still waiting on
        a follow-up, and how many doctors are flagged high priority.
@@ -370,6 +454,7 @@
     schedule: schedule,
     bonus: bonus,
     keyAccounts: keyAccounts,
+    lostSales: lostSales,
     prescribers: prescribers,
     performance: performance,
     routeBoard: routeBoard

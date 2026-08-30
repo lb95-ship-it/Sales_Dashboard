@@ -17,19 +17,30 @@
   'use strict';
 
   /* -------------------------------------------------------------------------
-     Navigation model — the single source of truth for the five destinations.
+     Navigation model — the single source of truth for every destination.
      Adding a pillar page means adding one entry here, not editing five files.
+
+     Order is the user's, set 2026-08-29, and it is not alphabetical or
+     conventional: Home sits in the MIDDLE rather than at the left edge, under
+     the thumb on a phone, with the planning pages to its left and the reporting
+     pages to its right. index.html is still the landing page — where the tab
+     sits in the bar says nothing about that. Do not "fix" this back to
+     Home-first.
      ------------------------------------------------------------------------- */
   var PAGES = [
-    { id: 'home',     href: 'index.html',          label: 'Home',     icon: 'home' },
+    { id: 'strategy', href: 'strategy.html',       label: 'Strategy', icon: 'target' },
     { id: 'route',    href: 'route-planning.html', label: 'Route',    icon: 'pin' },
+    /* Key Accounts is its own destination rather than a Sales sub-tab: the
+       worksheets are a standing record of an account, not a monthly report,
+       and they have nothing to do with the bonus period Sales is scoped to. */
+    { id: 'keyaccts', href: 'key-accounts.html',   label: 'Accounts', icon: 'star' },
+    { id: 'home',     href: 'index.html',          label: 'Home',     icon: 'home' },
     { id: 'sales',    href: 'sales.html',          label: 'Sales',    icon: 'chart' },
     { id: 'rx',       href: 'prescriptions.html',  label: 'Rx',       icon: 'rx' },
-    { id: 'strategy', href: 'strategy.html',       label: 'Strategy', icon: 'target' },
-    /* Sixth pillar. The label is short because the bottom bar splits its width
-       evenly between however many entries are in this list — "Performance"
-       does not fit six-up on a phone, "Perf" does. The page itself is titled
-       in full. */
+    /* The label is short because the bottom bar splits its width evenly
+       between however many entries are in this list — "Performance" does not
+       fit on a phone alongside six others, "Perf" does. The page itself is
+       titled in full. Same reason "Key Accounts" is "Accounts" above. */
     { id: 'perf',     href: 'performance.html',    label: 'Perf',     icon: 'gauge' }
   ];
 
@@ -101,7 +112,9 @@
     target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.6"/>' +
             '<circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none"/>',
     gauge:  '<path d="M4 16.5a8 8 0 0 1 16 0"/><path d="M12 16.5 16.4 11.9"/>' +
-            '<circle cx="12" cy="16.5" r="1.1" fill="currentColor" stroke="none"/>'
+            '<circle cx="12" cy="16.5" r="1.1" fill="currentColor" stroke="none"/>',
+    star:   '<path d="m12 3.6 2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 17l-5.25 2.75 1-5.85' +
+            'L3.5 9.75l5.9-.85z"/>'
   };
 
   function icon(name) {

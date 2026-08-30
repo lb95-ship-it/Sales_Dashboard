@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/shell.css?v=1786688991">
+<link rel="stylesheet" href="assets/css/shell.css?v=1788052303">
 
 <style>
   /* -----------------------------------------------------------------------
@@ -253,64 +253,48 @@
   }
 
   /* -----------------------------------------------------------------------
-     Key Accounts. Everything below is scoped to the second sub-tab and is
-     prefixed .ka- so it cannot collide with the Bonus Tracker's rules above.
+     Lost Sales. Scoped to the second sub-tab and prefixed .ls- so it cannot
+     collide with the Bonus Tracker's rules above.
      ----------------------------------------------------------------------- */
 
-  /* Drop zone. A <label> wrapping a hidden file input, so tapping it opens the
-     picker on a phone while dragging a file onto it works on the laptop. */
-  .ka-drop {
-    display: block;
-    background: var(--white);
-    border: 1px dashed var(--ink-faint);
-    border-radius: var(--r-lg);
-    padding: var(--s-7) var(--s-4);
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 120ms ease, background 120ms ease;
-  }
-  .ka-drop:hover, .ka-drop.is-over { border-color: var(--teal); background: var(--teal-dim); }
-  .ka-drop-title { font-size: var(--fs-lg); font-weight: 500; }
-  .ka-drop-sub { font-size: var(--fs-sm); color: var(--ink-light); margin-top: var(--s-2); }
-
-  /* Import report — one line per file, so a workbook that failed says so next
-     to its own name instead of collapsing into a single error. */
-  .ka-file {
-    display: flex; align-items: flex-start; gap: var(--s-3);
-    padding: var(--s-3);
+  #lsPaste {
+    width: 100%; height: 190px;
     background: var(--white);
     border: 1px solid var(--rule);
-    border-left: 3px solid var(--rule);
     border-radius: var(--r-md);
-    margin-bottom: var(--s-2);
+    padding: var(--s-3);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    line-height: 1.55;
+    resize: vertical;
+    white-space: pre;
+    overflow: auto;
   }
-  .ka-file.is-new    { border-left-color: var(--green); }
-  .ka-file.is-update { border-left-color: var(--teal); }
-  .ka-file.is-bad    { border-left-color: var(--red); }
-  .ka-file-name {
-    font-family: var(--font-mono); font-size: var(--fs-xs);
-    color: var(--ink-light);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .ka-file-acct { font-size: var(--fs-sm); font-weight: 500; }
-  .ka-file-why  { font-size: var(--fs-xs); color: var(--red); margin-top: 2px; }
+  #lsPaste:focus-visible { border-color: var(--teal); }
 
-  /* Search + filter chips, matching the prescriber roster. */
-  .ka-search { position: relative; }
-  .ka-search svg {
-    position: absolute; left: var(--s-3); top: 50%; transform: translateY(-50%);
-    width: 16px; height: 16px; stroke: var(--ink-faint); fill: none; stroke-width: 2;
-    pointer-events: none;
+  /* Headline numbers above the list. Same shape as the prescriber stat pills;
+     kept local because these carry a colour the roster's do not. */
+  .ls-stats { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+  .ls-stat {
+    display: inline-flex; align-items: baseline; gap: var(--s-1);
+    background: var(--white);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-pill);
+    padding: var(--s-1) var(--s-3);
   }
-  .ka-search .input { padding-left: 36px; }
-  .ka-chips {
+  .ls-stat b { font-family: var(--font-mono); font-size: var(--fs-base); font-weight: 500; }
+  .ls-stat span { font-size: var(--fs-xs); color: var(--ink-light); }
+  .ls-stat.down b { color: var(--red); }
+  .ls-stat.warn b { color: var(--amber); }
+
+  .ls-chips {
     display: flex; gap: var(--s-1); align-items: center;
     overflow-x: auto; padding-bottom: var(--s-1);
     scrollbar-width: none;
   }
-  .ka-chips::-webkit-scrollbar { display: none; }
-  .ka-chips > .lbl { font-size: var(--fs-xs); color: var(--ink-light); flex-shrink: 0; }
-  .ka-chip {
+  .ls-chips::-webkit-scrollbar { display: none; }
+  .ls-chips > .lbl { font-size: var(--fs-xs); color: var(--ink-light); flex-shrink: 0; }
+  .ls-chip {
     flex-shrink: 0;
     padding: var(--s-1) var(--s-3);
     border: 1px solid var(--rule);
@@ -322,93 +306,113 @@
     white-space: nowrap;
     transition: border-color 120ms ease, background 120ms ease;
   }
-  .ka-chip:hover { border-color: var(--ink-faint); }
-  .ka-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+  .ls-chip:hover { border-color: var(--ink-faint); }
+  .ls-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
 
-  /* Account card. The left edge carries the health assessment from section 10,
-     which is the one field that says whether this account needs attention. */
-  .ka-acct {
+  .ls-search { position: relative; }
+  .ls-search svg {
+    position: absolute; left: var(--s-3); top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; stroke: var(--ink-faint); fill: none; stroke-width: 2;
+    pointer-events: none;
+  }
+  .ls-search .input { padding-left: 36px; }
+
+  /* Account card. The left edge is the size of the fall, not a status the user
+     set — red past -50%, amber past -20%, green for an account that has grown
+     back above its own average. */
+  .ls-acct {
+    position: relative;
     background: var(--white);
     border: 1px solid var(--rule);
-    border-left: 3px solid var(--rule);
+    border-left: 3px solid var(--ink-faint);
     border-radius: var(--r-lg);
-    overflow: hidden;
-  }
-  .ka-acct.h-excellent { border-left-color: var(--green); }
-  .ka-acct.h-healthy   { border-left-color: var(--green); }
-  .ka-acct.h-moderate  { border-left-color: var(--amber); }
-  .ka-acct.h-risk      { border-left-color: var(--red); }
-
-  .ka-head {
-    display: block; width: 100%;
     padding: var(--s-4);
-    background: none; border: none; cursor: pointer;
-    font: inherit; color: inherit; text-align: left;
   }
-  .ka-name { font-size: var(--fs-lg); font-weight: 500; }
-  .ka-meta { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
-  .ka-pills { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: var(--s-3); }
+  .ls-acct.sev-severe { border-left-color: var(--red); }
+  .ls-acct.sev-notable { border-left-color: var(--amber); }
+  .ls-acct.sev-slight { border-left-color: var(--ink-faint); }
+  .ls-acct.sev-up     { border-left-color: var(--green); }
+  /* A worked account stays in the list — it is still down, and hiding it would
+     lose the month-over-month thread — but it stops shouting. */
+  .ls-acct.is-worked { background: var(--bg); }
+  .ls-acct.is-worked .ls-name { color: var(--ink-mid); }
 
-  /* Headline sales figures, shown collapsed so the card is worth reading
-     without opening it. */
-  .ka-figs {
-    display: flex; flex-wrap: wrap; gap: var(--s-5);
-    margin-top: var(--s-3);
+  .ls-name { font-size: var(--fs-lg); font-weight: 500; line-height: 1.25; }
+  .ls-meta { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
+
+  /* The two figures she reads first, at the size that says so. */
+  .ls-var { display: flex; align-items: baseline; gap: var(--s-3); margin-top: var(--s-3); }
+  .ls-var-d {
+    font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 500;
+    line-height: 1.1; color: var(--red);
   }
-  .ka-fig-val { font-family: var(--font-mono); font-size: var(--fs-base); font-weight: 500; }
-  .ka-fig-val.pos { color: var(--green); }
-  .ka-fig-val.neg { color: var(--red); }
-  .ka-fig-lbl {
-    font-size: var(--fs-xs); color: var(--ink-light);
-    letter-spacing: 0.04em; text-transform: uppercase;
+  .ls-var-p { font-family: var(--font-mono); font-size: var(--fs-base); color: var(--red); }
+  .ls-acct.sev-up .ls-var-d, .ls-acct.sev-up .ls-var-p { color: var(--green); }
+  .ls-var-note { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
+
+  /* Run rate against history: 90-day, 180-day and 12-month averages as bars
+     on a shared scale, so the shape of the fall is readable without doing the
+     subtraction yourself. */
+  .ls-trend { margin-top: var(--s-4); display: grid; gap: var(--s-2); }
+  .ls-bar { display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: var(--s-2); }
+  .ls-bar-lbl { font-size: var(--fs-xs); color: var(--ink-light); white-space: nowrap; }
+  /* Both are spans, so both need to be told they are blocks — width and height
+     do nothing on an inline box, and the bars render as hairlines without it. */
+  .ls-bar-track {
+    display: block; height: 8px;
+    background: var(--rule); border-radius: var(--r-pill); overflow: hidden;
+  }
+  .ls-bar-fill { display: block; height: 100%; background: var(--teal); border-radius: var(--r-pill); }
+  .ls-bar-fill.is-ref { background: var(--ink-faint); }
+  .ls-bar-val {
+    font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-mid);
+    min-width: 68px; text-align: right;
   }
 
-  /* Expanded body — one block per worksheet section, in worksheet order. */
-  .ka-body { padding: 0 var(--s-4) var(--s-4); }
-  .ka-sec { margin-top: var(--s-5); }
-  .ka-sec:first-child { margin-top: var(--s-2); }
-  .ka-sec-title {
-    font-family: var(--font-mono);
+  .ls-flags { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: var(--s-3); }
+
+  /* Month strip — one dot per month imported, filled where this account
+     appeared. The whole reason the page keeps every month instead of only the
+     latest one. */
+  .ls-months { display: flex; align-items: center; gap: 4px; margin-top: var(--s-3); }
+  .ls-months .lbl { font-size: var(--fs-xs); color: var(--ink-light); margin-right: var(--s-1); }
+  .ls-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--rule); flex-shrink: 0;
+  }
+  .ls-dot.on { background: var(--red); }
+  .ls-dot.on.mild { background: var(--amber); }
+  .ls-dot.on.up { background: var(--green); }
+
+  /* Tick and flag. Both are one tap and nothing else — see the note in
+     data-store.js about why there is no notes field here. */
+  .ls-acts { display: flex; gap: var(--s-2); margin-top: var(--s-4); flex-wrap: wrap; }
+  .ls-act {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-pill);
+    background: var(--white);
     font-size: var(--fs-xs);
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-light);
-    padding-bottom: var(--s-2);
-    border-bottom: 1px solid var(--rule);
-    margin-bottom: var(--s-3);
-  }
-  /* Label above value, not beside it. Several of these questions run to a full
-     line of text ("Are they utilizing a combination post-op drop for LASIK"),
-     and a two-column row would leave the answer squeezed against the edge on a
-     phone. */
-  .ka-row { margin-bottom: var(--s-3); }
-  .ka-row:last-child { margin-bottom: 0; }
-  .ka-row-lbl { font-size: var(--fs-xs); color: var(--ink-light); }
-  .ka-row-val { font-size: var(--fs-sm); color: var(--ink); white-space: pre-wrap; }
-  .ka-row-val.is-empty { color: var(--ink-faint); font-style: italic; }
-
-  .ka-tbl-wrap { overflow-x: auto; }
-  table.ka-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
-  table.ka-tbl th {
-    font-family: var(--font-mono);
-    font-size: var(--fs-xs);
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--ink-light);
-    text-align: left;
-    white-space: nowrap;
-    padding: 0 var(--s-3) var(--s-2) 0;
-    border-bottom: 1px solid var(--rule);
-  }
-  table.ka-tbl td {
-    padding: var(--s-2) var(--s-3) var(--s-2) 0;
-    border-bottom: 1px solid var(--rule);
     color: var(--ink-mid);
-    vertical-align: top;
+    cursor: pointer;
+    min-height: 34px;
   }
-  table.ka-tbl tr:last-child td { border-bottom: none; }
+  .ls-act:hover { border-color: var(--ink-faint); }
+  .ls-act svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;
+                stroke-linecap: round; stroke-linejoin: round; }
+  .ls-act[aria-pressed="true"] { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+  .ls-act.flag[aria-pressed="true"] { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+  /* Import preview */
+  .ls-prev-row {
+    display: flex; justify-content: space-between; gap: var(--s-3);
+    padding: var(--s-2) 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--fs-sm);
+  }
+  .ls-prev-row:last-child { border-bottom: none; }
+  .ls-prev-row .v { font-family: var(--font-mono); color: var(--ink-mid); }
 </style>
 </head>
 
@@ -428,7 +432,7 @@
   <div class="subtabs" role="tablist" aria-label="Sales tools"
        data-tabs data-default="bonus">
     <button data-panel="bonus">Bonus Tracker</button>
-    <button data-panel="keyaccts">Key Accounts</button>
+    <button data-panel="lostsales">Lost Sales</button>
   </div>
 
   <!-- ===================== BONUS TRACKER =====================
@@ -521,76 +525,100 @@
 
   </section><!-- /Bonus Tracker panel -->
 
-  <!-- ===================== KEY ACCOUNTS =====================
-       The worksheet reader. One workbook is one account, so the import takes
-       several files at once and each becomes a card. -->
-  <section class="tabpanel" data-panel="keyaccts" role="tabpanel" aria-label="Key Accounts" hidden>
+
+  <!-- ===================== LOST SALES =====================
+       The manager's monthly variance report, pasted in. One import is one
+       month, and every month is kept — an account that is down three months
+       running is the thing this page exists to make visible. -->
+  <section class="tabpanel" data-panel="lostsales" role="tabpanel" aria-label="Lost Sales" hidden>
 
     <!-- ---- Import ---- -->
-    <section id="kaImportView">
+    <section id="lsImportView">
       <p class="section-label">
-        <span>Import worksheets</span>
-        <span class="mono">.xlsx</span>
+        <span>Paste the report</span>
+        <span class="mono">from Excel</span>
       </p>
 
-      <label class="ka-drop" id="kaDrop">
-        <span class="ka-drop-title">Choose Key Account Worksheets</span>
-        <span class="ka-drop-sub" id="kaDropSub">
-          Tap to pick files, or drag them here. Select as many as you like &mdash;
-          each workbook is one account.
-        </span>
-        <input type="file" id="kaFile" multiple accept=".xlsx,.xlsm,.xls">
-      </label>
+      <div class="card">
+        <label class="stat-label" for="lsMonth" style="display:block; margin-bottom:var(--s-2);">
+          Which month is this report for?
+        </label>
+        <input type="month" class="input" id="lsMonth" style="max-width:220px;">
+        <p class="hint" style="margin-top:var(--s-2);">
+          The report carries no period column, so the month has to be named here.
+          Re-importing a month you already have replaces it rather than adding to it.
+        </p>
+      </div>
 
-      <div class="err" id="kaErr" hidden style="margin-top:var(--s-4);"></div>
+      <p class="section-label" style="margin-top:var(--s-5);"><span>Rows</span></p>
 
-      <div id="kaPreview" hidden style="margin-top:var(--s-5);">
-        <p class="section-label"><span id="kaPreviewLabel">Ready to import</span></p>
-        <div id="kaFileList"></div>
+      <p class="hint" style="margin-bottom:var(--s-3);">
+        Select your rows in Excel &mdash; header row included &mdash; and paste them
+        below. Columns are matched by their headings, so extra columns are ignored
+        and a reordered export still reads correctly.
+      </p>
+
+      <textarea id="lsPaste" spellcheck="false" aria-label="Paste the lost sales report"
+        placeholder="Name&#9;This Month&#9;Dollar Variance&#9;% Variance&#9;CardCode&#9;CardName&#9;groupname&#9;City&#9;State1&#9;ZipCode&#9;Last Month&#9;Avg. Last 90 Days&#9;Avg. Last 180 Days&#9;12 Month Average"></textarea>
+
+      <div class="row" style="margin-top:var(--s-3);">
+        <button class="btn btn-primary" id="lsPreviewBtn">Preview import</button>
+        <button class="btn" id="lsClearPasteBtn">Clear</button>
+      </div>
+
+      <div class="err" id="lsErr" hidden style="margin-top:var(--s-4);"></div>
+
+      <div id="lsPreview" hidden style="margin-top:var(--s-5);">
+        <p class="section-label"><span>Ready to import</span></p>
+        <div class="card" id="lsPreviewBody"></div>
         <div class="row" style="margin-top:var(--s-4);">
-          <button class="btn btn-primary" id="kaApplyBtn" style="flex:1;">Add to Key Accounts</button>
-          <button class="btn" id="kaDiscardBtn">Discard</button>
+          <button class="btn btn-primary" id="lsApplyBtn" style="flex:1;">Import this month</button>
+          <button class="btn" id="lsDiscardBtn">Discard</button>
         </div>
       </div>
 
-      <div class="row" id="kaBackRow" hidden style="justify-content:center; margin-top:var(--s-5);">
-        <button class="btn btn-sm" id="kaBackBtn">Back to accounts</button>
+      <div class="row" id="lsBackRow" hidden style="justify-content:center; margin-top:var(--s-5);">
+        <button class="btn btn-sm" id="lsBackBtn">Back to the report</button>
       </div>
 
       <p class="hint" style="text-align:center; margin-top:var(--s-5);">
-        Worksheets are read in your browser and kept on this device only.
-        Nothing is uploaded and nothing is committed to the repo.
+        The paste is read in your browser and kept on this device only. Nothing is
+        uploaded and nothing is committed to the repo.
       </p>
     </section>
 
-    <!-- ---- Accounts ---- -->
-    <section id="kaBookView" hidden>
-      <p class="hint" id="kaAsOf" style="margin-bottom:var(--s-3);"></p>
+    <!-- ---- Report ---- -->
+    <section id="lsReportView" hidden>
 
-      <div class="ka-search">
+      <div class="ls-chips" id="lsMonthRow"></div>
+      <p class="hint" id="lsAsOf" style="margin-top:var(--s-2);"></p>
+
+      <div class="ls-stats" id="lsStats" style="margin-top:var(--s-3);"></div>
+
+      <div class="ls-search" style="margin-top:var(--s-4);">
         <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
         </svg>
-        <input type="search" class="input" id="kaSearch"
-               placeholder="Search account, doctor, city or notes&hellip;"
-               aria-label="Search key accounts">
+        <input type="search" class="input" id="lsSearch"
+               placeholder="Search account, city or specialty&hellip;"
+               aria-label="Search lost sales accounts">
       </div>
 
-      <div class="ka-chips" id="kaStatusRow" style="margin-top:var(--s-2);"></div>
-      <div class="ka-chips" id="kaHealthRow" style="margin-top:var(--s-1);"></div>
+      <div class="ls-chips" id="lsFilterRow" style="margin-top:var(--s-2);"></div>
+      <div class="ls-chips" id="lsSortRow" style="margin-top:var(--s-1);"></div>
 
-      <div class="stack" id="kaList" style="margin-top:var(--s-4);"></div>
-      <div class="empty" id="kaNoMatch" hidden></div>
+      <div class="stack" id="lsList" style="margin-top:var(--s-4);"></div>
+      <div class="empty" id="lsNoMatch" hidden></div>
 
       <div class="row" style="justify-content:center; gap:var(--s-4); margin-top:var(--s-8);">
-        <button class="btn btn-sm" id="kaAddBtn">Import worksheets</button>
-        <button class="btn btn-sm" id="kaClearBtn">Clear key accounts</button>
+        <button class="btn btn-sm" id="lsAddBtn">Import a month</button>
+        <button class="btn btn-sm" id="lsClearBtn">Clear reports</button>
       </div>
-      <div id="kaClearConfirm" hidden style="margin-top:var(--s-3);">
-        <p class="hint" id="kaClearText" style="text-align:center; max-width:60ch; margin:0 auto;"></p>
+      <div id="lsClearConfirm" hidden style="margin-top:var(--s-3);">
+        <p class="hint" id="lsClearText" style="text-align:center; max-width:60ch; margin:0 auto;"></p>
         <div class="row" style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
-          <button class="btn btn-sm btn-danger" id="kaClearYes">Yes, clear</button>
-          <button class="btn btn-sm" id="kaClearNo">Cancel</button>
+          <button class="btn btn-sm btn-danger" id="lsClearYes">Yes, clear</button>
+          <button class="btn btn-sm" id="lsClearNo">Cancel</button>
         </div>
       </div>
     </section>
@@ -621,8 +649,8 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788047292"></script>
-<script src="assets/js/shell.js?v=1786689985"></script>
+<script src="assets/js/data-store.js?v=1788053950"></script>
+<script src="assets/js/shell.js?v=1788054234"></script>
 <script>
 /* ===========================================================================
    Bonus Tracker — page-scoped.
@@ -1332,884 +1360,881 @@
 })();
 </script>
 
+
 <script>
 /* ===========================================================================
-   Key Accounts — page-scoped, independent of the Bonus Tracker IIFE above.
+   Lost Sales — page-scoped, independent of the Bonus Tracker IIFE above.
 
-   The shape of the source file drove every decision here.
+   What the report actually measures
+   ---------------------------------
+   The manager's monthly export names its two headline columns "Dollar
+   Variance" and "% Variance", which reads like month-over-month and is not.
+   Checked against the source rows:
 
-   A Key Account Worksheet is not a table. It is a printed form: one workbook
-   is ONE account, laid out vertically as numbered sections, with the field
-   name in column A and the answer in column B. Some sections are genuine
-   tables (decision makers, missed opportunities, the action plan, next steps),
-   some are label/value pairs, and some are tick boxes — U+2610 unticked,
-   U+2611 ticked, per the workbook's own data validation.
+       Dollar Variance = Avg. Last 90 Days − 12 Month Average
+       % Variance      = that ÷ 12 Month Average
 
-   So this reads by LABEL, never by cell address. Row numbers in the 5.21.26
-   template are stable only until someone inserts a row for a fifth doctor,
-   which is a thing that will happen. Sections are found by their "N." heading,
-   fields by their label text in column A, and tables by their header row. A
-   worksheet missing a section parses fine with that section left empty — the
-   template already skips 4 and 8.
+   Exact on every row supplied, including one where this month's sales were
+   blank and last month's were $2,978 — month-over-month would have put that
+   account at −100%, and the report says −19.17%. So the number is a RUN RATE
+   against the account's own history: what it has been buying lately versus
+   what it usually buys. That distinction is on the page, not just in this
+   comment, because acting on it as if it meant "sales down since last month"
+   would send you to the wrong offices.
 
-   Numbers and dates are taken as Excel DISPLAYS them (raw:false), not as
-   serials. The worksheet is the source of truth for its own formatting: if a
-   figure reads "$1,240" in Excel it should read "$1,240" here, and re-deriving
-   that from a float is a way to introduce rounding nobody typed.
+   Where the paste carries both the report's own percentage and the averages
+   it should derive from, the two are compared and a disagreement is REPORTED
+   rather than silently resolved — the export is the authority on itself, so
+   its figure is the one kept.
+
+   Why every month is kept
+   -----------------------
+   One import is one month, stored under "YYYY-MM". An account down once is
+   noise; an account down three months running is the account to visit. That
+   comparison is impossible if each import overwrites the last, so it does not.
+
+   Real clinic names and real dollars live in this data. localStorage only —
+   see the note in data-store.js.
    =========================================================================== */
 (function () {
   'use strict';
 
-  /* SheetJS. .xlsx is a zip, so a library is unavoidable; this is the same
-     arrangement as pdf.js on the Bonus Tracker. Loaded lazily on first use so
-     the tab costs nothing until a file is actually picked, and every byte of
-     parsing happens locally — the workbook is never uploaded anywhere. */
-  var XLSX_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-
-  /* Written as escapes on purpose. These are the ballot-box glyphs the
-     worksheet's data validation offers, and they are invisible in a diff and
-     easy to mangle in an editor if spelled literally. */
-  var BOX_EMPTY  = '☐';   /* the unticked box */
-  var TICKS = ['☑', '☒', '✓', '✔', 'x', 'X'];
-
-  var STATUSES = ['Purchasing', 'Sampling', 'Prescribing', 'Not Visited'];
-  var HEALTHS  = ['Excellent', 'Healthy', 'Moderate Opportunity', 'At Risk/Lost'];
-
-  var DROP_SUB = 'Tap to pick files, or drag them here. Select as many as you ' +
-                 'like — each workbook is one account.';
-
-  var book     = null;   /* { generated, accounts: [] } */
-  var staged   = null;   /* [{ fileName, ok, account, reason, isUpdate }] */
-  var expanded = {};     /* account id -> true */
-  var filter   = { q: '', status: '', health: '' };
-
   var esc = Shell.escapeHtml;
 
-  /* --- Cell + label helpers ---------------------------------------------- */
+  /* --- Column mapping ------------------------------------------------------
 
-  /* The bare character in both regexes below is U+00A0, a non-breaking
-     space. Excel leaves them behind wherever a label was pasted in from the
-     printed form, and .trim() only strips the ends — one sitting inside a
-     label would break the match silently. */
+     Read by HEADING, unlike the prescriber import on prescriptions.html which
+     reads by position. The two pastes are different animals: that one is five
+     columns a person picks out by hand, this one is fourteen columns of a
+     generated export whose headings are explicit, distinctive and worth
+     trusting. Matching them by name means a column added upstream, or a
+     selection that skips one, still reads correctly.
+
+     The positional order below is only the fallback for a paste with no
+     header row, and it is the order the export ships in. */
+  var FIELDS = [
+    { key: 'rep',       heads: ['name', 'rep', 'rep name', 'salesperson'] },
+    { key: 'thisMonth', heads: ['this month', 'current month'] },
+    { key: 'varDollar', heads: ['dollar variance', '$ variance', 'variance', 'dollar var'] },
+    { key: 'varPct',    heads: ['% variance', 'percent variance', 'pct variance', '% var'] },
+    { key: 'code',      heads: ['cardcode', 'card code', 'account #', 'account number'] },
+    { key: 'name',      heads: ['cardname', 'card name', 'account', 'account name', 'customer'] },
+    { key: 'group',     heads: ['groupname', 'group name', 'group', 'specialty'] },
+    { key: 'city',      heads: ['city'] },
+    { key: 'state',     heads: ['state1', 'state'] },
+    { key: 'zip',       heads: ['zipcode', 'zip code', 'zip', 'postal code'] },
+    { key: 'lastMonth', heads: ['last month', 'prior month', 'previous month'] },
+    { key: 'avg90',     heads: ['avg. last 90 days', 'avg last 90 days', '90 day average', 'avg 90'] },
+    { key: 'avg180',    heads: ['avg. last 180 days', 'avg last 180 days', '180 day average', 'avg 180'] },
+    { key: 'avg12',     heads: ['12 month average', '12 mo average', '12-month average', 'twelve month average'] }
+  ];
+
+  var SORTS = [
+    { id: 'dollars', label: 'Biggest $ drop' },
+    { id: 'pct',     label: 'Biggest % drop' },
+    { id: 'streak',  label: 'Longest run' },
+    { id: 'name',    label: 'A–Z' }
+  ];
+
+  var FILTERS = [
+    { id: '',        label: 'All' },
+    { id: 'severe',  label: 'Down 50%+' },
+    { id: 'noorder', label: 'No orders this month' },
+    { id: 'streak',  label: 'Down 2+ months' },
+    { id: 'flagged', label: 'Flagged' },
+    { id: 'open',    label: 'Not yet worked' }
+  ];
+
+  var months = {};   /* "YYYY-MM" -> { month, importedAt, repNames, rows } */
+  var state  = {};   /* account id -> { worked, flagged, updatedAt } */
+  var staged = null; /* parsed-but-not-imported result */
+
+  var view = { month: '', q: '', filter: '', sort: 'dollars' };
+
+  /* --- Number helpers ------------------------------------------------------
+
+     The export writes money as "$1,146.35" and losses as "-$573.52". The bare
+     character in the strip below is U+00A0, a non-breaking space: the ZipCode
+     column arrives padded with trailing whitespace and Excel leaves these
+     behind wherever a figure was pasted in, and one sitting inside a value
+     would make parseFloat return NaN for a number that looks fine. */
+  function num(raw) {
+    if (raw === null || raw === undefined) return null;
+    var s = String(raw).replace(/[  ]/g, ' ').trim();
+    if (!s || s === '-' || s === '—') return null;
+    var neg = /^\(.*\)$/.test(s) || s.indexOf('-') !== -1;
+    s = s.replace(/[()$,%\s\-+]/g, '');
+    if (!s || !/^\d*\.?\d+$/.test(s)) return null;
+    var n = parseFloat(s);
+    if (isNaN(n)) return null;
+    return neg ? -n : n;
+  }
+
+  function money(n) {
+    if (n === null || n === undefined) return '—';
+    var s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (n < 0 ? '-$' : '$') + s;
+  }
+
+  /* Whole dollars for the totals — cents on a -$12,480 headline are noise. */
+  function money0(n) {
+    if (n === null || n === undefined) return '—';
+    var s = Math.abs(Math.round(n)).toLocaleString('en-US');
+    return (n < 0 ? '-$' : '$') + s;
+  }
+
+  function pct(n) {
+    if (n === null || n === undefined) return '—';
+    return (n > 0 ? '+' : '') + n.toFixed(2) + '%';
+  }
+
+  var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                     'August', 'September', 'October', 'November', 'December'];
+
+  function monthLabel(m) {
+    var p = String(m).split('-');
+    return (MONTH_NAMES[parseInt(p[1], 10) - 1] || p[1]) + ' ' + p[0];
+  }
+
+  function monthShort(m) {
+    var p = String(m).split('-');
+    var n = MONTH_NAMES[parseInt(p[1], 10) - 1];
+    return (n ? n.slice(0, 3) : p[1]) + ' ’' + p[0].slice(2);
+  }
+
+  /* ISO "YYYY-MM" sorts correctly as plain text, which is the reason for the
+     key format — no Date objects and no timezone anywhere near it. */
+  function sortedMonths() {
+    return Object.keys(months).sort();
+  }
+
+  /* --- Parsing ------------------------------------------------------------ */
+
   function norm(s) {
-    return String(s == null ? '' : s)
-      .replace(/ /g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   }
 
-  function cell(grid, r, c) {
-    var row = grid[r];
-    if (!row) return '';
-    var v = row[c];
-    if (v === undefined || v === null) return '';
-    return String(v).replace(/ /g, ' ').trim();
-  }
-
-  /* The validation list offers only the two ballot boxes, but a form filled in
-     a hurry picks up X and a check mark too, and Excel's own check-box control
-     writes U+2612. Treat them all as ticked rather than dropping an answer. */
-  function isTicked(v) {
-    return TICKS.indexOf(String(v).trim()) !== -1;
-  }
-  function isBox(v) {
-    return String(v).trim() === BOX_EMPTY || isTicked(v);
-  }
-
-  function findSections(grid) {
-    var out = [], r, m;
-    for (r = 0; r < grid.length; r++) {
-      m = /^(\d+)\.\s*(.+)$/.exec(cell(grid, r, 0));
-      if (m) out.push({ num: parseInt(m[1], 10), title: m[2].trim(), row: r });
+  function splitRow(line, delim) {
+    if (delim === ',') {
+      var out = [], cur = '', inQ = false;
+      for (var i = 0; i < line.length; i++) {
+        var c = line[i];
+        if (c === '"') {
+          if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = !inQ;
+        } else if (c === ',' && !inQ) { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out.map(cleanCell);
     }
-    for (var i = 0; i < out.length; i++) {
-      out[i].end = (i + 1 < out.length) ? out[i + 1].row : grid.length;
-    }
-    return out;
+    return line.split(delim).map(cleanCell);
   }
 
-  /* Number first, heading text as the fallback. The template numbers its
-     sections 1, 2, 3, 5, 6, 7, 9, 10 — the gaps are already there, so a
-     workbook that renumbers after an edit must still resolve. */
-  function pickSection(secs, num, keyword) {
-    var i;
-    for (i = 0; i < secs.length; i++) if (secs[i].num === num) return secs[i];
-    for (i = 0; i < secs.length; i++) {
-      if (norm(secs[i].title).indexOf(norm(keyword)) !== -1) return secs[i];
-    }
+  function cleanCell(s) {
+    return String(s).replace(/[  ]+$/, '').replace(/^[  ]+/, '');
+  }
+
+  function detectDelim(line) {
+    if (line.indexOf('\t') !== -1) return '\t';
+    if (line.indexOf(',') !== -1) return ',';
     return null;
   }
 
-  function labelRow(grid, sec, label) {
-    if (!sec) return -1;
-    var want = norm(label);
-    for (var r = sec.row + 1; r < sec.end; r++) {
-      if (norm(cell(grid, r, 0)) === want) return r;
-    }
-    return -1;
-  }
-
-  /* The answer for one label row. A ticked box takes its meaning from the
-     column header above it ("Yes"/"No"), which is why headerRow is passed in;
-     a box ticked under no header can only mean yes. */
-  function rowValue(grid, r, headerRow, lastCol) {
-    if (r < 0) return '';
-    var top = lastCol === undefined ? 6 : lastCol;
-    var c, v;
-    for (c = 1; c <= top; c++) {
-      if (isTicked(cell(grid, r, c))) {
-        var h = headerRow >= 0 ? cell(grid, headerRow, c) : '';
-        return h || 'Yes';
+  /* Returns { key -> column index } from a header row, or null if the row does
+     not look like one. "Looks like one" means at least three of the fourteen
+     headings matched: a single accidental match on a data row is not enough to
+     start treating it as a header and silently dropping a real account. */
+  function mapHeader(cells) {
+    var map = {}, hits = 0;
+    for (var c = 0; c < cells.length; c++) {
+      var h = norm(cells[c]);
+      if (!h) continue;
+      for (var f = 0; f < FIELDS.length; f++) {
+        if (map[FIELDS[f].key] !== undefined) continue;
+        if (FIELDS[f].heads.indexOf(h) !== -1) { map[FIELDS[f].key] = c; hits++; break; }
       }
     }
-    for (c = 1; c <= top; c++) {
-      v = cell(grid, r, c);
-      if (v && !isBox(v)) return v;
-    }
-    return '';
+    return hits >= 3 ? map : null;
   }
 
-  function tickedLabels(grid, headerRow, boxRow, lastCol) {
-    var out = [];
-    for (var c = 1; c <= lastCol; c++) {
-      if (isTicked(cell(grid, boxRow, c))) {
-        var h = cell(grid, headerRow, c);
-        if (h) out.push(h);
+  function positionalMap() {
+    var map = {};
+    for (var i = 0; i < FIELDS.length; i++) map[FIELDS[i].key] = i;
+    return map;
+  }
+
+  function pick(cells, map, key) {
+    var i = map[key];
+    return i === undefined || cells[i] === undefined ? '' : cells[i];
+  }
+
+  function parseImport(text) {
+    var trimmed = String(text || '').trim();
+    if (!trimmed) throw new Error('Nothing pasted yet.');
+
+    var lines = trimmed.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (!lines.length) throw new Error('Needs at least one row.');
+
+    var delim = detectDelim(lines[0]);
+    if (!delim) {
+      throw new Error('Could not find column separators. Copy the cells straight out ' +
+        'of Excel — that pastes as tab-separated text — or save the sheet as CSV.');
+    }
+
+    var map = mapHeader(splitRow(lines[0], delim));
+    var byHeader = !!map;
+    /* No header row: fall back to the export's own column order, and say so in
+       the preview rather than letting a misordered paste look like a clean
+       import. */
+    if (!map) map = positionalMap();
+
+    if (map.varDollar === undefined) {
+      throw new Error('No "Dollar Variance" column found. Include the header row in the ' +
+        'selection so the columns can be matched by name.');
+    }
+    if (map.name === undefined && map.code === undefined) {
+      throw new Error('No "CardName" or "CardCode" column found — there is no way to tell ' +
+        'which account a row belongs to.');
+    }
+
+    var start = byHeader ? 1 : 0;
+    if (start >= lines.length) throw new Error('That was a header row with nothing under it.');
+
+    var rows = [], problems = [], reps = {}, seen = {};
+
+    for (var r = start; r < lines.length; r++) {
+      var cells = splitRow(lines[r], delim);
+      var rowNo = r + 1;
+
+      var name = String(pick(cells, map, 'name')).trim();
+      var code = String(pick(cells, map, 'code')).trim();
+      if (!name && !code) {
+        problems.push('Row ' + rowNo + ': no account name or number — skipped.');
+        continue;
       }
-    }
-    return out;
-  }
 
-  function readTable(grid, headerRow, endRow, cols) {
-    var heads = [], c;
-    for (c = 0; c < cols; c++) heads.push(cell(grid, headerRow, c));
-    var rows = [];
-    for (var r = headerRow + 1; r < endRow; r++) {
-      var vals = [], any = false;
-      for (c = 0; c < cols; c++) {
-        var v = cell(grid, r, c);
-        if (isBox(v)) v = isTicked(v) ? 'Yes' : '';
-        vals.push(v);
-        if (v) any = true;
+      var varDollar = num(pick(cells, map, 'varDollar'));
+      if (varDollar === null) {
+        problems.push('Row ' + rowNo + ' (' + (name || code) + '): "' +
+          pick(cells, map, 'varDollar') + '" is not a dollar variance — skipped.');
+        continue;
       }
-      if (any) rows.push(vals);
-    }
-    return { heads: heads, rows: rows };
-  }
 
-  function pairs(grid, sec, labels) {
-    var out = [];
-    for (var i = 0; i < labels.length; i++) {
-      var r = labelRow(grid, sec, labels[i]);
-      if (r < 0) continue;
-      out.push({ label: cell(grid, r, 0), value: rowValue(grid, r, -1) });
-    }
-    return out;
-  }
+      var avg90  = num(pick(cells, map, 'avg90'));
+      var avg12  = num(pick(cells, map, 'avg12'));
+      var varPct = num(pick(cells, map, 'varPct'));
 
-  function slug(s) {
-    return norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'account';
-  }
+      /* Derived where the averages are there to derive it from, so a paste
+         missing the % column still sorts by percentage. */
+      if (varPct === null && avg12) varPct = 100 * varDollar / avg12;
 
-  /* Is this a Key Account Worksheet at all?
-
-     SheetJS is lenient by design — it will happily read a text file, a CSV or
-     somebody's unrelated spreadsheet into a grid rather than throwing, so
-     "parsed without error" says nothing about whether the right file was
-     picked. Without this check every stray file lands on the blank-template
-     message, which sends you looking for an Account Name in a file that never
-     had one. Two numbered section headings, or the Account Name label itself,
-     is enough to tell the form apart from anything else. */
-  function looksLikeWorksheet(grid, secs) {
-    if (secs.length >= 2) return true;
-    for (var r = 0; r < grid.length; r++) {
-      if (norm(cell(grid, r, 0)) === 'account name') return true;
-    }
-    return false;
-  }
-
-  /* --- The worksheet parser ---------------------------------------------- */
-
-  var SALES_LABELS = [
-    'Trailing 12 Months Sales', 'Last 6 Months Sales', 'Last Month Sales',
-    'Growth % over 6 months', 'Target Goal', 'Opportunity Pipeline of Pillars'
-  ];
-
-  function parseWorksheet(grid, fileName, sheetName, secs) {
-    var s1  = pickSection(secs, 1,  'key account worksheet');
-    var s2  = pickSection(secs, 2,  'decision makers');
-    var s3  = pickSection(secs, 3,  'current pillars');
-    var s5  = pickSection(secs, 5,  'account activity');
-    var s6  = pickSection(secs, 6,  'missed business');
-    var s7  = pickSection(secs, 7,  'business plan');
-    var s9  = pickSection(secs, 9,  'next steps');
-    var s10 = pickSection(secs, 10, 'overall account assessment');
-
-    /* ---- 1. Profile ---- */
-    var profile = {
-      name:       rowValue(grid, labelRow(grid, s1, 'Account Name')),
-      type:       rowValue(grid, labelRow(grid, s1, 'Account Type')),
-      address:    rowValue(grid, labelRow(grid, s1, 'Primary Location Address')),
-      satellites: rowValue(grid, labelRow(grid, s1, 'Number of Satellite Locations')),
-      mds:        rowValue(grid, labelRow(grid, s1, 'Number of MDs')),
-      ods:        rowValue(grid, labelRow(grid, s1, 'Number of ODs')),
-      totalDocs:  rowValue(grid, labelRow(grid, s1, 'Total Number Doctors')),
-      specialty:  rowValue(grid, labelRow(grid, s1, 'Primary Specialty/Focus')),
-      notes:      rowValue(grid, labelRow(grid, s1, 'Notes'))
-    };
-
-    /* Account Status is a header row of four labels with the boxes on the row
-       beneath it, so it needs both rows — and more than one can be ticked. */
-    var statusHead = labelRow(grid, s1, 'Account Status');
-    var status = statusHead >= 0 ? tickedLabels(grid, statusHead, statusHead + 1, 5) : [];
-
-    /* ---- 2. Decision makers ---- */
-    var people = { heads: [], rows: [] };
-    var peopleHead = labelRow(grid, s2, 'Name');
-    if (peopleHead >= 0) people = readTable(grid, peopleHead, s2.end, 7);
-
-    /* ---- 3. Pillars, then the sales figures beneath them ---- */
-    var pillars = { heads: [], rows: [] };
-    var pillarHead = labelRow(grid, s3, 'Business Pillar / Product Line');
-    if (pillarHead >= 0) {
-      /* The pillar rows stop where the sales figures start. Both live inside
-         section 3, so this table cannot simply run to the section end. */
-      var pillarEnd = s3.end;
-      for (var si = 0; si < SALES_LABELS.length; si++) {
-        var lr = labelRow(grid, s3, SALES_LABELS[si]);
-        if (lr > pillarHead && lr < pillarEnd) pillarEnd = lr;
+      if (varPct !== null && avg90 !== null && avg12) {
+        var derived = 100 * (avg90 - avg12) / avg12;
+        if (Math.abs(derived - varPct) > 0.5) {
+          problems.push('Row ' + rowNo + ' (' + (name || code) + '): the report says ' +
+            varPct.toFixed(2) + '% but its own averages work out to ' + derived.toFixed(2) +
+            '% — the report’s figure was kept.');
+        }
       }
-      pillars = readTable(grid, pillarHead, pillarEnd, 5);
-    }
-    var sales = pairs(grid, s3, SALES_LABELS);
 
-    /* ---- 5. Activity ----
-       Read generically rather than by a list of labels. This section is a run
-       of seventeen questions in the 5.21.26 template and is the part of the
-       form most likely to grow another one. */
-    var activity = [];
-    var actHead = labelRow(grid, s5, 'Activity');
-    if (s5) {
-      for (var r5 = s5.row + 1; r5 < s5.end; r5++) {
-        if (r5 === actHead) continue;
-        var lbl = cell(grid, r5, 0);
-        if (!lbl) continue;
-        activity.push({ label: lbl, value: rowValue(grid, r5, actHead) });
+      var rep = String(pick(cells, map, 'rep')).trim();
+      if (rep) reps[rep] = true;
+
+      /* CardCode is the identity: it survives a clinic being renamed, which the
+         name does not. Accounts pasted without one fall back to the normalised
+         name so they still carry ticks and history, just less reliably. */
+      var id = code || ('name:' + norm(name));
+      if (seen[id]) {
+        problems.push('Row ' + rowNo + ' (' + (name || code) + '): this account appears ' +
+          'twice in the paste — the first row was kept.');
+        continue;
       }
-    }
+      seen[id] = true;
 
-    /* ---- 6. Missed opportunities ---- */
-    var missed = { heads: [], rows: [] };
-    var missedHead = labelRow(grid, s6, 'Opportunity Identified');
-    if (missedHead >= 0) missed = readTable(grid, missedHead, s6.end, 3);
-
-    /* ---- 7. Objectives, then the action plan ---- */
-    var objectives = pairs(grid, s7, ['Objective 1', 'Objective 2', 'Objective 3']);
-    var plan = { heads: [], rows: [] };
-    var planHead = labelRow(grid, s7, 'Priority');
-    if (planHead >= 0) plan = readTable(grid, planHead, s7.end, 5);
-
-    /* ---- 9. Next steps ---- */
-    var nextSteps = { heads: [], rows: [] };
-    var nextHead = labelRow(grid, s9, 'Action Item');
-    if (nextHead >= 0) nextSteps = readTable(grid, nextHead, s9.end, 4);
-
-    /* ---- 10. Assessment ---- */
-    var health = rowValue(grid, labelRow(grid, s10, 'Account Health Status'));
-    /* In a blank template that cell holds the legend of choices rather than a
-       choice. Anything still carrying three or more slash-separated options is
-       the prompt, not an answer. */
-    if (health.split('/').length >= 3) health = '';
-    var summary = rowValue(grid, labelRow(grid, s10, 'Summary Notes'));
-
-    return {
-      id:         slug(profile.name),
-      file:       fileName,
-      sheet:      sheetName,
-      importedAt: new Date().toISOString(),
-      profile:    profile,
-      status:     status,
-      people:     people,
-      pillars:    pillars,
-      sales:      sales,
-      activity:   activity,
-      missed:     missed,
-      objectives: objectives,
-      plan:       plan,
-      nextSteps:  nextSteps,
-      health:     health,
-      summary:    summary
-    };
-  }
-
-  /* --- Reading the files -------------------------------------------------- */
-
-  var xlsxPromise = null;
-  function loadXlsx() {
-    if (window.XLSX) return Promise.resolve(window.XLSX);
-    if (xlsxPromise) return xlsxPromise;
-    xlsxPromise = new Promise(function (resolve, reject) {
-      var s = document.createElement('script');
-      s.src = XLSX_SRC;
-      s.onload = function () {
-        if (window.XLSX) resolve(window.XLSX); else reject(new Error('empty'));
-      };
-      s.onerror = function () {
-        xlsxPromise = null;            /* let a retry hit the network again */
-        reject(new Error('network'));
-      };
-      document.head.appendChild(s);
-    });
-    return xlsxPromise;
-  }
-
-  function readArrayBuffer(file) {
-    return new Promise(function (resolve, reject) {
-      var fr = new FileReader();
-      fr.onload  = function () { resolve(new Uint8Array(fr.result)); };
-      fr.onerror = function () { reject(new Error('unreadable')); };
-      fr.readAsArrayBuffer(file);
-    });
-  }
-
-  function pickSheetName(wb) {
-    for (var i = 0; i < wb.SheetNames.length; i++) {
-      if (norm(wb.SheetNames[i]).indexOf('key account') === 0) return wb.SheetNames[i];
-    }
-    return wb.SheetNames[0];
-  }
-
-  /* Never rejects. One unreadable file among six should report itself and let
-     the other five import, so every outcome comes back as a result object. */
-  function readOne(file) {
-    return readArrayBuffer(file).then(function (bytes) {
-      var wb = window.XLSX.read(bytes, { type: 'array', cellDates: true });
-      if (!wb.SheetNames.length) {
-        return { fileName: file.name, ok: false, reason: 'The workbook has no sheets.' };
-      }
-      var name = pickSheetName(wb);
-      /* raw:false hands back what Excel shows in the cell — formatted dates and
-         currency rather than serial numbers. defval keeps the rows rectangular,
-         so a blank column B cannot shift column C into its place. */
-      var grid = window.XLSX.utils.sheet_to_json(wb.Sheets[name], {
-        header: 1, raw: false, defval: ''
+      rows.push({
+        id:        id,
+        code:      code,
+        name:      name || code,
+        group:     String(pick(cells, map, 'group')).trim(),
+        city:      String(pick(cells, map, 'city')).trim(),
+        state:     String(pick(cells, map, 'state')).trim(),
+        zip:       String(pick(cells, map, 'zip')).trim(),
+        thisMonth: num(pick(cells, map, 'thisMonth')),
+        lastMonth: num(pick(cells, map, 'lastMonth')),
+        avg90:     avg90,
+        avg180:    num(pick(cells, map, 'avg180')),
+        avg12:     avg12,
+        varDollar: varDollar,
+        varPct:    varPct
       });
-
-      var secs = findSections(grid);
-      if (!looksLikeWorksheet(grid, secs)) {
-        return {
-          fileName: file.name, ok: false,
-          reason: 'This is not a Key Account Worksheet — no numbered sections in it.'
-        };
-      }
-
-      var acct = parseWorksheet(grid, file.name, name, secs);
-      if (!acct.profile.name) {
-        return {
-          fileName: file.name, ok: false,
-          reason: 'No Account Name in section 1 — this looks like the blank template.'
-        };
-      }
-      return { fileName: file.name, ok: true, account: acct };
-    }).catch(function () {
-      return {
-        fileName: file.name, ok: false,
-        reason: 'Not a readable Excel workbook — is it really an .xlsx?'
-      };
-    });
-  }
-
-  function handleFiles(fileList) {
-    var files = Array.prototype.slice.call(fileList || []);
-    if (!files.length) return;
-    showErr('');
-    setDropSub('Reading ' + files.length + (files.length === 1 ? ' file…' : ' files…'));
-
-    loadXlsx().then(function () {
-      return Promise.all(files.map(readOne));
-    }).then(function (results) {
-      var known = {};
-      ((book && book.accounts) ? book.accounts : []).forEach(function (a) {
-        known[a.id] = true;
-      });
-      results.forEach(function (r) { if (r.ok) r.isUpdate = !!known[r.account.id]; });
-      staged = results;
-      setDropSub('');
-      renderPreview();
-    }, function (e) {
-      setDropSub('');
-      showErr(e && e.message === 'network'
-        ? 'The Excel reader failed to load. It comes from a CDN, so check your connection and try again.'
-        : 'Something went wrong reading those files.');
-    });
-  }
-
-  /* --- Import preview ----------------------------------------------------- */
-
-  function renderPreview() {
-    var good = staged.filter(function (r) { return r.ok; });
-    var bad  = staged.filter(function (r) { return !r.ok; });
-    var news = good.filter(function (r) { return !r.isUpdate; }).length;
-    var upd  = good.length - news;
-
-    var bits = [];
-    if (news)       bits.push(news + (news === 1 ? ' new account' : ' new accounts'));
-    if (upd)        bits.push(upd + (upd === 1 ? ' update' : ' updates'));
-    if (bad.length) bits.push(bad.length + ' skipped');
-    document.getElementById('kaPreviewLabel').textContent =
-      bits.length ? bits.join(' · ') : 'Nothing to import';
-
-    document.getElementById('kaFileList').innerHTML = staged.map(function (r) {
-      if (!r.ok) {
-        return '<div class="ka-file is-bad"><div style="min-width:0;">' +
-          '<div class="ka-file-acct">Skipped</div>' +
-          '<div class="ka-file-name">' + esc(r.fileName) + '</div>' +
-          '<div class="ka-file-why">' + esc(r.reason) + '</div>' +
-          '</div></div>';
-      }
-      return '<div class="ka-file ' + (r.isUpdate ? 'is-update' : 'is-new') + '">' +
-        '<div style="min-width:0; flex:1;">' +
-          '<div class="ka-file-acct">' + esc(r.account.profile.name) + '</div>' +
-          '<div class="ka-file-name">' + esc(r.fileName) + '</div>' +
-        '</div>' +
-        '<span class="pill ' + (r.isUpdate ? 'pill-accent' : 'pill-ok') + '">' +
-          (r.isUpdate ? 'replaces' : 'new') + '</span>' +
-        '</div>';
-    }).join('');
-
-    document.getElementById('kaPreview').hidden = false;
-    document.getElementById('kaApplyBtn').disabled = good.length === 0;
-  }
-
-  function applyImport() {
-    var accounts = (book && book.accounts) ? book.accounts.slice() : [];
-    staged.forEach(function (r) {
-      if (!r.ok) return;
-      var at = -1;
-      for (var i = 0; i < accounts.length; i++) {
-        if (accounts[i].id === r.account.id) { at = i; break; }
-      }
-      /* Re-importing an account replaces it outright. The worksheet is the
-         record — unlike the prescriber roster there is no hand-typed half here
-         that a fresh import could destroy. */
-      if (at >= 0) accounts[at] = r.account; else accounts.push(r.account);
-    });
-    accounts.sort(function (a, b) {
-      return a.profile.name.localeCompare(b.profile.name);
-    });
-    book = { generated: new Date().toISOString(), accounts: accounts };
-    if (!Store.keyAccounts.writeBook(book)) {
-      showErr('Saved for this session only — the browser refused to write to storage, ' +
-              'so these accounts will be gone when you close the tab.');
     }
-    staged = null;
-    document.getElementById('kaPreview').hidden = true;
-    document.getElementById('kaFile').value = '';
-    writeSummary();
-    showBook();
-  }
 
-  function discardImport() {
-    staged = null;
-    document.getElementById('kaPreview').hidden = true;
-    document.getElementById('kaFile').value = '';
-    showErr('');
-  }
-
-  /* --- Account cards ------------------------------------------------------ */
-
-  function healthClass(h) {
-    var n = norm(h);
-    if (!n) return '';
-    if (n.indexOf('excellent') !== -1) return 'h-excellent';
-    if (n.indexOf('healthy') !== -1)   return 'h-healthy';
-    if (n.indexOf('moderate') !== -1)  return 'h-moderate';
-    if (n.indexOf('risk') !== -1 || n.indexOf('lost') !== -1) return 'h-risk';
-    return '';
-  }
-
-  function healthPill(h) {
-    var c = healthClass(h);
-    if (c === 'h-excellent' || c === 'h-healthy') return 'pill-ok';
-    if (c === 'h-moderate') return 'pill-warn';
-    if (c === 'h-risk')     return 'pill-bad';
-    return '';
-  }
-
-  function statusPill(s) {
-    var n = norm(s);
-    if (n === 'purchasing')  return 'pill-ok';
-    if (n === 'not visited') return 'pill-bad';
-    return 'pill-accent';
-  }
-
-  /* --- Summary for Home --------------------------------------------------- */
-
-  /* Section 9's Status column is free text, so this reads as a deny-list: a
-     row counts as open unless it is explicitly marked finished. Getting it
-     wrong in this direction shows an action item that is actually done, which
-     you notice and close; the other direction hides work silently. */
-  var DONE_STATES = ['done', 'complete', 'completed', 'closed', 'finished', 'n/a'];
-
-  function openSteps(a) {
-    var tbl = a.nextSteps;
-    if (!tbl.rows.length) return 0;
-    var col = -1, i;
-    for (i = 0; i < tbl.heads.length; i++) {
-      if (norm(tbl.heads[i]) === 'status') { col = i; break; }
+    if (!rows.length) {
+      throw new Error('No usable rows found. ' + (problems[0] ||
+        'Check that the Dollar Variance column holds figures like -$573.52.'));
     }
+
+    return { rows: rows, repNames: Object.keys(reps), problems: problems, byHeader: byHeader };
+  }
+
+  /* --- Reading a row ------------------------------------------------------ */
+
+  /* The percentage bands are the base, but an account that has stopped
+     ordering outranks them. The report's own sample makes the case: an office
+     that billed $2,978 last month and nothing this month came in at −19.17%,
+     inside the mildest band, while a 90-day average still propped up by orders
+     it is no longer placing. Silence is the more urgent signal, so it sets the
+     floor — one quiet month is at least notable, two is severe. */
+  function severity(row) {
+    if (row.varDollar > 0) return 'up';
+
+    var base = 'slight';
+    var p = row.varPct;
+    if (p !== null && p !== undefined) {
+      if (p <= -50) base = 'severe';
+      else if (p <= -20) base = 'notable';
+    }
+
+    if (noOrders(row)) {
+      var alsoLast = row.lastMonth === null || row.lastMonth === 0;
+      if (alsoLast) return 'severe';
+      if (base === 'slight') return 'notable';
+    }
+    return base;
+  }
+
+  /* Kept separate from severity() on purpose: the "Down 50%+" stat and chip say
+     a specific thing about the percentage, and they have to keep meaning it
+     even though the colour beside them escalates on other grounds. */
+  function deepDrop(row) {
+    return row.varPct !== null && row.varPct !== undefined && row.varPct <= -50;
+  }
+
+  /* Where the last 90 days sit against the last 180. Below the 180-day figure
+     means the fall is still going; above it means the account has started to
+     come back even though it is still down against the year. Null when the
+     paste did not carry both averages — no guess is better than a wrong one. */
+  function direction(row) {
+    if (row.avg90 === null || row.avg180 === null || !row.avg180) return null;
+    var ratio = row.avg90 / row.avg180;
+    if (ratio < 0.95) return 'still falling';
+    if (ratio > 1.05) return 'coming back';
+    return 'holding flat';
+  }
+
+  /* A blank "This Month" cell is how the export writes no sales at all — three
+     of the four sample rows had one. It is not missing data. */
+  function noOrders(row) {
+    return row.thisMonth === null || row.thisMonth === 0;
+  }
+
+  function rowIn(month, id) {
+    var rep = months[month];
+    if (!rep) return null;
+    for (var i = 0; i < rep.rows.length; i++) if (rep.rows[i].id === id) return rep.rows[i];
+    return null;
+  }
+
+  /* How many months, counting back from the month being viewed, this account
+     has appeared with a negative variance. Stops at the first month where it is
+     absent or not down — a run has to be unbroken to mean anything. */
+  function streak(id, upto) {
+    var list = sortedMonths().filter(function (m) { return m <= upto; }).reverse();
     var n = 0;
-    tbl.rows.forEach(function (row) {
-      /* No Status column at all still counts. An action item written down and
-         never marked is exactly the thing worth surfacing. */
-      var st = col >= 0 ? norm(row[col]) : '';
-      if (DONE_STATES.indexOf(st) === -1) n++;
-    });
+    for (var i = 0; i < list.length; i++) {
+      var row = rowIn(list[i], id);
+      if (!row || row.varDollar >= 0) break;
+      n++;
+    }
     return n;
   }
 
-  /* What Home shows: which accounts want attention, and how much is open.
-     Both fall straight out of the worksheets — nothing here asks for a second
-     round of data entry to feed a card. */
+  function stateFor(id) {
+    return state[id] || { worked: false, flagged: false };
+  }
+
+  /* --- Home summary --------------------------------------------------------
+
+     Always describes the NEWEST month imported, not whichever month is being
+     browsed. Home answers "where do things stand", and stepping back to an
+     older month to compare something is not a change in where things stand.
+
+     `attention` names accounts rather than only counting them, for the reason
+     the Key Accounts card does: "3 need attention" makes you open the page to
+     find out which three. The ones named are the biggest dollar falls still
+     un-worked, since those are the visits the card is arguing for. */
   function writeSummary() {
-    if (!book || !book.accounts.length) return;
-    var atRisk = [], watch = [], steps = 0;
-    book.accounts.forEach(function (a) {
-      var c = healthClass(a.health);
-      if (c === 'h-risk') atRisk.push(a.profile.name);
-      else if (c === 'h-moderate') watch.push(a.profile.name);
-      steps += openSteps(a);
-    });
-    Store.keyAccounts.writeSummary({
-      total:     book.accounts.length,
-      atRisk:    atRisk.length,
-      watch:     watch.length,
-      openSteps: steps,
-      /* At-risk names first — if only three fit, those are the three. */
-      attention: atRisk.concat(watch).slice(0, 3),
-      updatedAt: book.generated
-    });
-  }
+    if (!hasData()) { Store.lostSales.writeSummary({ month: '', attention: [] }); return; }
 
-  function figure(sales, label) {
-    for (var i = 0; i < sales.length; i++) {
-      if (norm(sales[i].label) === norm(label)) return sales[i].value;
-    }
-    return '';
-  }
+    var month = sortedMonths().pop();
+    var rep = months[month];
+    var rows = rep.rows;
 
-  function haystack(a) {
-    var parts = [a.profile.name, a.profile.type, a.profile.address, a.profile.specialty,
-                 a.profile.notes, a.health, a.summary, a.status.join(' ')];
-    a.people.rows.forEach(function (row) { parts.push(row.join(' ')); });
-    a.activity.forEach(function (p) { parts.push(p.value); });
-    a.missed.rows.forEach(function (row) { parts.push(row.join(' ')); });
-    a.nextSteps.rows.forEach(function (row) { parts.push(row.join(' ')); });
-    return norm(parts.join(' '));
-  }
+    var down = rows.filter(function (r) { return r.varDollar < 0; });
+    var open = down.filter(function (r) { return !stateFor(r.id).worked; });
 
-  function visible() {
-    var q = norm(filter.q);
-    return book.accounts.filter(function (a) {
-      if (filter.status && a.status.indexOf(filter.status) === -1) return false;
-      if (filter.health && norm(a.health) !== norm(filter.health)) return false;
-      if (q && haystack(a).indexOf(q) === -1) return false;
-      return true;
+    Store.lostSales.writeSummary({
+      month:        month,
+      belowRunRate: down.reduce(function (s, r) { return s + r.varDollar; }, 0),
+      accountsDown: down.length,
+      quiet:        rows.filter(noOrders).length,
+      running:      rows.filter(function (r) { return streak(r.id, month) >= 2; }).length,
+      open:         open.length,
+      attention:    open.slice().sort(function (a, b) { return a.varDollar - b.varDollar; })
+                        .slice(0, 3).map(function (r) { return r.name; }),
+      updatedAt:    rep.importedAt
     });
   }
 
-  /* An unanswered field is shown, not hidden. A blank "Are they utilizing a
-     combination post-op drop for cataracts" is a question worth asking on the
-     next visit, and dropping the row would hide that there is one to ask. */
-  function rowHtml(label, value) {
-    var empty = !value;
-    return '<div class="ka-row">' +
-      '<div class="ka-row-lbl">' + esc(label) + '</div>' +
-      '<div class="ka-row-val' + (empty ? ' is-empty' : '') + '">' +
-        esc(empty ? 'not filled in' : value) + '</div>' +
-      '</div>';
+  /* --- Rendering ---------------------------------------------------------- */
+
+  function currentRows() {
+    var rep = months[view.month];
+    return rep ? rep.rows : [];
   }
 
-  /* Columns nobody filled are dropped. The decision-maker table has seven and
-     most accounts use four; on a phone that difference is a table you can
-     actually read. Column A always stays — it is what names the row. */
-  function tableHtml(tbl) {
-    if (!tbl.rows.length) return '';
-    var keep = [];
-    for (var c = 0; c < tbl.heads.length; c++) {
-      var used = tbl.rows.some(function (row) { return !!row[c]; });
-      if (used || c === 0) keep.push(c);
-    }
-    return '<div class="ka-tbl-wrap"><table class="ka-tbl"><thead><tr>' +
-      keep.map(function (c) { return '<th>' + esc(tbl.heads[c] || '') + '</th>'; }).join('') +
-      '</tr></thead><tbody>' +
-      tbl.rows.map(function (row) {
-        return '<tr>' + keep.map(function (c) {
-          return '<td>' + esc(row[c] || '') + '</td>';
-        }).join('') + '</tr>';
-      }).join('') +
-      '</tbody></table></div>';
-  }
+  function visibleRows() {
+    var q = norm(view.q);
+    var out = currentRows().filter(function (row) {
+      if (q) {
+        var hay = norm(row.name + ' ' + row.city + ' ' + row.group + ' ' + row.code);
+        if (hay.indexOf(q) === -1) return false;
+      }
+      var st = stateFor(row.id);
+      switch (view.filter) {
+        case 'severe':  return deepDrop(row);
+        case 'noorder': return noOrders(row);
+        case 'streak':  return streak(row.id, view.month) >= 2;
+        case 'flagged': return !!st.flagged;
+        case 'open':    return !st.worked;
+        default:        return true;
+      }
+    });
 
-  function sectionHtml(title, inner) {
-    if (!inner) return '';
-    return '<div class="ka-sec"><div class="ka-sec-title">' + esc(title) + '</div>' +
-           inner + '</div>';
-  }
-
-  function bodyHtml(a) {
-    var p = a.profile, out = '';
-
-    var docCount = [p.mds ? p.mds + ' MD' : '', p.ods ? p.ods + ' OD' : '']
-      .filter(Boolean).join(' · ');
-    out += sectionHtml('Account',
-      rowHtml('Account Type', p.type) +
-      rowHtml('Primary Location Address', p.address) +
-      rowHtml('Satellite Locations', p.satellites) +
-      rowHtml('Doctors', p.totalDocs ? p.totalDocs + (docCount ? ' (' + docCount + ')' : '') : docCount) +
-      rowHtml('Primary Specialty/Focus', p.specialty) +
-      rowHtml('Notes', p.notes));
-
-    out += sectionHtml('Decision makers', tableHtml(a.people));
-
-    var pillarInner = tableHtml(a.pillars);
-    if (a.sales.length) {
-      pillarInner += a.sales.map(function (s) { return rowHtml(s.label, s.value); }).join('');
-    }
-    out += sectionHtml('Pillars & business segments', pillarInner);
-
-    if (a.activity.length) {
-      out += sectionHtml('Activity & engagement',
-        a.activity.map(function (s) { return rowHtml(s.label, s.value); }).join(''));
-    }
-
-    out += sectionHtml('Missed opportunities', tableHtml(a.missed));
-
-    var planInner = '';
-    if (a.objectives.length) {
-      planInner += a.objectives.map(function (s) { return rowHtml(s.label, s.value); }).join('');
-    }
-    planInner += tableHtml(a.plan);
-    out += sectionHtml('Business plan', planInner);
-
-    out += sectionHtml('Next steps & follow-up', tableHtml(a.nextSteps));
-
-    if (a.health || a.summary) {
-      out += sectionHtml('Overall assessment',
-        rowHtml('Account Health Status', a.health) + rowHtml('Summary Notes', a.summary));
-    }
-
-    out += '<p class="hint" style="margin-top:var(--s-5);">From ' + esc(a.file) + '</p>';
+    out.sort(function (a, b) {
+      switch (view.sort) {
+        case 'pct':
+          /* Rows with no percentage sort last rather than as if they were 0%. */
+          return (a.varPct === null ? 1 : 0) - (b.varPct === null ? 1 : 0) ||
+                 (a.varPct || 0) - (b.varPct || 0);
+        case 'streak':
+          return streak(b.id, view.month) - streak(a.id, view.month) ||
+                 a.varDollar - b.varDollar;
+        case 'name':
+          return a.name.localeCompare(b.name);
+        default:
+          return a.varDollar - b.varDollar;   /* most negative first */
+      }
+    });
     return out;
   }
 
-  function cardHtml(a) {
-    var p = a.profile;
-    var isOpen = !!expanded[a.id];
-    var meta = [p.type, p.specialty, p.address].filter(Boolean).join(' · ');
-
-    var pills = a.status.map(function (s) {
-      return '<span class="pill ' + statusPill(s) + '">' + esc(s) + '</span>';
+  function renderMonths() {
+    var html = '<span class="lbl">Month</span>';
+    sortedMonths().reverse().forEach(function (m) {
+      html += '<button class="ls-chip" data-ls-month="' + m + '" aria-pressed="' +
+              (m === view.month) + '">' + esc(monthLabel(m)) + '</button>';
     });
-    if (a.health) {
-      pills.push('<span class="pill ' + healthPill(a.health) + '">' + esc(a.health) + '</span>');
+    document.getElementById('lsMonthRow').innerHTML = html;
+  }
+
+  function renderStats() {
+    var rows = currentRows();
+    var down = rows.filter(function (r) { return r.varDollar < 0; });
+    var total = down.reduce(function (s, r) { return s + r.varDollar; }, 0);
+    var severe = rows.filter(deepDrop).length;
+    var quiet = rows.filter(noOrders).length;
+    var running = rows.filter(function (r) { return streak(r.id, view.month) >= 2; }).length;
+    var open = rows.filter(function (r) { return !stateFor(r.id).worked; }).length;
+
+    document.getElementById('lsStats').innerHTML =
+      '<span class="ls-stat down"><b>' + money0(total) + '</b><span>below run rate</span></span>' +
+      '<span class="ls-stat"><b>' + down.length + '</b><span>accounts down</span></span>' +
+      '<span class="ls-stat' + (severe ? ' down' : '') + '"><b>' + severe +
+        '</b><span>down 50%+</span></span>' +
+      '<span class="ls-stat' + (quiet ? ' warn' : '') + '"><b>' + quiet +
+        '</b><span>no orders this month</span></span>' +
+      '<span class="ls-stat' + (running ? ' warn' : '') + '"><b>' + running +
+        '</b><span>down 2+ months</span></span>' +
+      '<span class="ls-stat"><b>' + open + '</b><span>not yet worked</span></span>';
+  }
+
+  function renderChips() {
+    var f = '<span class="lbl">Show</span>';
+    FILTERS.forEach(function (x) {
+      f += '<button class="ls-chip" data-ls-filter="' + x.id + '" aria-pressed="' +
+           (view.filter === x.id) + '">' + x.label + '</button>';
+    });
+    document.getElementById('lsFilterRow').innerHTML = f;
+
+    var s = '<span class="lbl">Sort</span>';
+    SORTS.forEach(function (x) {
+      s += '<button class="ls-chip" data-ls-sort="' + x.id + '" aria-pressed="' +
+           (view.sort === x.id) + '">' + x.label + '</button>';
+    });
+    document.getElementById('lsSortRow').innerHTML = s;
+  }
+
+  /* One bar per average, all three on the scale of the largest, so the fall
+     from the 12-month figure to the 90-day one reads as a shape rather than as
+     three numbers to subtract in your head. */
+  function trendMarkup(row) {
+    var bars = [
+      { lbl: 'Last 90d',  val: row.avg90,  ref: false },
+      { lbl: 'Last 180d', val: row.avg180, ref: false },
+      { lbl: '12 mo avg', val: row.avg12,  ref: true  }
+    ].filter(function (b) { return b.val !== null && b.val !== undefined; });
+
+    if (bars.length < 2) return '';
+
+    var max = bars.reduce(function (m, b) { return Math.max(m, b.val); }, 0) || 1;
+    var html = '<div class="ls-trend">';
+    bars.forEach(function (b) {
+      var w = Math.max(2, Math.round(100 * b.val / max));
+      html += '<div class="ls-bar">' +
+                '<span class="ls-bar-lbl">' + b.lbl + '</span>' +
+                '<span class="ls-bar-track"><span class="ls-bar-fill' +
+                  (b.ref ? ' is-ref' : '') + '" style="width:' + w + '%"></span></span>' +
+                '<span class="ls-bar-val">' + money(b.val) + '</span>' +
+              '</div>';
+    });
+    return html + '</div>';
+  }
+
+  /* One dot per month imported, filled where this account appeared — the whole
+     reason the page keeps every month instead of only the latest. */
+  function monthsMarkup(row) {
+    var list = sortedMonths();
+    if (list.length < 2) return '';
+
+    var html = '<div class="ls-months"><span class="lbl">' + monthShort(list[0]) + '</span>';
+    list.forEach(function (m) {
+      var r = rowIn(m, row.id);
+      var cls = 'ls-dot';
+      if (r) {
+        cls += ' on';
+        if (r.varDollar > 0) cls += ' up';
+        else if (severity(r) !== 'severe') cls += ' mild';
+      }
+      html += '<span class="' + cls + '" title="' + esc(monthLabel(m)) +
+              (r ? ': ' + money(r.varDollar) : ': not in the report') + '"></span>';
+    });
+    return html + '<span class="lbl" style="margin-left:var(--s-1);">' +
+           monthShort(list[list.length - 1]) + '</span></div>';
+  }
+
+  function pillsMarkup(row) {
+    var out = [];
+
+    var run = streak(row.id, view.month);
+    if (run >= 2) out.push('<span class="pill pill-bad">Down ' + run + ' months running</span>');
+
+    if (noOrders(row)) {
+      var alsoLast = row.lastMonth === null || row.lastMonth === 0;
+      out.push('<span class="pill pill-bad">' +
+        (alsoLast ? 'No orders for two months' : 'No orders this month') + '</span>');
     }
 
-    /* Three figures on the closed card, so the list is worth scrolling without
-       opening anything. Only ones the worksheet actually carries. */
-    var figs = [
-      { lbl: 'Trailing 12 mo', val: figure(a.sales, 'Trailing 12 Months Sales') },
-      { lbl: 'Last 6 mo',      val: figure(a.sales, 'Last 6 Months Sales') },
-      { lbl: 'Growth 6 mo',    val: figure(a.sales, 'Growth % over 6 months') }
-    ].filter(function (f) { return !!f.val; });
+    var dir = direction(row);
+    if (dir === 'still falling') out.push('<span class="pill pill-bad">Still falling</span>');
+    else if (dir === 'coming back') out.push('<span class="pill pill-ok">Coming back</span>');
 
-    var figsHtml = figs.length
-      ? '<div class="ka-figs">' + figs.map(function (f) {
-          var tone = '';
-          if (f.lbl === 'Growth 6 mo' && /\d/.test(f.val)) {
-            tone = /^\s*[-(]/.test(f.val) ? ' neg' : ' pos';
-          }
-          return '<div><div class="ka-fig-val' + tone + '">' + esc(f.val) + '</div>' +
-                 '<div class="ka-fig-lbl">' + esc(f.lbl) + '</div></div>';
-        }).join('') + '</div>'
-      : '';
+    if (stateFor(row.id).flagged) out.push('<span class="pill pill-bad">Flagged</span>');
 
-    return '<article class="ka-acct ' + healthClass(a.health) + '">' +
-      '<button type="button" class="ka-head" data-ka-toggle="' + esc(a.id) + '" ' +
-              'aria-expanded="' + (isOpen ? 'true' : 'false') + '">' +
-        '<div class="ka-name">' + esc(p.name) + '</div>' +
-        (meta ? '<div class="ka-meta">' + esc(meta) + '</div>' : '') +
-        (pills.length ? '<div class="ka-pills">' + pills.join('') + '</div>' : '') +
-        figsHtml +
-      '</button>' +
-      (isOpen ? '<div class="ka-body">' + bodyHtml(a) + '</div>' : '') +
-      '</article>';
+    return out.length ? '<div class="ls-flags">' + out.join('') + '</div>' : '';
   }
 
-  function chipHtml(value, label, on) {
-    return '<button type="button" class="ka-chip" data-ka-chip="' + esc(value) + '" ' +
-           'aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(label) + '</button>';
-  }
+  function acctMarkup(row) {
+    var st = stateFor(row.id);
+    var meta = [row.group, row.city && row.city + (row.state ? ', ' + row.state : ''), row.code]
+                 .filter(Boolean).join(' · ');
 
-  function renderChrome() {
-    var n = book.accounts.length;
-    var when = '';
-    try { when = new Date(book.generated).toLocaleDateString(); } catch (e) {}
-    document.getElementById('kaAsOf').textContent =
-      n + (n === 1 ? ' account' : ' accounts') + (when ? ' · last import ' + when : '');
+    var recent = [];
+    if (row.thisMonth !== null) recent.push('this month ' + money(row.thisMonth));
+    if (row.lastMonth !== null) recent.push('last month ' + money(row.lastMonth));
 
-    /* Only offer a filter that would actually match something. */
-    var statusSeen = {}, healthSeen = {};
-    book.accounts.forEach(function (a) {
-      a.status.forEach(function (s) { statusSeen[s] = true; });
-      if (a.health) healthSeen[a.health] = true;
-    });
-
-    var sRow = STATUSES.filter(function (s) { return statusSeen[s]; });
-    document.getElementById('kaStatusRow').innerHTML = sRow.length
-      ? '<span class="lbl">Status</span>' +
-        sRow.map(function (s) { return chipHtml('s:' + s, s, filter.status === s); }).join('')
-      : '';
-
-    /* Known health values first, in worksheet order, then anything typed that
-       is not on the list rather than silently losing it. */
-    var hRow = HEALTHS.filter(function (h) { return healthSeen[h]; });
-    Object.keys(healthSeen).forEach(function (h) {
-      if (hRow.indexOf(h) === -1) hRow.push(h);
-    });
-    document.getElementById('kaHealthRow').innerHTML = hRow.length
-      ? '<span class="lbl">Health</span>' +
-        hRow.map(function (h) { return chipHtml('h:' + h, h, filter.health === h); }).join('')
-      : '';
+    return '<article class="ls-acct sev-' + severity(row) + (st.worked ? ' is-worked' : '') + '">' +
+      '<h3 class="ls-name">' + esc(row.name) + '</h3>' +
+      (meta ? '<p class="ls-meta">' + esc(meta) + '</p>' : '') +
+      '<div class="ls-var">' +
+        '<span class="ls-var-d">' + money(row.varDollar) + '</span>' +
+        '<span class="ls-var-p">' + pct(row.varPct) + '</span>' +
+      '</div>' +
+      '<p class="ls-var-note">last 90 days against its own 12-month average' +
+        (recent.length ? ' · ' + esc(recent.join(', ')) : '') + '</p>' +
+      pillsMarkup(row) +
+      trendMarkup(row) +
+      monthsMarkup(row) +
+      '<div class="ls-acts">' +
+        '<button class="ls-act" data-ls-worked="' + esc(row.id) + '" aria-pressed="' +
+          (st.worked ? 'true' : 'false') + '">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>' +
+          (st.worked ? 'Worked' : 'Mark worked') +
+        '</button>' +
+        '<button class="ls-act flag" data-ls-flag="' + esc(row.id) + '" aria-pressed="' +
+          (st.flagged ? 'true' : 'false') + '">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h13l-3 4.5L18 13H5"/></svg>' +
+          (st.flagged ? 'Flagged' : 'Flag') +
+        '</button>' +
+      '</div>' +
+    '</article>';
   }
 
   function renderList() {
-    var list = visible();
-    document.getElementById('kaList').innerHTML = list.map(cardHtml).join('');
-    var none = document.getElementById('kaNoMatch');
-    none.hidden = list.length > 0;
-    if (!list.length) {
-      none.innerHTML = '<strong>Nothing matches</strong>' +
-        'No key account matches that search and filter combination.';
+    var rows = visibleRows();
+    var list = document.getElementById('lsList');
+    var none = document.getElementById('lsNoMatch');
+
+    if (!rows.length) {
+      list.innerHTML = '';
+      none.hidden = false;
+      none.textContent = (view.q || view.filter)
+        ? 'No accounts match that.'
+        : 'Nothing in this month’s report.';
+      return;
     }
+    none.hidden = true;
+    list.innerHTML = rows.map(acctMarkup).join('');
   }
 
-  function renderBook() { renderChrome(); renderList(); }
+  function renderReport() {
+    var rep = months[view.month];
+    if (!rep) { showImport(); return; }
 
-  /* --- View switching ----------------------------------------------------- */
+    var reps = rep.repNames || [];
+    document.getElementById('lsAsOf').innerHTML =
+      esc(monthLabel(view.month)) + ' report · ' + rep.rows.length +
+      (rep.rows.length === 1 ? ' account' : ' accounts') +
+      ' · imported ' + esc(new Date(rep.importedAt).toLocaleDateString()) +
+      (reps.length > 1
+        ? ' · <span style="color:var(--amber)">rows from ' + reps.length + ' reps: ' +
+          esc(reps.join(', ')) + '</span>'
+        : '');
+
+    renderMonths();
+    renderStats();
+    renderChips();
+    renderList();
+  }
+
+  /* --- Views -------------------------------------------------------------- */
 
   function showErr(msg) {
-    var el = document.getElementById('kaErr');
+    var el = document.getElementById('lsErr');
     el.textContent = msg || '';
     el.hidden = !msg;
   }
 
-  function setDropSub(msg) {
-    document.getElementById('kaDropSub').textContent = msg || DROP_SUB;
-  }
+  function hasData() { return sortedMonths().length > 0; }
 
   function showImport() {
-    document.getElementById('kaImportView').hidden = false;
-    document.getElementById('kaBookView').hidden = true;
-    document.getElementById('kaBackRow').hidden = !(book && book.accounts.length);
+    document.getElementById('lsImportView').hidden = false;
+    document.getElementById('lsReportView').hidden = true;
+    document.getElementById('lsBackRow').hidden = !hasData();
   }
 
-  function showBook() {
-    if (!book || !book.accounts.length) { showImport(); return; }
-    document.getElementById('kaImportView').hidden = true;
-    document.getElementById('kaBookView').hidden = false;
-    document.getElementById('kaClearConfirm').hidden = true;
-    renderBook();
+  function showReport() {
+    if (!hasData()) { showImport(); return; }
+    if (!months[view.month]) view.month = sortedMonths().pop();
+    document.getElementById('lsImportView').hidden = true;
+    document.getElementById('lsReportView').hidden = false;
+    document.getElementById('lsClearConfirm').hidden = true;
+    renderReport();
+  }
+
+  /* --- Import flow -------------------------------------------------------- */
+
+  function previewImport() {
+    showErr('');
+    document.getElementById('lsPreview').hidden = true;
+    staged = null;
+
+    var month = document.getElementById('lsMonth').value;
+    if (!month) { showErr('Pick the month this report covers first.'); return; }
+
+    var parsed;
+    try { parsed = parseImport(document.getElementById('lsPaste').value); }
+    catch (e) { showErr(e.message); return; }
+
+    parsed.month = month;
+    staged = parsed;
+
+    var down = parsed.rows.filter(function (r) { return r.varDollar < 0; });
+    var total = down.reduce(function (s, r) { return s + r.varDollar; }, 0);
+
+    var html =
+      '<div class="ls-prev-row"><span>Month</span><span class="v">' + esc(monthLabel(month)) +
+        (months[month] ? ' (replaces the one already imported)' : '') + '</span></div>' +
+      '<div class="ls-prev-row"><span>Accounts</span><span class="v">' +
+        parsed.rows.length + '</span></div>' +
+      '<div class="ls-prev-row"><span>Down against run rate</span><span class="v">' +
+        down.length + ' · ' + money0(total) + '</span></div>' +
+      '<div class="ls-prev-row"><span>Columns matched</span><span class="v">' +
+        (parsed.byHeader ? 'by heading' : 'by position — no header row found') +
+      '</span></div>';
+
+    if (parsed.repNames.length) {
+      html += '<div class="ls-prev-row"><span>Rep' + (parsed.repNames.length > 1 ? 's' : '') +
+              ' in this paste</span><span class="v">' + esc(parsed.repNames.join(', ')) +
+              '</span></div>';
+    }
+    if (parsed.repNames.length > 1) {
+      html += '<p class="hint" style="margin-top:var(--s-3); color:var(--amber);">' +
+              'More than one rep appears in these rows. If you meant to take only your own, ' +
+              'reselect in Excel — nothing is filtered out here.</p>';
+    }
+    if (parsed.problems.length) {
+      html += '<p class="hint" style="margin-top:var(--s-3);">' + parsed.problems.length +
+              ' row' + (parsed.problems.length === 1 ? '' : 's') + ' needed attention:</p>' +
+              '<ul style="margin-top:var(--s-2);">' +
+              parsed.problems.slice(0, 8).map(function (p) {
+                return '<li class="hint">· ' + esc(p) + '</li>';
+              }).join('') +
+              (parsed.problems.length > 8
+                ? '<li class="hint">· and ' + (parsed.problems.length - 8) + ' more</li>'
+                : '') +
+              '</ul>';
+    }
+
+    document.getElementById('lsPreviewBody').innerHTML = html;
+    document.getElementById('lsPreview').hidden = false;
+  }
+
+  function applyImport() {
+    if (!staged) return;
+    months[staged.month] = {
+      month:      staged.month,
+      importedAt: new Date().toISOString(),
+      repNames:   staged.repNames,
+      rows:       staged.rows
+    };
+    Store.lostSales.writeMonths(months);
+    writeSummary();
+
+    view.month = staged.month;
+    view.filter = '';
+    view.q = '';
+    document.getElementById('lsSearch').value = '';
+    discardImport();
+    document.getElementById('lsPaste').value = '';
+    showReport();
+    window.scrollTo(0, 0);
+  }
+
+  function discardImport() {
+    staged = null;
+    document.getElementById('lsPreview').hidden = true;
+    showErr('');
   }
 
   /* --- Wiring ------------------------------------------------------------- */
 
   Shell.ready(function () {
-    var drop  = document.getElementById('kaDrop');
-    var input = document.getElementById('kaFile');
+    /* Default the month picker to the month just gone — the report lands after
+       the month it covers has closed. */
+    var d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    document.getElementById('lsMonth').value =
+      d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
 
-    input.addEventListener('change', function () { handleFiles(this.files); });
-
-    ['dragenter', 'dragover'].forEach(function (ev) {
-      drop.addEventListener(ev, function (e) {
-        e.preventDefault(); drop.classList.add('is-over');
-      });
+    document.getElementById('lsPreviewBtn').addEventListener('click', previewImport);
+    document.getElementById('lsApplyBtn').addEventListener('click', applyImport);
+    document.getElementById('lsDiscardBtn').addEventListener('click', discardImport);
+    document.getElementById('lsClearPasteBtn').addEventListener('click', function () {
+      document.getElementById('lsPaste').value = '';
+      discardImport();
     });
-    ['dragleave', 'drop'].forEach(function (ev) {
-      drop.addEventListener(ev, function (e) {
-        e.preventDefault(); drop.classList.remove('is-over');
-      });
+    document.getElementById('lsBackBtn').addEventListener('click', function () {
+      discardImport(); showReport();
     });
-    drop.addEventListener('drop', function (e) {
-      if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
-    });
-
-    document.getElementById('kaApplyBtn').addEventListener('click', applyImport);
-    document.getElementById('kaDiscardBtn').addEventListener('click', discardImport);
-    document.getElementById('kaBackBtn').addEventListener('click', function () {
-      discardImport(); showBook();
-    });
-    document.getElementById('kaAddBtn').addEventListener('click', function () {
+    document.getElementById('lsAddBtn').addEventListener('click', function () {
       showErr(''); showImport(); window.scrollTo(0, 0);
     });
 
-    document.getElementById('kaSearch').addEventListener('input', function () {
-      filter.q = this.value;
-      renderList();          /* the box lives outside #kaList, so focus survives */
+    document.getElementById('lsSearch').addEventListener('input', function () {
+      view.q = this.value;
+      renderList();          /* the box lives outside #lsList, so focus survives */
     });
 
-    /* Chips and cards are delegated. Both lists are re-rendered wholesale, so
-       per-element listeners would have to be rebound on every keystroke. */
-    document.getElementById('kaBookView').addEventListener('click', function (e) {
-      var chip = e.target.closest('[data-ka-chip]');
-      if (chip) {
-        var val = chip.getAttribute('data-ka-chip');
-        var kind = val.slice(0, 1), name = val.slice(2);
-        if (kind === 's') filter.status = filter.status === name ? '' : name;
-        else              filter.health = filter.health === name ? '' : name;
-        renderBook();
-        return;
-      }
-      var head = e.target.closest('[data-ka-toggle]');
-      if (head) {
-        var id = head.getAttribute('data-ka-toggle');
-        expanded[id] = !expanded[id];
-        renderList();
+    function toggle(id, key) {
+      var st = state[id] || { worked: false, flagged: false };
+      st[key] = !st[key];
+      st.updatedAt = new Date().toISOString();
+      /* Dropping an entry that is back to both-false keeps the key from growing
+         one row per account ever ticked and then unticked. */
+      if (!st.worked && !st.flagged) delete state[id];
+      else state[id] = st;
+      Store.lostSales.writeState(state);
+      /* Ticking an account off changes the "not yet worked" count Home leads
+         with, so the summary is rewritten here too — with the month's own
+         import time, which is why writeSummary passes updatedAt rather than
+         letting the store stamp it. */
+      writeSummary();
+      renderStats();
+      renderList();
+    }
+
+    /* Chips, ticks and flags are delegated: the list is re-rendered wholesale,
+       so per-element listeners would have to be rebound on every keystroke. */
+    document.getElementById('lsReportView').addEventListener('click', function (e) {
+      var el;
+      if ((el = e.target.closest('[data-ls-month]'))) {
+        view.month = el.getAttribute('data-ls-month');
+        renderReport();
+      } else if ((el = e.target.closest('[data-ls-filter]'))) {
+        view.filter = el.getAttribute('data-ls-filter');
+        renderChips(); renderList();
+      } else if ((el = e.target.closest('[data-ls-sort]'))) {
+        view.sort = el.getAttribute('data-ls-sort');
+        renderChips(); renderList();
+      } else if ((el = e.target.closest('[data-ls-worked]'))) {
+        toggle(el.getAttribute('data-ls-worked'), 'worked');
+      } else if ((el = e.target.closest('[data-ls-flag]'))) {
+        toggle(el.getAttribute('data-ls-flag'), 'flagged');
       }
     });
 
-    /* Two steps to clear, with the count named rather than implied. A
-       worksheet takes real time to fill in, and re-importing means finding
-       every one of those files again. */
-    document.getElementById('kaClearBtn').addEventListener('click', function () {
-      var n = book.accounts.length;
-      document.getElementById('kaClearText').textContent =
-        'Remove all ' + n + (n === 1 ? ' key account' : ' key accounts') +
-        ' from this device? The worksheets themselves are untouched — you can import them again.';
-      document.getElementById('kaClearConfirm').hidden = false;
+    /* Two steps to clear, and the ticks and flags are called out separately
+       because they are the only thing here the user typed. */
+    document.getElementById('lsClearBtn').addEventListener('click', function () {
+      var n = sortedMonths().length;
+      var marked = Object.keys(state).length;
+      document.getElementById('lsClearText').textContent =
+        'Remove ' + n + (n === 1 ? ' imported month' : ' imported months') +
+        ' from this device? ' +
+        (marked
+          ? 'Your ' + marked + ' worked/flagged ' + (marked === 1 ? 'account' : 'accounts') +
+            ' are kept and come back when you re-import. '
+          : '') +
+        'The report in Excel is untouched.';
+      document.getElementById('lsClearConfirm').hidden = false;
     });
-    document.getElementById('kaClearNo').addEventListener('click', function () {
-      document.getElementById('kaClearConfirm').hidden = true;
+    document.getElementById('lsClearNo').addEventListener('click', function () {
+      document.getElementById('lsClearConfirm').hidden = true;
     });
-    document.getElementById('kaClearYes').addEventListener('click', function () {
-      Store.keyAccounts.clear();
-      book = null;
-      expanded = {};
-      filter = { q: '', status: '', health: '' };
-      document.getElementById('kaSearch').value = '';
+    document.getElementById('lsClearYes').addEventListener('click', function () {
+      Store.lostSales.clear();
+      months = {};
+      view = { month: '', q: '', filter: '', sort: 'dollars' };
+      document.getElementById('lsSearch').value = '';
       showImport();
     });
 
     /* The header subtitle belongs to whichever tool is on screen. The Bonus
-       Tracker owns it by default and overwrites it with the rep name and
-       report date after a parse, so Key Accounts borrows it on the way in and
-       puts back whatever was there on the way out. Restoring the saved text
-       rather than hard-coding "Bonus Tracker" is what keeps a rendered
-       dashboard's own subtitle from being wiped by a trip to this tab. */
+       Tracker owns it by default and overwrites it with the rep name and report
+       date after a parse, so Lost Sales borrows it on the way in and puts back
+       whatever was there on the way out. Restoring the saved text rather than
+       hard-coding "Bonus Tracker" is what keeps a rendered dashboard's own
+       subtitle from being wiped by a trip to this tab. */
     var hdr = document.getElementById('hdrSub');
     var borrowed = null;
     function claimHeader(panel) {
-      if (panel === 'keyaccts') {
+      if (panel === 'lostsales') {
         if (borrowed === null) borrowed = hdr.textContent;
-        hdr.textContent = 'Key Accounts';
+        hdr.textContent = 'Lost Sales';
       } else if (borrowed !== null) {
         hdr.textContent = borrowed;
         borrowed = null;
@@ -2221,21 +2246,22 @@
       tablist.addEventListener('th:tab', function (e) { claimHeader(e.detail.panel); });
       /* Shell.tabs() has already selected the remembered tab by the time this
          runs, and that first th:tab fired before the listener existed. Catch up
-         so arriving straight onto Key Accounts is titled correctly. */
-      var panel = document.querySelector('.tabpanel[data-panel="keyaccts"]');
-      if (panel && !panel.hidden) claimHeader('keyaccts');
+         so arriving straight onto Lost Sales is titled correctly. */
+      var panel = document.querySelector('.tabpanel[data-panel="lostsales"]');
+      if (panel && !panel.hidden) claimHeader('lostsales');
     }
 
-    book = Store.keyAccounts.readBook();
-    if (book && !Array.isArray(book.accounts)) book = null;
+    months = Store.lostSales.readMonths();
+    state  = Store.lostSales.readState();
+    if (hasData()) view.month = sortedMonths().pop();
 
-    /* Backfill for a book imported before Home had a card to feed. Safe to run
-       on every load: the summary is derived entirely from the book, and its
-       updatedAt is the book's own import time, so rewriting it cannot make
-       stale worksheets look freshly checked. */
-    if (book && !Store.keyAccounts.readSummary()) writeSummary();
+    /* Backfill for months imported before Home had a card to feed. Safe on
+       every load: the summary is derived entirely from the stored months, and
+       its updatedAt is the month's own import time, so rewriting it cannot make
+       an old report look freshly pasted. */
+    if (hasData() && !Store.lostSales.readSummary()) writeSummary();
 
-    showBook();
+    showReport();
   });
 
 })();

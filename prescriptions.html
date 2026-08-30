@@ -240,9 +240,14 @@
 
       <p class="stat-label" style="margin-bottom:var(--s-3);">
         Paste a dispensing export below &mdash; tab-separated straight out of Excel,
-        CSV, or this tool&rsquo;s own JSON. Columns are matched by their headers,
-        so the 9-column territory file and the 14-column national file both work
-        without rearranging anything.
+        CSV, or this tool&rsquo;s own JSON. Columns are read in this order:
+      </p>
+      <p class="stat-label mono" style="margin-bottom:var(--s-3); color:var(--ink-mid);">
+        prescriber &middot; drug &middot; date written &middot; date filled &middot; city
+      </p>
+      <p class="hint" style="margin-bottom:var(--s-3);">
+        A header row is optional &mdash; it is skipped if there is one. Anything
+        after the fifth column is ignored.
       </p>
 
       <div class="import-body">
@@ -415,29 +420,23 @@
     return (+p[1]) + '/' + (+p[2]) + '/' + p[0].slice(2);
   }
 
-  /* --- Import: column detection ------------------------------------------ */
+  /* --- Import: columns -----------------------------------------------------
 
-  /* Matched in this order; the first field matching a header claims it, and a
-     field is claimed only once. Order is what disambiguates — "Date Written"
-     must reach `written` first, and `city` is tried before `location` so
-     "Office City" lands on city.
+     Fixed order, by position:
 
-     Patterns are word-boundary CONTAINS, not anchored, because real exports
-     prefix things: "Rx Product", "Prescriber Last Name", "Clinic Location".
-     `name` is the exception — a bare \bprescriber\b would swallow
-     "Prescriber City" before city ever saw it. */
-  var FIELDS = [
-    ['written', /\b(date\s*written|written|prescribed|rx\s*date|order\s*date|date\s*rx|write\s*date)\b/i],
-    ['filled',  /\b(date\s*filled|filled|dispensed?|shipped?|completed|fill\s*date)\b/i],
-    ['last',    /\b(last\s*name|lastname|surname)\b/i],
-    ['first',   /\b(first\s*name|firstname|given\s*name)\b/i],
-    ['name',    /^(prescriber|physician|doctor|provider|writer|practitioner)$|\b(prescriber|physician|doctor|provider|writer|practitioner)\s*name\b|^name$/i],
-    ['title',   /\b(title|credential|degree|suffix|profession)\b/i],
-    ['city',    /\b(city|town)\b/i],
-    ['location',/\b(location|office|clinic|site|practice)\b/i],
-    ['drug',    /\b(drug|product|item|medication|compound|rx\s*name|description)\b/i],
-    ['status',  /\b(status|on\s*hold|hold)\b/i]
-  ];
+         prescriber · drug · date written · date filled · city
+
+     This used to match columns by their header text so that exports with
+     different shapes and orderings all worked. That flexibility is gone on
+     purpose: the paste is always the same five columns in the same order, and
+     reading them by position means a file with no header row works, and a
+     header spelled a new way cannot quietly fail to match.
+
+     The trade is that column ORDER now carries the meaning. A paste in some
+     other order is misread rather than adapted to — though not silently: the
+     date columns are validated per row, so anything landing where a date
+     belongs that is not a date is reported and skipped rather than stored. */
+  var COL = { name: 0, drug: 1, written: 2, filled: 3, city: 4 };
 
   function splitRow(line, delim) {
     if (delim === ',') {
@@ -463,17 +462,12 @@
     return null;
   }
 
-  function mapHeaders(cells) {
-    var map = {}, used = {};
-    cells.forEach(function (h, idx) {
-      var clean = h.replace(/[_-]+/g, ' ').trim();
-      for (var f = 0; f < FIELDS.length; f++) {
-        var field = FIELDS[f][0];
-        if (used[field] !== undefined) continue;
-        if (FIELDS[f][1].test(clean)) { map[field] = idx; used[field] = idx; return; }
-      }
-    });
-    return map;
+  /* A header row is optional now that columns are read by position, so it is
+     identified rather than assumed: a real data row has a parseable date where
+     the date written belongs, and a header row does not. That test needs no
+     vocabulary of header spellings and cannot be defeated by a new one. */
+  function looksLikeHeader(cells) {
+    return !parseDate(cells[COL.written]);
   }
 
   function slugify(name) {
@@ -481,17 +475,6 @@
       .replace(/[.,]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-  }
-
-  var TITLE_RE = /\b(MD|DO|OD|PA|NP|DDS|PharmD)\b/i;
-
-  function splitLocation(v) {
-    if (!v) return {};
-    var parts = String(v).split(',').map(function (s) { return s.trim(); });
-    if (parts.length >= 2 && TITLE_RE.test(parts[0])) {
-      return { title: parts[0].toUpperCase(), city: parts.slice(1).join(', ') };
-    }
-    return { city: parts[parts.length - 1] };
   }
 
   /* --- Import: parse ------------------------------------------------------ */
@@ -510,67 +493,58 @@
     }
 
     var lines = trimmed.split(/\r?\n/).filter(function (l) { return l.trim(); });
-    if (lines.length < 2) throw new Error('Needs a header row plus at least one data row.');
+    if (!lines.length) throw new Error('Needs at least one row.');
 
     var delim = detectDelim(lines[0]);
     if (!delim) throw new Error('Could not find column separators. Copy straight from Excel (tabs) or save as CSV.');
 
-    var headers = splitRow(lines[0], delim);
-    var cols = mapHeaders(headers);
+    /* Skip a header row if there is one; start at the top if there is not.
 
-    var missing = [];
-    if (cols.name === undefined && cols.last === undefined) missing.push('prescriber name');
-    if (cols.drug === undefined) missing.push('drug');
-    if (cols.written === undefined) missing.push('date written');
-    if (missing.length) {
-      throw new Error('Could not find a column for: ' + missing.join(', ') +
-        '. Headers seen: ' + headers.filter(Boolean).join(', ') + '.');
+       Running out of rows here has two causes and the message has to cover
+       both, because the test that skips a header is the same test that fails
+       on a misordered paste: either there really was only a header, or the
+       third column is not a date because the columns are not in the order this
+       expects. Naming only the first would send you looking for missing rows
+       that are sitting right there. */
+    var start = looksLikeHeader(splitRow(lines[0], delim)) ? 1 : 0;
+    if (start >= lines.length) {
+      throw new Error('No data rows found. Either that was a header with nothing ' +
+        'under it, or the columns are not in the expected order — this reads them ' +
+        'as prescriber, drug, date written, date filled, city.');
     }
 
     var byId = {}, problems = [], kept = 0;
 
-    for (var r = 1; r < lines.length; r++) {
+    for (var r = start; r < lines.length; r++) {
       var cells = splitRow(lines[r], delim);
       var rowNo = r + 1;
 
-      var name = '';
-      if (cols.name !== undefined && cells[cols.name]) name = cells[cols.name].trim();
-      else if (cols.last !== undefined) {
-        var last = (cells[cols.last] || '').trim();
-        var first = cols.first !== undefined ? (cells[cols.first] || '').trim() : '';
-        name = first ? last + ', ' + first : last;
-      }
+      var name = (cells[COL.name] || '').trim();
       if (!name) { problems.push('Row ' + rowNo + ': no prescriber name — skipped.'); continue; }
 
-      /* Credential can arrive three ways and an export can disagree with
-         itself. Most-structured wins: a dedicated title column, then one
-         embedded in a location like "OD, Austin", then one trailing the name
-         like "Doe, Jane MD" — free text, and the likeliest to be stale. */
-      var nameSuffix = (name.match(/[\s,]+(MD|DO|OD|PA|NP|DDS|PharmD)\.?$/i) || [])[1];
+      /* A credential trailing the name — "Doe, Jane MD". It is free text and
+         the likeliest thing in the row to be stale, but it is the only place a
+         title appears now that the paste is these five columns. */
+      var title = ((name.match(/[\s,]+(MD|DO|OD|PA|NP|DDS|PharmD)\.?$/i) || [])[1] || '').toUpperCase();
       name = name.replace(/[\s,]+(MD|DO|OD|PA|NP|DDS|PharmD)\.?$/i, '').trim();
 
-      var loc = cols.location !== undefined ? (cells[cols.location] || '').trim() : '';
-      var parsedLoc = loc ? splitLocation(loc) : {};
+      var city = (cells[COL.city] || '').trim();
 
-      var title = ((cols.title !== undefined ? (cells[cols.title] || '').trim() : '') ||
-                   parsedLoc.title || nameSuffix || '').toUpperCase();
-      var city = (cols.city !== undefined ? (cells[cols.city] || '').trim() : '') ||
-                 parsedLoc.city || '';
-
-      var drug = cols.drug !== undefined ? (cells[cols.drug] || '').trim().toUpperCase() : '';
+      var drug = (cells[COL.drug] || '').trim().toUpperCase();
       if (!drug) { problems.push('Row ' + rowNo + ': no drug — skipped.'); continue; }
 
-      var written = parseDate(cells[cols.written]);
+      var written = parseDate(cells[COL.written]);
       if (!written) {
         problems.push('Row ' + rowNo + ' (' + name + '): date written "' +
-          (cells[cols.written] || '') + '" not understood — skipped.');
+          (cells[COL.written] || '') + '" not understood — skipped.');
         continue;
       }
 
-      var filled = cols.filled !== undefined ? parseDate(cells[cols.filled]) : '';
-      var statusCell = cols.status !== undefined ? (cells[cols.status] || '') : '';
-      var onHold = /hold|pending|open|unfilled/i.test(statusCell) ||
-                   (!filled && !/fill|complete|ship|dispens/i.test(statusCell));
+      /* No status column in this format, so a script counts as on hold until
+         it has a fill date. That was already the fallback when an export
+         carried no status; it is now the only rule. */
+      var filled = parseDate(cells[COL.filled]);
+      var onHold = !filled;
 
       var id = slugify(name);
       if (!byId[id]) byId[id] = { id: id, name: name, city: city, title: title, orders: [] };

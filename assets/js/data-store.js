@@ -42,6 +42,7 @@
     prescriberSummary:'th_prescribers_summary',   // Prescriptions -> Home
     perfEvals:        'th_performance_evals',     // Performance (internal)
     perfSummary:      'th_performance_summary',   // Performance -> Home
+    accountXref:      'th_account_xref',          // Territory Master overlay (Route Board)
     routeBoardWeek:   'th_route.week.v2'          // Route Board (READ ONLY here)
   };
 
@@ -421,6 +422,46 @@
     }
   };
 
+  /* -------------------------------------------------------------------------
+     Territory Master overlay — the columns of the Accounts sheet that the
+     Google-derived account book cannot carry: CardCode, Salesforce account
+     id, city and route, keyed on Google place ID.
+
+     A side table, deliberately. It joins to the account book on place ID and
+     is never merged into it: the book is Google's and gets regenerated, the
+     annotations are typed by hand, and this is the workbook's. Keeping the
+     three apart is what lets any one of them be re-imported without
+     disturbing the other two.
+
+     Unlike Route Board's three dot-named keys, this one is a plain th_* key
+     and is NOT namespaced per mount — the standalone board and the board
+     inside Route Planning read the same workbook.
+
+     Written today by Route Board's Data panel, which does not load this file
+     and uses its own localStorage helpers. The accessors here are for any
+     page that wants the overlay without re-deriving the shape.
+
+     Real clinic names, account numbers and cities. Device local, never
+     committed, never exported unless explicitly asked for.
+     ------------------------------------------------------------------------- */
+  var accountXref = {
+    /* { generated,
+         accounts:  { [placeId]: { cardCode, sfAccountId, city, route, name } },
+         unmatched: [ { name, cardCode, sfAccountId, city, route, reason } ] }
+
+       `cardCode` is a STRING and must stay one — 024060 is not 24060, and the
+       leading zero is part of the account number. */
+    read: function () { return get(KEYS.accountXref, null); },
+    write: function (x) {
+      return set(KEYS.accountXref, {
+        generated: (x && x.generated) || new Date().toISOString(),
+        accounts:  (x && x.accounts && typeof x.accounts === 'object') ? x.accounts : {},
+        unmatched: Array.isArray(x && x.unmatched) ? x.unmatched : []
+      });
+    },
+    clear: function () { return remove(KEYS.accountXref); }
+  };
+
   /* Read-only window into Route Board's own store. No writer here on purpose.
      Shape: { primary, follow, top25only, assign, order }. `assign` maps an
      account id to a day key, which is what Home counts. */
@@ -457,6 +498,7 @@
     lostSales: lostSales,
     prescribers: prescribers,
     performance: performance,
+    accountXref: accountXref,
     routeBoard: routeBoard
   };
 

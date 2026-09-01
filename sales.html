@@ -464,28 +464,12 @@
       </button>
     </div>
 
-    <p class="section-label">
-      <span>Last year</span>
-      <span class="mono">optional</span>
-    </p>
-
-    <div class="slots">
-      <button type="button" class="slot" id="slot-nqv-prior" data-slot="nqv-prior">
-        <span class="slot-tag nqv">NoQualVisit</span>
-        <span class="slot-label">Same period last year</span>
-        <span class="slot-fname" id="fn-nqv-prior">Tap to upload</span>
-      </button>
-      <button type="button" class="slot" id="slot-nq-prior" data-slot="nq-prior">
-        <span class="slot-tag nq">NoQual</span>
-        <span class="slot-label">Same period last year</span>
-        <span class="slot-fname" id="fn-nq-prior">Tap to upload</span>
-      </button>
-    </div>
-
+    <!-- The two "same period last year" slots were removed: the report itself
+         already carries the prior-year comparison, so uploading it separately
+         bought nothing. Nothing read their parse except a distinct-account
+         tally, which the two current reports supply. -->
     <input type="file" id="f-nqv-curr"  accept=".pdf">
     <input type="file" id="f-nq-curr"   accept=".pdf">
-    <input type="file" id="f-nqv-prior" accept=".pdf">
-    <input type="file" id="f-nq-prior"  accept=".pdf">
 
     <p class="section-label"><span>Targets</span></p>
 
@@ -792,7 +776,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788231730"></script>
+<script src="assets/js/data-store.js?v=1788244374"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -829,7 +813,7 @@
     { id:'21', name:'Allergy',       bonus:true  }
   ];
 
-  var SLOTS = ['nqv-curr', 'nq-curr', 'nqv-prior', 'nq-prior'];
+  var SLOTS = ['nqv-curr', 'nq-curr'];
   var pdfTexts = {};
   var parsedData = {};
   var targetsOpen = false;
@@ -1074,13 +1058,27 @@
   /* Home reads th_bonus_summary. Dollars are stored as NUMBERS, not the
      "$1,234.00" strings the PDF yields, because Home draws a progress bar from
      earned/possible and cannot do that with formatted text. */
-  function writeSummary(nqvC) {
+  /* `at` is the moment the REPORT was uploaded, passed through on a restore so
+     re-deriving the summary from cache cannot make an old report look freshly
+     checked. Omitted on a fresh analyse, where now is the truth. */
+  function writeSummary(nqvC, at) {
     var pct = pctNum(nqvC.overall.increase_pct);
     Store.bonus.writeSummary({
+      updatedAt: at || undefined,
       growthPct:     pct,
-      bonusEarned:   money(nqvC.bonus_actual) || 0,
+      /* EARNED IS DERIVED, NOT READ. The report prints "Possible Total" and
+         "Total Bonus" on one line, and the second column can read $0.00 on a
+         report that has not credited yet — and the two reports can disagree
+         with each other. The rule is simpler than either figure: if the
+         overall territory grew, the bonus is earned. So earned is computed
+         from growth, and whatever the report printed rides along as
+         bonusReported so a disagreement can be shown rather than buried. */
+      bonusEarned:   (pct !== null && pct > 0) ? (money(nqvC.bonus_possible) || 0) : 0,
+      bonusReported: money(nqvC.bonus_actual) || 0,
       bonusPossible: money(nqvC.bonus_possible) || 0,
-      onTrack:       pct !== null && pct >= 1,
+      /* Positive growth is the bar, not 1%. The old >= 1 threshold painted a
+         real +0.3% month red and called it at risk. */
+      onTrack:       pct !== null && pct > 0,
       reportDate:    nqvC.report_date || ''
     });
   }
@@ -1130,8 +1128,8 @@
         '<div class="cmp-sub mono">Actual ' + Shell.escapeHtml(nqC.overall.actual || '—') + '</div>' +
       '</div></div>';
 
-    /* Bonus status */
-    var onTrack = nqvPct !== null && nqvPct >= 1;
+    /* Bonus status. Positive growth is the bar — see writeSummary. */
+    var onTrack = nqvPct !== null && nqvPct > 0;
     html += '<p class="section-label"><span>Bonus status</span></p>' +
       '<div class="card">' +
         '<div class="card-head">' +
@@ -1142,11 +1140,23 @@
         '<div class="kv"><span class="kv-label">Overall growth (NoQualVisit)</span>' +
           '<span class="kv-val" style="color:' + (onTrack ? 'var(--green)' : 'var(--red)') + '">' +
           (nqvPct !== null ? (nqvPct >= 0 ? '+' : '') + nqvPct.toFixed(2) + '%' : '—') + '</span></div>' +
-        '<div class="kv"><span class="kv-label">Actual bonus earned</span>' +
-          '<span class="kv-val" style="color:var(--green)">' +
-          Shell.escapeHtml(nqvC.bonus_actual || '$0.00') + '</span></div>' +
+        '<div class="kv"><span class="kv-label">Bonus earned</span>' +
+          '<span class="kv-val" style="color:' + (onTrack ? 'var(--green)' : 'var(--ink-light)') + '">' +
+          Shell.escapeHtml(onTrack ? (nqvC.bonus_possible || '$0.00') : '$0.00') + '</span></div>' +
         '<div class="kv"><span class="kv-label">Possible bonus total</span>' +
           '<span class="kv-val">' + Shell.escapeHtml(nqvC.bonus_possible || '$0.00') + '</span></div>' +
+        /* The report's own "Total Bonus" column, shown only when it disagrees
+           with the rule — otherwise it is a duplicate line. It disagreeing is
+           normal on a report that has not credited yet; it disagreeing at
+           month end is worth a look. */
+        (onTrack && money(nqvC.bonus_actual) !== money(nqvC.bonus_possible)
+          ? '<div class="kv"><span class="kv-label">Report prints</span>' +
+            '<span class="kv-val mono" style="color:var(--ink-light)">' +
+            Shell.escapeHtml(nqvC.bonus_actual || '$0.00') + '</span></div>' +
+            '<p class="hint" style="margin-top:var(--s-2);">Territory grew, so the bonus is ' +
+            'earned. The report’s Total Bonus column reads differently &mdash; usually a ' +
+            'period that has not credited yet.</p>'
+          : '') +
       '</div>';
 
     /* All categories */
@@ -1315,6 +1325,11 @@
     document.getElementById('uploadView').hidden = true;
     document.getElementById('dashView').hidden = false;
     renderDash(parsedData['nqv-curr'], parsedData['nq-curr'], cached.targets || {}, cached.savedAt);
+    /* Re-derive the summary from the cached parse. Without this a report
+       uploaded before the earned/on-track rules changed would keep feeding
+       Home the old numbers until it was uploaded again. Stamped with the
+       ORIGINAL upload time, so freshness stays honest. */
+    writeSummary(parsedData['nqv-curr'], cached.savedAt);
     return true;
   }
 
@@ -1355,7 +1370,10 @@
     t += 'OVERALL RESULTS:\n';
     t += '  NoQualVisit: ' + nqvC.overall.increase_pct + ' growth | Actual: ' + nqvC.overall.actual + '\n';
     t += '  NoQual:      ' + nqC.overall.increase_pct + ' growth | Actual: ' + nqC.overall.actual + '\n';
-    t += '  Bonus earned: ' + (nqvC.bonus_actual || '$0.00') + ' | Possible: ' + (nqvC.bonus_possible || '$0.00') + '\n\n';
+    t += '  Bonus earned: ' + (nqvC.bonus_possible && pctNum(nqvC.overall.increase_pct) > 0
+          ? nqvC.bonus_possible : '$0.00') +
+         ' | Possible: ' + (nqvC.bonus_possible || '$0.00') +
+         ' | Report prints: ' + (nqvC.bonus_actual || '$0.00') + '\n\n';
 
     t += 'CATEGORY BREAKDOWN:\n' + '─'.repeat(80) + '\n';
     t += 'Category'.padEnd(18) + ' ' + 'Bonus?'.padEnd(8) + ' ' + 'NQV %'.padEnd(10) + ' ' +
@@ -2818,11 +2836,18 @@
       .sort(function (a, b) { return b.total - a.total; });
   }
 
+  /* activeCat === '' means All: every loaded category folded together, with
+     each account's per-category split kept underneath. */
   function renderChips() {
     var list = catList();
-    if (!activeCat || !loaded()[activeCat]) activeCat = list.length ? list[0].id : null;
-    document.getElementById('puCatRow').innerHTML = list.map(function (c) {
-      return '<button class="ls-chip' + (c.id === activeCat ? ' on' : '') + '" data-pucat="' +
+    if (activeCat === null) activeCat = '';
+    if (activeCat && !loaded()[activeCat]) activeCat = '';
+    var allTotal = list.reduce(function (s, c) { return s + c.total; }, 0);
+    document.getElementById('puCatRow').innerHTML =
+      '<button class="ls-chip' + (activeCat === '' ? ' on' : '') + '" data-pucat="">All' +
+        ' <span class="mono">' + money0(allTotal) + '</span></button>' +
+      list.map(function (c) {
+        return '<button class="ls-chip' + (c.id === activeCat ? ' on' : '') + '" data-pucat="' +
         esc(c.id) + '">' + esc(c.name) + (c.bonus ? ' •' : '') +
         ' <span class="mono">' + money0(c.total) + '</span></button>';
     }).join('');
@@ -2835,15 +2860,58 @@
     });
   }
 
+  /* One account's rows across the selected categories, folded on CardCode.
+     For a single category this is just that category's accounts; for All it
+     merges them, keeping the per-category split for the row detail. */
+  function selectedAccounts() {
+    var cats = loaded();
+    var ids = activeCat ? [activeCat] : Object.keys(cats);
+    var out = {};
+    ids.forEach(function (id) {
+      var c = cats[id];
+      if (!c) return;
+      Object.keys(c.accounts).forEach(function (cc) {
+        var a = c.accounts[cc];
+        var e = out[cc];
+        if (!e) {
+          e = out[cc] = { cardCode: cc, cardName: a.cardName, total: 0, units: 0,
+                          discount: 0, docNums: [], lines: [], cats: [] };
+        }
+        if (!e.cardName) e.cardName = a.cardName;
+        e.total += a.total; e.units += a.units || 0; e.discount += a.discount || 0;
+        a.docNums.forEach(function (d) { if (e.docNums.indexOf(d) === -1) e.docNums.push(d); });
+        e.lines = e.lines.concat(a.lines.map(function (l) {
+          var copy = {}; Object.keys(l).forEach(function (k) { copy[k] = l[k]; });
+          copy.catName = c.name; return copy;
+        }));
+        e.cats.push({ name: c.name, total: a.total });
+      });
+    });
+    return out;
+  }
+  function selectedMeta() {
+    var cats = loaded();
+    var ids = activeCat ? [activeCat] : Object.keys(cats);
+    var rowCount = 0, total = 0, allBonus = true;
+    ids.forEach(function (id) {
+      var c = cats[id]; if (!c) return;
+      rowCount += c.rowCount; total += c.total;
+      if (!c.bonus) allBonus = false;
+    });
+    return { rowCount: rowCount, total: total, allBonus: allBonus && ids.length > 0,
+             n: ids.length };
+  }
+
   function renderStats() {
-    var c = loaded()[activeCat];
-    if (!c) { document.getElementById('puStats').innerHTML = ''; return; }
-    var codes = Object.keys(c.accounts);
-    var disc = codes.reduce(function (s, k) { return s + (c.accounts[k].discount || 0); }, 0);
+    if (!hasData()) { document.getElementById('puStats').innerHTML = ''; return; }
+    var accts = selectedAccounts();
+    var meta = selectedMeta();
+    var codes = Object.keys(accts);
+    var disc = codes.reduce(function (s, k) { return s + (accts[k].discount || 0); }, 0);
     var cells = [
       ['Accounts', String(codes.length)],
-      ['Line items', String(c.rowCount)],
-      [c.bonus ? 'Total — bonus eligible' : 'Total', money0(c.total)],
+      ['Line items', String(meta.rowCount)],
+      [meta.allBonus ? 'Total — bonus eligible' : 'Total', money0(meta.total)],
       ['Discount given', money0(disc)]
     ];
     /* .ls-stat is a pill built for span/value/span, not stacked divs. */
@@ -2854,11 +2922,11 @@
   }
 
   function renderAccounts() {
-    var c = loaded()[activeCat];
     var el = document.getElementById('puAccounts');
-    if (!c) { el.innerHTML = ''; return; }
+    if (!hasData()) { el.innerHTML = ''; return; }
+    var accts = selectedAccounts();
     var q = search.toLowerCase();
-    var rows = Object.keys(c.accounts).map(function (k) { return c.accounts[k]; })
+    var rows = Object.keys(accts).map(function (k) { return accts[k]; })
       .filter(function (a) {
         if (!q) return true;
         return a.cardName.toLowerCase().indexOf(q) !== -1 ||
@@ -2880,15 +2948,25 @@
           a.lines.length + ' line(s) across ' + a.docNums.length + ' order(s)' +
           (a.units ? ', ' + a.units.toLocaleString('en-US') + ' unit(s)' : '') +
           (a.discount > 0 ? ', ' + money(a.discount) + ' off list' : '') + '.' +
+          /* Under All, say which categories the total is made of — otherwise
+             one figure with no breakdown is worse than the per-category view
+             it replaced. */
+          (!activeCat && a.cats.length > 1
+            ? ' ' + a.cats.sort(function (x, y) { return y.total - x.total; })
+                .map(function (c) { return esc(c.name) + ' ' + money(c.total); }).join(' · ')
+            : '') +
         '</p>' +
         '<div style="overflow-x:auto; margin-top:var(--s-2);">' +
         '<table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
         '<tr><th style="text-align:left;">Date</th><th style="text-align:left;">Order</th>' +
+        (activeCat ? '' : '<th style="text-align:left;">Category</th>') +
         '<th style="text-align:left;">Item</th><th style="text-align:right;">Qty</th>' +
         '<th style="text-align:right;">Paid</th><th style="text-align:right;">List</th>' +
         '<th style="text-align:right;">Total</th></tr>' +
-        a.lines.map(function (l) {
+        a.lines.sort(function (x, y) { return (y.date || '') < (x.date || '') ? -1 : 1; })
+          .map(function (l) {
           return '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.docNum) + '</td>' +
+            (activeCat ? '' : '<td>' + esc(l.catName || '') + '</td>') +
             '<td>' + esc(l.descr || l.itemCode) + '</td>' +
             '<td style="text-align:right;">' + (l.qty === null ? '—' : l.qty) + '</td>' +
             '<td style="text-align:right;">' + money(l.price) + '</td>' +

@@ -333,7 +333,7 @@
           <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
         </svg>
         <input type="search" class="input" id="mwSearch"
-               placeholder="Search account or Salesforce id&hellip;" aria-label="Search the visit log">
+               placeholder="Search account or card code&hellip;" aria-label="Search the visit log">
       </div>
 
       <div class="stack" id="mwList" style="margin-top:var(--s-4);"></div>
@@ -355,7 +355,7 @@
 
 </main>
 
-<script src="assets/js/data-store.js?v=1788231730"></script>
+<script src="assets/js/data-store.js?v=1788244374"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -1277,8 +1277,10 @@
       note:'shown on Performance' },
     { key:'pins',      match:'pins',      label:'Pins',        reads:true,
       note:'handed to Route Board for the account book' },
-    { key:'prescribers', match:'prescribers', label:'Prescribers', reads:false,
-      note:'not read yet' }
+    { key:'prescribing', match:'prescribing', label:'Prescribing', reads:true,
+      note:'handed to Prescriptions' },
+    { key:'prescribers', match:'prescribers', label:'Prescribers', reads:true,
+      note:'links each prescriber to an account' }
   ];
 
   var esc = window.Shell && Shell.escapeHtml ? Shell.escapeHtml : function (s) {
@@ -1528,19 +1530,27 @@
     });
     return idx;
   }
+  /* Deliberately permissive. The first version demanded the WHOLE cell be
+     numeric, so anything the sheet decorated — "#14", "14 of 36", "1 of 36" —
+     came back null and the card rendered empty while the one plain column
+     (Rev %) showed. Excel error strings still return null rather than 0,
+     because a rank of zero would be a lie where a blank is honest. */
   function rankNum(raw) {
     var s = String(raw == null ? '' : raw).replace(/[   ]/g, ' ').trim();
     if (!s) return null;
-    var neg = /^\(.*\)$/.test(s) || s.indexOf('-') !== -1;
+    if (/^#/.test(s) && /[A-Za-z]/.test(s)) return null;      // #VALUE!, #N/A, #REF!
+    var neg = /^\(.*\)$/.test(s) || /^-/.test(s) || /^#?-/.test(s);
     var pct = s.indexOf('%') !== -1;
-    s = s.replace(/[()$,%\s\-+]/g, '');
-    if (!s || !/^\d*\.?\d+$/.test(s)) return null;
-    var v = parseFloat(s);
+    /* Take the first number in the cell and ignore the furniture around it. */
+    var m = s.replace(/,/g, '').match(/\d*\.?\d+/);
+    if (!m) return null;
+    var v = parseFloat(m[0]);
     if (isNaN(v)) return null;
     v = neg ? -v : v;
-    /* The sheet holds Rev +/-% as a FRACTION (0.068 = +6.8%). Excel sometimes
-       hands back the formatted string instead, so a value that arrived with a
-       % sign is divided back down rather than stored a hundred times too big. */
+    /* Rev +/-% is a FRACTION in the sheet (0.068 = +6.8%). Excel sometimes
+       hands back the formatted string instead, so a value that arrived
+       carrying a % sign is divided back down rather than stored a hundred
+       times too big. */
     return pct ? v / 100 : v;
   }
 
@@ -1582,8 +1592,127 @@
         revPct:       rankNum(cell(idx.revPct)),    revRank:     rankNum(cell(idx.revRank))
       };
     }
-    return { reports: reports, skipped: skipped, bases: bases,
-             count: Object.keys(reports).length, error: null };
+    /* Which columns were located and which came back empty on every row. A
+       silently missing column is the failure mode here — the card renders with
+       dashes and nothing says why — so the preview names it. */
+    var fields = Object.keys(RANK_COLS).filter(function (f) {
+      return f !== 'reportDate' && f !== 'basis' && f !== 'region' && f !== 'repName';
+    });
+    var missingCol = fields.filter(function (f) { return idx[f] === -1; });
+    var keys = Object.keys(reports);
+    var allBlank = fields.filter(function (f) {
+      return idx[f] !== -1 && keys.every(function (k) { return reports[k][f] === null; });
+    });
+    return { reports: reports, skipped: skipped, bases: bases, header: grid[h],
+             missingCol: missingCol, allBlank: allBlank,
+             count: keys.length, error: null };
+  }
+
+  /* --- Prescribing + Prescribers ------------------------------------------
+     Two sheets, one purpose. Prescribing carries the scripts; Prescribers is
+     the only thing in the workbook that says which office a doctor writes
+     from. Neither is applied here — both are parked for the Prescriptions
+     page, which owns the roster and the follow-up state a re-import must not
+     disturb. */
+
+  /* Must stay identical to slugify() in prescriptions.html: it is the join
+     between a prescriber in the scripts and a prescriber in the mapping. */
+  function slugify(name) {
+    return String(name).toLowerCase()
+      .replace(/[.,]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  var RX_COLS = {
+    name:    ['prescriber', 'prescribername'],
+    drug:    ['drugname', 'drug'],
+    written: ['datewritten', 'written'],
+    filled:  ['datedispensed', 'dispensed', 'datefilled', 'filled'],
+    city:    ['prescribercity', 'city']
+  };
+  function parsePrescribing(grid) {
+    var h = -1;
+    for (var i = 0; i < grid.length && i < 20; i++) {
+      for (var j = 0; j < grid[i].length; j++) {
+        if (norm(grid[i][j]) === 'prescriber' || norm(grid[i][j]) === 'drugname') { h = i; break; }
+      }
+      if (h !== -1) break;
+    }
+    if (h === -1) return { rows: [], skipped: 0, error: 'no Prescriber or Drug Name column' };
+    var n = grid[h].map(norm), idx = {};
+    Object.keys(RX_COLS).forEach(function (f) {
+      idx[f] = -1;
+      RX_COLS[f].some(function (w) { var at = n.indexOf(w); if (at === -1) return false;
+                                     idx[f] = at; return true; });
+    });
+    if (idx.name === -1) return { rows: [], skipped: 0, error: 'no Prescriber column' };
+
+    var rows = [], skipped = 0, docs = {};
+    for (var r = h + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) { return (at === -1 || g[at] == null) ? '' : String(g[at]).trim(); };
+      var nm = cell(idx.name);
+      if (!nm) {
+        if (g.some(function (c) { return String(c == null ? '' : c).trim(); })) skipped++;
+        continue;
+      }
+      docs[slugify(nm)] = 1;
+      /* Emitted in the fixed order Prescriptions reads by position, so its
+         existing parser takes this without a second code path. */
+      rows.push([nm, cell(idx.drug), cell(idx.written), cell(idx.filled), cell(idx.city)]);
+    }
+    return { rows: rows, skipped: skipped, docCount: Object.keys(docs).length,
+             docs: docs, error: null };
+  }
+
+  var PRESCRIBER_COLS = {
+    name:        ['prescribername', 'prescriber'],
+    npi:         ['npi'],
+    accountName: ['primaryaccountname', 'accountname'],
+    cardCode:    ['resolvedcardcode', 'cardcode']
+  };
+  function parsePrescribers(grid) {
+    var h = -1;
+    for (var i = 0; i < grid.length && i < 20; i++) {
+      for (var j = 0; j < grid[i].length; j++) {
+        var v = norm(grid[i][j]);
+        if (v === 'prescribername' || v === 'npi') { h = i; break; }
+      }
+      if (h !== -1) break;
+    }
+    if (h === -1) return { mapping: {}, error: 'no PrescriberName or NPI column' };
+    var n = grid[h].map(norm), idx = {};
+    Object.keys(PRESCRIBER_COLS).forEach(function (f) {
+      idx[f] = -1;
+      PRESCRIBER_COLS[f].some(function (w) { var at = n.indexOf(w); if (at === -1) return false;
+                                             idx[f] = at; return true; });
+    });
+    if (idx.name === -1) return { mapping: {}, error: 'no PrescriberName column' };
+
+    var mapping = {}, withAccount = 0, skipped = 0;
+    for (var r = h + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) {
+        var s = (at === -1 || g[at] == null) ? '' : String(g[at]).trim();
+        /* ResolvedCardCode is a formula and reads #VALUE! or #N/A when its
+           lookup misses. Storing the literal would put "#VALUE!" on a card and
+           break the CardCode join, so an error reads as "unmapped". */
+        return /^#[A-Za-z0-9\/]+[!?]?$/.test(s) ? '' : s;
+      };
+      var nm = cell(idx.name);
+      if (!nm) {
+        if (g.some(function (c) { return String(c == null ? '' : c).trim(); })) skipped++;
+        continue;
+      }
+      /* CardCode stays a STRING — leading zeros are significant here too. */
+      var cc = cell(idx.cardCode);
+      if (cc) withAccount++;
+      mapping[slugify(nm)] = { name: nm, npi: cell(idx.npi),
+                               accountName: cell(idx.accountName), cardCode: cc };
+    }
+    return { mapping: mapping, count: Object.keys(mapping).length,
+             withAccount: withAccount, skipped: skipped, error: null };
   }
 
   /* --- Import flow -------------------------------------------------------- */
@@ -1625,7 +1754,9 @@
         fileName: file.name, found: found,
         visits: parseVisits(gridOf(vis.name)),
         pins: sheetNamed('pins') ? parsePins(gridOf(sheetNamed('pins'))) : null,
-        rankings: sheetNamed('rankings') ? parseRankings(gridOf(sheetNamed('rankings'))) : null
+        rankings: sheetNamed('rankings') ? parseRankings(gridOf(sheetNamed('rankings'))) : null,
+        prescribing: sheetNamed('prescribing') ? parsePrescribing(gridOf(sheetNamed('prescribing'))) : null,
+        prescribers: sheetNamed('prescribers') ? parsePrescribers(gridOf(sheetNamed('prescribers'))) : null
       };
       renderPreview();
     }).catch(function (e) {
@@ -1670,8 +1801,51 @@
             ' correct rows already in the log. ' + existingKeys.length +
             ' row(s) already stored are left alone.'
           : 'Nothing is in the log yet, so all of these are new.') +
-      '</p>' + pinsSummary() + rankingsSummary();
+      '</p>' + pinsSummary() + rankingsSummary() + prescribingSummary();
     document.getElementById('mwPreview').hidden = false;
+  }
+
+  function prescribingSummary() {
+    var p = pending.prescribing, m = pending.prescribers;
+    if (!p && !m) return '';
+    var out = '';
+    if (p) {
+      out += '<p class="hint" style="margin-top:var(--s-3);">' +
+        (p.error
+          ? '<b>Prescribing sheet not read</b> — ' + esc(p.error) + '.'
+          : '<b>' + p.rows.length + '</b> prescription row(s) from <b>' + p.docCount +
+            '</b> prescriber(s).' +
+            (p.skipped ? ' ' + p.skipped + ' row(s) had no prescriber and were skipped.' : '')) +
+        '</p>';
+    }
+    if (m) {
+      out += '<p class="hint" style="margin-top:var(--s-2);">' +
+        (m.error
+          ? '<b>Prescribers sheet not read</b> — ' + esc(m.error) + '.'
+          : '<b>' + m.count + '</b> prescriber(s) in the mapping, <b>' + m.withAccount +
+            '</b> carrying a CardCode.') + '</p>';
+    }
+    /* The number that matters: how many prescribers writing scripts can
+       actually be tied to an office. Named here rather than discovered later
+       on a card that silently says nothing. */
+    if (p && !p.error && m && !m.error) {
+      var docs = Object.keys(p.docs);
+      var linked = docs.filter(function (d) { return m.mapping[d] && m.mapping[d].cardCode; });
+      var unlinked = docs.filter(function (d) { return !m.mapping[d] || !m.mapping[d].cardCode; });
+      out += '<p class="hint" style="margin-top:var(--s-2);">' +
+        '<b>' + linked.length + ' of ' + docs.length + '</b> prescribers writing scripts ' +
+        'resolve to an account.' +
+        (unlinked.length
+          ? ' <b>' + unlinked.length + ' do not</b> — they import, but show no office until ' +
+            'the Prescribers sheet gives them a CardCode. Nothing is guessed from the name.'
+          : '') + '</p>';
+    }
+    if (p && !p.error) {
+      out += '<p class="hint" style="margin-top:var(--s-2);">Scripts are handed to ' +
+        '<b>Prescriptions</b>, not applied here — that page owns the roster and your ' +
+        'follow-up ticks, which a re-import must not disturb.</p>';
+    }
+    return out;
   }
 
   function rankingsSummary() {
@@ -1693,6 +1867,17 @@
       (bases.length > 1
         ? '<p class="hint" style="margin-top:var(--s-2);">Both bases are kept apart — ' +
           'Performance never plots one against the other.</p>'
+        : '') +
+      ((r.missingCol && r.missingCol.length) || (r.allBlank && r.allBlank.length)
+        ? '<p class="hint" style="margin-top:var(--s-2);">' +
+          (r.missingCol.length
+            ? '<b>No column found for:</b> ' + r.missingCol.map(esc).join(', ') + '. '
+            : '') +
+          (r.allBlank.length
+            ? '<b>Found but empty on every row:</b> ' + r.allBlank.map(esc).join(', ') + '. '
+            : '') +
+          'Those will show as &mdash; on Performance. Header row reads: ' +
+          esc((r.header || []).join(' | ')) + '</p>'
         : '');
   }
 
@@ -1743,6 +1928,22 @@
       }
     }
 
+    /* Prescribing and Prescribers are parked together: the scripts are useless
+       for the account question without the mapping, and vice versa. Replaced
+       wholesale — every field comes from the sheets. */
+    if ((pending.prescribing && !pending.prescribing.error) ||
+        (pending.prescribers && !pending.prescribers.error)) {
+      if (!Store.prescribing.write({
+            generated: new Date().toISOString(), fileName: pending.fileName,
+            rows: (pending.prescribing && !pending.prescribing.error)
+                    ? pending.prescribing.rows : [],
+            mapping: (pending.prescribers && !pending.prescribers.error)
+                    ? pending.prescribers.mapping : {}
+          })) {
+        ok = false;
+      }
+    }
+
     /* Rankings MERGE like the visit log, not replace like the pins: each
        upload carries the reports published so far, and an older workbook
        must not delete the months a newer one already contributed. */
@@ -1767,14 +1968,32 @@
 
   /* --- The log ------------------------------------------------------------ */
 
+  /* CardCode by SFAccountID, out of the crosswalk. The visit log itself only
+     carries the Salesforce id, but CardCode is the account NUMBER and the
+     identifier actually used day to day, so it is what the list shows. Falls
+     back to the Salesforce id when the crosswalk has no row — showing nothing
+     would be worse than showing the id it does have. */
+  function cardCodeIndex() {
+    var x = Store.accountXref.read();
+    var accts = (x && x.accounts) || {};
+    var out = {};
+    Object.keys(accts).forEach(function (sfId) {
+      var cc = String(accts[sfId] && accts[sfId].cardCode || '').trim();
+      if (cc) out[sfId] = cc;
+    });
+    return out;
+  }
+
   function byAccount() {
     var rows = Store.visits.read().rows;
+    var byCard = cardCodeIndex();
     var acc = {};
     Object.keys(rows).forEach(function (k) {
       var r = rows[k];
       var a = acc[r.sfAccountId];
       if (!a) {
         a = acc[r.sfAccountId] = { sfAccountId: r.sfAccountId, accountName: r.accountName,
+                                   cardCode: byCard[r.sfAccountId] || '',
                                    touches: 0, visits: 0, lastVisit: '', lastTouch: '',
                                    subjects: {}, rows: [] };
       }
@@ -1847,6 +2066,7 @@
         if (subjectFilter && !a.subjects[subjectFilter]) return false;
         if (!q) return true;
         return (a.accountName || '').toLowerCase().indexOf(q) !== -1 ||
+               (a.cardCode || '').toLowerCase().indexOf(q) !== -1 ||
                a.sfAccountId.toLowerCase().indexOf(q) !== -1;
       })
       .sort(function (a, b) {
@@ -1863,7 +2083,7 @@
       return '<details class="card" style="margin-bottom:var(--s-2);">' +
         '<summary style="cursor:pointer; display:flex; justify-content:space-between; gap:var(--s-3); align-items:baseline;">' +
           '<span><b>' + esc(a.accountName || '(unnamed)') + '</b> ' +
-            '<span class="mono hint">' + esc(a.sfAccountId) + '</span></span>' +
+            '<span class="mono hint">' + esc(a.cardCode || a.sfAccountId) + '</span></span>' +
           '<span class="mono">' + (a.lastVisit ? esc(a.lastVisit) : 'no visit') + '</span>' +
         '</summary>' +
         '<p class="hint" style="margin-top:var(--s-2);">' +

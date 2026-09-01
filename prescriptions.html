@@ -250,6 +250,15 @@
         after the fifth column is ignored.
       </p>
 
+      <!-- The workbook's Prescribing sheet is these same five columns, so it
+           comes in here rather than through a second parser. -->
+      <div id="wbRow" hidden style="margin-bottom:var(--s-4); padding-bottom:var(--s-4); border-bottom:1px solid var(--rule);">
+        <div class="row" style="align-items:center; gap:var(--s-3);">
+          <button class="btn btn-primary" id="wbImportBtn">Import from the workbook</button>
+          <span class="hint" id="wbHint"></span>
+        </div>
+      </div>
+
       <div class="import-body">
         <textarea id="pasteBox" spellcheck="false"
           placeholder="Prescriber&#9;Drug&#9;Date Written&#9;Date Filled&#9;City&#10;Doe, Jane&#9;DEMOVECTIN&#9;6/4/26&#9;6/5/26&#9;Austin"></textarea>
@@ -281,6 +290,14 @@
     <p class="hint" id="asOf" style="margin-bottom:var(--s-3);"></p>
 
     <div class="stat-pills" id="statPills"></div>
+
+    <!-- The account-side view of the same join: which offices have someone
+         prescribing, and which prescribers could not be tied to one. -->
+    <details class="card" id="byAccountCard" hidden style="margin-top:var(--s-3);">
+      <summary style="cursor:pointer;"><b>Accounts with prescribers</b>
+        <span class="hint" id="byAccountCount"></span></summary>
+      <div id="byAccountBody" style="margin-top:var(--s-3);"></div>
+    </details>
 
     <div class="search-wrap" style="margin-top:var(--s-3);">
       <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
@@ -331,7 +348,7 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="assets/js/data-store.js?v=1788231730"></script>
+<script src="assets/js/data-store.js?v=1788244374"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -862,6 +879,15 @@
           '<div style="min-width:0">' +
             '<h2 class="doc-name">' + Shell.escapeHtml(p.name) + '</h2>' +
             '<p class="doc-sub">' + Shell.escapeHtml([p.title, p.city].filter(Boolean).join(', ')) + '</p>' +
+            /* Which office this doctor writes from, out of the workbook's
+               Prescribers sheet. Absent rather than guessed when unmapped. */
+            (function () {
+              var a = accountFor(p.id);
+              return a
+                ? '<p class="doc-sub"><b>' + Shell.escapeHtml(a.accountName || 'account') +
+                  '</b> <span class="mono">' + Shell.escapeHtml(a.cardCode) + '</span></p>'
+                : '';
+            })() +
             '<span class="zone-pick" style="margin-top:var(--s-2)' + (z ? ';--zone:' + z.color : '') + '">' +
               '<span class="zone-chip' + (z ? '' : ' is-unset') + '">' +
                 (z ? '<span class="zone-dot" style="--zone:' + z.color + '"></span>' : '') +
@@ -955,13 +981,92 @@
     document.getElementById('importView').hidden = true;
     document.getElementById('rosterView').hidden = false;
     renderAll();
+    renderByAccount();
     window.scrollTo(0, 0);
+  }
+
+  /* The join read the other way round: offices grouped by the prescribers
+     writing from them. Unmapped prescribers are listed rather than dropped —
+     they are the work, not an error. */
+  function renderByAccount() {
+    var card = document.getElementById('byAccountCard');
+    var wb = workbook();
+    if (!wb || !roster || !roster.prescribers.length) { card.hidden = true; return; }
+
+    var byAccount = {}, unmapped = [];
+    roster.prescribers.forEach(function (p) {
+      var a = accountFor(p.id);
+      if (!a) { unmapped.push(p); return; }
+      var e = byAccount[a.cardCode] || (byAccount[a.cardCode] =
+        { cardCode: a.cardCode, name: a.accountName || '(unnamed account)', docs: [], scripts: 0 });
+      e.docs.push(p.name);
+      e.scripts += p.orders.length;
+    });
+
+    var codes = Object.keys(byAccount).sort(function (x, y) {
+      return byAccount[y].docs.length - byAccount[x].docs.length;
+    });
+    card.hidden = false;
+    document.getElementById('byAccountCount').textContent =
+      ' — ' + codes.length + ' account(s), ' +
+      (unmapped.length ? unmapped.length + ' prescriber(s) unmapped' : 'all prescribers mapped');
+
+    document.getElementById('byAccountBody').innerHTML =
+      (codes.length
+        ? '<div style="overflow-x:auto;"><table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
+          '<tr><th style="text-align:left;">Account</th><th style="text-align:left;">Card code</th>' +
+          '<th style="text-align:left;">Prescribers</th><th style="text-align:right;">Scripts</th></tr>' +
+          codes.map(function (c) {
+            var e = byAccount[c];
+            return '<tr><td>' + Shell.escapeHtml(e.name) + '</td>' +
+              '<td>' + Shell.escapeHtml(e.cardCode) + '</td>' +
+              '<td>' + e.docs.map(Shell.escapeHtml).join(', ') + '</td>' +
+              '<td style="text-align:right;">' + e.scripts + '</td></tr>';
+          }).join('') + '</table></div>'
+        : '<p class="hint">No prescriber resolves to an account yet.</p>') +
+      (unmapped.length
+        ? '<p class="hint" style="margin-top:var(--s-3);"><b>Not tied to an account:</b> ' +
+          unmapped.map(function (p) { return Shell.escapeHtml(p.name); }).join(', ') +
+          '. Give them a CardCode on the workbook&rsquo;s Prescribers sheet and re-upload — ' +
+          'nothing here is guessed from a name or a city.</p>'
+        : '');
   }
 
   function clearPreview() {
     pending = null;
     document.getElementById('importPreview').hidden = true;
     document.getElementById('applyRow').hidden = true;
+  }
+
+  /* --- The workbook handoff ------------------------------------------------
+     th_prescribing is written by the Master workbook uploader on Accounts. It
+     carries the scripts AND the Prescribers mapping, which is the only source
+     that says which office a doctor writes from. */
+
+  function workbook() { return Store.prescribing.read(); }
+
+  /* The mapping is keyed by the same slug this page derives from a prescriber
+     name, so this is a lookup and never a fuzzy match. A doctor with no row,
+     or a row whose ResolvedCardCode did not resolve, returns null and the card
+     simply shows no office — guessing one would send someone to the wrong
+     building. */
+  function accountFor(docId) {
+    var wb = workbook();
+    if (!wb) return null;
+    var m = wb.mapping[docId];
+    return (m && m.cardCode) ? m : null;
+  }
+
+  function refreshWorkbookRow() {
+    var wb = workbook();
+    var row = document.getElementById('wbRow');
+    if (!wb || !wb.rows.length) { row.hidden = true; return; }
+    row.hidden = false;
+    document.getElementById('wbHint').innerHTML =
+      '<b>' + wb.rows.length + '</b> row(s) waiting from ' +
+      Shell.escapeHtml(wb.fileName || 'the workbook') +
+      (wb.generated ? ', uploaded ' + Shell.escapeHtml(String(wb.generated).slice(0, 10)) : '') +
+      '. Your follow-up ticks are kept.';
   }
 
   function doPreview() {
@@ -1091,6 +1196,19 @@
     roster = Store.prescribers.readRoster();
     var fu = Store.prescribers.readFollowups();
     followups = (fu && typeof fu === 'object' && !Array.isArray(fu)) ? fu : {};
+
+    /* The workbook's Prescribing sheet is the same five columns in the same
+       order, so it is fed through the paste box and the existing parse rather
+       than getting a second code path. Everything downstream — the merge, the
+       preview, the follow-up protection — is untouched. */
+    refreshWorkbookRow();
+    document.getElementById('wbImportBtn').addEventListener('click', function () {
+      var p = Store.prescribing.read();
+      if (!p || !p.rows.length) return;
+      document.getElementById('pasteBox').value =
+        p.rows.map(function (r) { return r.join('\t'); }).join('\n');
+      doPreview();
+    });
 
     document.getElementById('previewBtn').addEventListener('click', doPreview);
     document.getElementById('applyBtn').addEventListener('click', doApply);

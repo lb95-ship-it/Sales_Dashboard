@@ -242,10 +242,24 @@
     <span class="eyebrow mono" id="headPill"></span>
   </header>
 
+  <!-- ===================== FIELD RANKINGS =====================
+       First on the page: it is where you stand right now, which is the
+       question this page gets opened to answer. Read from the workbook's
+       Rankings sheet on Accounts. A rank is always drawn with its
+       denominator, and the two bases are never mixed. -->
+  <section class="card" id="rankCard">
+    <div class="card-head">
+      <h2>Field rankings</h2>
+      <span class="pill" id="rankCount"></span>
+    </div>
+    <div id="rankBasisRow" class="ka-chips" style="margin-top:var(--s-2);"></div>
+    <div id="rankBody" style="margin-top:var(--s-3);"></div>
+  </section>
+
   <!-- ===================== UPLOAD =====================
-       The primary way in. Everything the old form asked you to type is already
-       in the evaluation PDF, so it is read from there instead. -->
-  <section class="card" id="uploadCard">
+       Everything the old form asked you to type is already in the evaluation
+       PDF, so it is read from there instead. -->
+  <section class="card" id="uploadCard" style="margin-top:var(--s-5);">
     <div class="card-head">
       <h2>Upload field ride evaluations</h2>
       <span class="pill" id="evCount"></span>
@@ -280,18 +294,6 @@
 
   <div id="views"></div>
 
-  <!-- ===================== FIELD RANKINGS =====================
-       Read from the workbook's Rankings sheet on Accounts. A rank is always
-       drawn with its denominator, and the two bases are never mixed. -->
-  <section class="card" id="rankCard" style="margin-top:var(--s-5);">
-    <div class="card-head">
-      <h2>Field rankings</h2>
-      <span class="pill" id="rankCount"></span>
-    </div>
-    <div id="rankBasisRow" class="ka-chips" style="margin-top:var(--s-2);"></div>
-    <div id="rankBody" style="margin-top:var(--s-3);"></div>
-  </section>
-
   <p class="hint" style="text-align:center; margin-top:var(--s-4);">
     Evaluations stay in this browser. They are never committed to the repo and
     never leave your device.
@@ -302,7 +304,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788231730"></script>
+<script src="assets/js/data-store.js?v=1788244374"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================

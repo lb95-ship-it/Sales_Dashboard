@@ -48,6 +48,7 @@
     visits:           'th_visits',                // Visit log (internal)
     pins:             'th_pins',                  // Maps pins -> Route Board book
     rankings:         'th_rankings',              // Field rankings (internal)
+    prescribing:      'th_prescribing',           // Workbook -> Prescriptions handoff
     routeBoardWeek:   'th_route.week.v2'          // Route Board (READ ONLY here)
   };
 
@@ -188,16 +189,28 @@
   };
 
   var bonus = {
-    /* { growthPct, bonusEarned, bonusPossible, onTrack, reportDate } */
+    /* { growthPct, bonusEarned, bonusReported, bonusPossible, onTrack,
+         reportDate, updatedAt }
+
+       `bonusEarned` is DERIVED from growth, not read from the report: the
+       report's own Total Bonus column can read $0.00 on a period that has not
+       credited yet, and the two reports can disagree with each other. What the
+       report printed is kept as `bonusReported` so the difference can be shown
+       rather than buried.
+
+       `updatedAt` is passed in rather than stamped here, so re-deriving the
+       summary from a cached upload cannot make an old report look freshly
+       checked on Home — the same trap Key Accounts and Lost Sales avoid. */
     readSummary: function () { return get(KEYS.bonusSummary, null); },
     writeSummary: function (s) {
       return set(KEYS.bonusSummary, {
         growthPct:     s.growthPct,
         bonusEarned:   s.bonusEarned,
+        bonusReported: s.bonusReported,
         bonusPossible: s.bonusPossible,
         onTrack:       !!s.onTrack,
         reportDate:    s.reportDate,
-        updatedAt:     new Date().toISOString()
+        updatedAt:     s.updatedAt || new Date().toISOString()
       });
     },
     readLastUpload:  function () { return get(KEYS.bonusLastUpload, null); },
@@ -660,6 +673,48 @@
     clear: function () { return remove(KEYS.rankings); }
   };
 
+  /* -------------------------------------------------------------------------
+     Prescribing — the workbook's Prescribing and Prescribers sheets.
+
+     A HANDOFF, like th_pins. The Prescribing sheet holds exactly the five
+     columns Prescriptions already reads from a paste (Prescriber, Drug Name,
+     Date written, Date Dispensed, Prescriber City), so the workbook uploader
+     parks the rows here and Prescriptions imports them through its own parse.
+     That path already protects the half of that page nothing else can rebuild
+     — the follow-up ticks and flags typed by hand — and duplicating it here
+     would be a second implementation of the rule that matters most.
+
+     `mapping` is the Prescribers sheet: the only thing in the workbook that
+     says which office a doctor writes from. Keyed by the SAME slug
+     Prescriptions derives from a prescriber name, so the join is a lookup
+     rather than a fuzzy match. A prescriber with no row here stays unmapped
+     and is reported as such — guessing an office from a name or a city would
+     send someone to the wrong building.
+
+     Real doctor names. Device local, never committed.
+     ------------------------------------------------------------------------- */
+  var prescribing = {
+    /* { generated, fileName,
+         rows: [ [prescriber, drug, written, dispensed, city], … ],
+         mapping: { [slug]: { name, npi, accountName, cardCode } } } */
+    read: function () {
+      var p = get(KEYS.prescribing, null);
+      if (!p || typeof p !== 'object') return null;
+      return { generated: p.generated || null, fileName: p.fileName || '',
+               rows: Array.isArray(p.rows) ? p.rows : [],
+               mapping: (p.mapping && typeof p.mapping === 'object') ? p.mapping : {} };
+    },
+    write: function (p) {
+      return set(KEYS.prescribing, {
+        generated: (p && p.generated) || new Date().toISOString(),
+        fileName:  (p && p.fileName) || '',
+        rows:      Array.isArray(p && p.rows) ? p.rows : [],
+        mapping:   (p && p.mapping && typeof p.mapping === 'object') ? p.mapping : {}
+      });
+    },
+    clear: function () { return remove(KEYS.prescribing); }
+  };
+
   /* Read-only window into Route Board's own store. No writer here on purpose.
      Shape: { primary, follow, top25only, assign, order }. `assign` maps an
      account id to a day key, which is what Home counts. */
@@ -701,6 +756,7 @@
     visits: visits,
     pins: pins,
     rankings: rankings,
+    prescribing: prescribing,
     routeBoard: routeBoard
   };
 

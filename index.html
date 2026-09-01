@@ -214,6 +214,24 @@
       </div>
     </a>
 
+    <!-- Performance ------------------------------------------------------- -->
+    <a class="card card-link" href="performance.html">
+      <div class="card-head">
+        <h2>Performance</h2>
+        <span id="perfBadge"></span>
+      </div>
+      <div id="perfBody"></div>
+      <div class="card-foot row-between">
+        <span class="stat-label" id="perfFoot"></span>
+        <span class="card-cta">Open Performance
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+        </span>
+      </div>
+    </a>
+
   </div>
 
   <p class="section-label"><span>Reference</span></p>
@@ -228,7 +246,7 @@
 
 </main>
 
-<script src="assets/js/data-store.js?v=1788149452"></script>
+<script src="assets/js/data-store.js?v=1788231730"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -584,6 +602,60 @@
     foot.textContent = 'Prescriber follow-up tracker';
   }
 
+  /* Performance. Fed by two parts of that page through one merged summary:
+     the evaluation import writes lastEvalDate/lastEvalPct/flagged/working,
+     the rankings view writes overallRank/totalReps/rankBasis. Either half can
+     be absent, so nothing here assumes the other has run.
+
+     A rank is never shown without its denominator or its basis — TotalReps
+     moves between reports, and the monthly and 90-day figures are not the
+     same measurement. */
+  function renderPerf() {
+    var s = Store.performance.readSummary();
+    var body = document.getElementById('perfBody');
+    var badge = document.getElementById('perfBadge');
+    var foot = document.getElementById('perfFoot');
+
+    if (!s || (!s.lastEvalDate && s.overallRank === undefined)) {
+      badge.outerHTML = '<span class="pill" id="perfBadge">No data</span>';
+      body.innerHTML = empty('Upload a field ride evaluation, or the workbook’s Rankings sheet.');
+      foot.textContent = 'Rides and rankings';
+      return;
+    }
+
+    var stats = [];
+    if (s.overallRank !== undefined && s.overallRank !== null) {
+      stats.push('<span class="stat">' +
+        '<span class="stat-value">' + s.overallRank +
+          (s.totalReps ? '<span class="stat-label"> of ' + s.totalReps + '</span>' : '') +
+        '</span>' +
+        '<span class="stat-label">overall rank</span></span>');
+    }
+    if (s.lastEvalPct !== undefined && s.lastEvalPct !== null) {
+      stats.push('<span class="stat">' +
+        '<span class="stat-value">' + Math.round(s.lastEvalPct) + '%</span>' +
+        '<span class="stat-label">last ride</span></span>');
+    }
+    if (s.working) {
+      stats.push('<span class="stat">' +
+        '<span class="stat-value" style="color:var(--amber)">' + s.working + '</span>' +
+        '<span class="stat-label">working on</span></span>');
+    }
+    body.innerHTML = stats.length
+      ? '<div class="stat-row">' + stats.join('') + '</div>' +
+        (s.rankBasis
+          ? '<p class="stat-label" style="margin-top:var(--s-2);">' +
+            Shell.escapeHtml(s.rankBasis) + (s.rankDate ? ' · ' + Shell.escapeHtml(s.rankDate) : '') +
+            '</p>'
+          : '')
+      : empty('Nothing to show yet.');
+
+    badge.outerHTML = '<span class="pill" id="perfBadge">' +
+      (s.overallRank ? '#' + s.overallRank + (s.totalReps ? '/' + s.totalReps : '')
+                     : (s.flagged ? s.flagged + ' flagged' : 'ready')) + '</span>';
+    foot.textContent = s.lastEvalDate ? 'Last ride ' + s.lastEvalDate : 'Rides and rankings';
+  }
+
   /* --- Freshness --------------------------------------------------------- */
 
   function renderFreshness() {
@@ -592,7 +664,8 @@
       (Store.bonus.readSummary() || {}).updatedAt,
       (Store.lostSales.readSummary() || {}).updatedAt,
       (Store.keyAccounts.readSummary() || {}).updatedAt,
-      (Store.prescribers.readSummary() || {}).updatedAt
+      (Store.prescribers.readSummary() || {}).updatedAt,
+      (Store.performance.readSummary() || {}).updatedAt
     ].filter(Boolean);
     if (!stamps.length) { document.getElementById('freshness').textContent = 'no data yet'; return; }
     stamps.sort();
@@ -606,6 +679,7 @@
     renderLostSales();
     renderKeyAccts();
     renderRx();
+    renderPerf();
     renderFreshness();
   }
 

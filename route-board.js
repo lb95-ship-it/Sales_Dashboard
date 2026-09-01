@@ -535,22 +535,23 @@ const MARKUP = `<div id="app">
         <h3>Account book</h3>
         <p class="muted" id="bookStatus"></p>
         <p class="muted">
-          Accepts a <b>Google Takeout export</b> — pick every <code>.csv</code> out of
-          Takeout &rsaquo; Saved at once, and each file's <b>name</b> becomes the territory. Also
-          accepts a generated <code>accounts.json</code>, or a raw territory list in the
-          <code>{"Territory": [[name, note, mapUrl, [tags]]]}</code> shape — it is converted here,
-          no script needed. Accounts are matched on Google place ID, so day assignments and
-          Salesforce links stay attached through renames and reordering.
+          Built from the <b>Pins sheet</b> of <code>Territory_Master.xlsx</code>. Upload the
+          workbook on <b>Accounts &rsaquo; Master workbook</b> first; it lands here ready to
+          import, and this is where you see what would change before it does. Also accepts a
+          generated <code>accounts.json</code>, or a raw territory list in the
+          <code>{"Territory": [[name, note, mapUrl, [tags]]]}</code> shape. Accounts are matched
+          on Google place ID, so day assignments and Salesforce links stay attached through
+          renames and reordering.
         </p>
         <div class="row">
-          <label class="btn file-btn">Google Takeout export…<input type="file" id="bookCsv" accept=".csv,text/csv" multiple style="display:none;"></label>
+          <button class="btn ok" id="bookPins">Import from the workbook’s pins</button>
           <label class="btn file-btn">Choose file…<input type="file" id="bookFile" accept=".json,.txt,application/json" style="display:none;"></label>
           <button class="btn" id="bookPasteToggle">Paste JSON</button>
           <button class="btn" id="bookCopy">Copy current book</button>
           <button class="btn" id="bookDownload">Download accounts.json</button>
           <button class="btn warn" id="bookRevert">Revert to built-in</button>
         </div>
-        <div id="csvFiles" class="csv-files" style="display:none;"></div>
+        <div id="pinsStatus" class="csv-files" style="display:none;"></div>
         <textarea id="bookPaste" style="display:none;" placeholder="Paste accounts.json or a raw territory list here, then press Preview."></textarea>
         <div class="row" id="bookPasteRow" style="display:none; margin-top:8px;">
           <button class="btn" id="bookPreviewBtn">Preview changes</button>
@@ -570,7 +571,9 @@ const MARKUP = `<div id="app">
           The <code>Accounts</code> sheet of <code>Territory_Master.xlsx</code> — select it in
           Excel, copy, and paste here with its header row. Takes four columns the Google book
           cannot carry: <code>CardCode</code>, <code>SFAccountID</code>, <code>City</code> and
-          <code>Route</code>, joined to your accounts on place ID.
+          <code>Route</code>. Rows are keyed on <code>SFAccountID</code>, which every row has,
+          and matched to the board through <code>PlaceID</code>, which not every row has —
+          so an account with no map pin is still stored and still reachable by the visit log.
           It is a side table: applying it writes <code>th_account_xref</code> and nothing else —
           not the account book, not your day assignments, not your Salesforce links. Re-pasting a
           newer workbook replaces it whole.
@@ -740,20 +743,47 @@ const ACCOUNTS   = BOOK.accounts;
 const TERRITORIES = Object.keys(BOOK.territoryOrder);
 
 /* ---- Territory Master overlay -------------------------------------
-   A side table joined to the book on place ID, never merged into it. The
-   book is Google's, the annotations are yours, and this is the workbook's —
-   keeping them apart is what lets any one of the three be re-imported
-   without disturbing the other two.
+   A side table joined to the book, never merged into it. The book is
+   Google's, the annotations are yours, and this is the workbook's — keeping
+   them apart is what lets any one of the three be re-imported without
+   disturbing the other two.
 
-   Missing, malformed or empty all read as "no overlay", which is the state
-   every consumer has to handle anyway: the workbook covers most of the book
-   but not all of it. */
+   KEYED ON SFAccountID, not on place ID. The workbook carries an
+   SFAccountID on all 185 rows but a PlaceID on only 182, and it is the join
+   key the Visits sheet uses. Keying on place ID left three accounts
+   permanently unreachable by anything but this board. Place ID is now a
+   FIELD on each record, and byPlace below is the index this board reads
+   through — built once at load rather than scanned per card.
+
+   Missing, malformed or empty all read as "no overlay", which every consumer
+   has to handle anyway: the workbook covers most of the book, not all of it. */
+const PLACE_ID_RE = /^0x[0-9a-f]+:0x[0-9a-f]+$/i;
 const XREF_KEY = 'th_account_xref';
 function loadXref(){
   const x = readJSON(XREF_KEY);
+  const raw = (x && x.accounts && typeof x.accounts === 'object') ? x.accounts : {};
+  const accounts = {}, byPlace = {};
+  let legacy = 0;
+  Object.keys(raw).forEach(k=>{
+    const r = raw[k];
+    if(!r || typeof r !== 'object') return;
+    /* Overlays pasted before the reshape were keyed on place ID. Adapt them
+       here so one does not silently stop resolving; the next paste writes the
+       new shape, and refreshXrefStatus says so. */
+    const keyIsPlace = PLACE_ID_RE.test(k);
+    if(keyIsPlace) legacy++;
+    const placeId = r.placeId || (keyIsPlace ? k : '');
+    const id = r.sfAccountId || (keyIsPlace ? '' : k);
+    const rec = {
+      sfAccountId: id, cardCode: r.cardCode || '', city: r.city || '',
+      route: r.route || '', name: r.name || '', placeId: placeId
+    };
+    if(id) accounts[id] = rec;
+    if(placeId) byPlace[placeId] = rec;
+  });
   return {
     generated: (x && typeof x.generated === 'string') ? x.generated : null,
-    accounts:  (x && x.accounts && typeof x.accounts === 'object') ? x.accounts : {},
+    accounts: accounts, byPlace: byPlace, legacy: legacy,
     unmatched: Array.isArray(x && x.unmatched) ? x.unmatched : []
   };
 }
@@ -1182,8 +1212,10 @@ function terrColor(terr){
 
    Precedence is the same in both: typed wins, always. */
 const SF_ACCOUNT_URL = 'https://ocusoft.lightning.force.com/lightning/r/Account/';
-function xrefFor(id){
-  const x = XREF.accounts[id];
+/* Takes a PLACE id, because that is what a card has. The overlay is keyed on
+   SFAccountID, so this goes through the byPlace index built at load. */
+function xrefFor(placeId){
+  const x = XREF.byPlace[placeId];
   return (x && typeof x === 'object') ? x : null;
 }
 function sfLinkFor(id){
@@ -1746,15 +1778,21 @@ function tryCopyPlan(){
      1. a generated book  { version, accounts, territoryOrder }
      2. a raw territory list { "Territory": [[name, note, mapUrl, [tags]]] }
         straight out of Google Lists
-     3. a set of Google Takeout "Saved" CSVs, one per Maps list
+     3. the workbook's Pins sheet, parked in th_pins by the Key Accounts
+        uploader — the normal route
 
    Shapes 2 and 3 both reduce to the same rows and go through the same
    merge (mergeSources below), so the two cannot drift apart. That merge
    deliberately mirrors tools/build-book.ps1, which still carries its own
    copy of the rules — if you change them here, change them there too.
+
+   A Google Takeout multi-CSV picker lived here briefly and was replaced by
+   shape 3: the Pins sheet is the same export, and routing it through the
+   workbook means one upload instead of two.
    ===================================================================== */
 
-const PLACE_ID_RE = /^0x[0-9a-f]+:0x[0-9a-f]+$/i;
+// PLACE_ID_RE is declared up with the overlay store, which needs it at mount
+// time — a const here would still be in its temporal dead zone by then.
 function placeIdFromUrl(u){
   const m = String(u||'').match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
   return m ? m[1] : null;
@@ -1872,17 +1910,20 @@ function normalizeLegacy(obj){
   return parsed;
 }
 
-/* ---- Google Takeout "Saved" CSVs ------------------------------------
-   Takeout writes one CSV per Maps list and the list name is the FILENAME —
-   there is no territory column inside the file. So the territory is derived
-   from the filename and shown back before preview, because a renamed
-   download is the one mistake this cannot catch on its own.
+/* ---- The account book, from the workbook's Pins sheet ---------------
+   The Pins sheet is the Google Maps saved-places export: one row per saved
+   place, carrying the name, the note, the territory it is filed under, the
+   Maps URL and the tags.
 
-   Columns are read by header NAME, never by position. The export's column set
-   is not ours to control, and the tags column in particular may or may not be
-   there depending on the export.
+   It is parsed on the Key Accounts page — that is where the workbook is
+   uploaded — and parked in th_pins. This end reads it, converts it to the
+   same rows the legacy JSON path produces, and puts it through mergeSources
+   and diffBook so an import is previewed and guarded exactly like any other.
+
+   That split is deliberate. The book carries the only copy of the visit
+   notes and the pillar tags, so the one place allowed to replace it is the
+   one with the diff and the >10%-loss guard in front of it.
    -------------------------------------------------------------------- */
-
 /* RFC 4180, with the delimiter left open so one scanner reads both the
    comma-separated Takeout files and the tab-separated Excel paste. Notes
    routinely contain commas and occasionally a newline, and a literal quote
@@ -1918,15 +1959,11 @@ function parseDelimited(text, delim){
   // A trailing newline, or a blank line between records, is not a record.
   return rows.filter(r=>r.some(f=>String(f).trim() !== ''));
 }
-function parseCsv(text){ return parseDelimited(text, ','); }
 
-// Every spelling of each column seen or documented. First match wins.
-const CSV_COLS = {
-  name: ['title','name','placename'],
-  note: ['note','notes','comment'],
-  url:  ['url','link','googlemapsurl'],
-  tags: ['tags','tag','labels']
-};
+/* Columns are located by NAME, never by position, in every importer here.
+   Headers compare with case and punctuation stripped, so "SFAccountID",
+   "SF Account ID" and "sf_account_id" all land on the same field — while
+   "Route" and "Route Week" stay distinct, which matters in the workbook. */
 /* Columns are located by NAME, never by position, in both importers. Headers
    compare with case and punctuation stripped, so "SFAccountID", "SF Account ID"
    and "sf_account_id" all land on the same field — while "Route" and
@@ -1945,63 +1982,45 @@ function headerIndex(header, cols){
   return idx;
 }
 
-function csvTerritoryOf(fileName){
-  return String(fileName || '').replace(/\.csv$/i, '').trim();
-}
-
-/* files: [{name, territory, text}] -> the same {book, problems} the JSON path
-   returns, plus `notes`: a per-file line for the preview saying whether tags
-   came through, since that decides whether the ⭐ Top 25 flag is being
-   replaced or preserved. */
-function parseTakeoutCsvs(files){
-  const sources = [];
-  const problems = [];
-  const notes = [];
-  files.forEach(f=>{
-    if(!f.territory){
-      throw new Error('"' + f.name + '" leaves no territory name once ".csv" is removed.');
-    }
-    const table = parseCsv(f.text);
-    if(!table.length) throw new Error('"' + f.name + '" is empty.');
-    const idx = headerIndex(table[0], CSV_COLS);
-    if(idx.url === -1){
-      // With no Maps URL there is no place ID, so not one row in this file
-      // could be keyed. That is the wrong file, not a partial one — stop.
-      throw new Error('"' + f.name + '": no URL column (looked for URL, Link, Google Maps URL). '
-        + 'Header reads: ' + table[0].join(' | '));
-    }
-    if(idx.name === -1){
-      problems.push('"' + f.name + '": no name column (looked for Title, Name) — '
-        + 'these accounts import unnamed.');
-    }
-    notes.push('<b>' + escapeHtml(f.territory) + '</b> — ' + (table.length - 1) + ' row(s), '
-      + (idx.tags === -1 ? 'no tags column: existing tags preserved.' : 'tags column found.'));
-    const rows = [];
-    for(let i = 1; i < table.length; i++){
-      const r = table[i];
-      const cell = at => (at === -1 || r[at] == null) ? '' : String(r[at]).trim();
-      rows.push({
-        // Row 1 is the header, so the first record is row 2 — the number the
-        // user would see if they opened the file in a spreadsheet.
-        at:   'row ' + (i + 1),
-        name: cell(idx.name),
-        note: cell(idx.note),
-        url:  cell(idx.url),
-        // -1 means the COLUMN is absent, which is not the same as an empty
-        // cell: absent carries the book's tags forward, empty blanks them.
-        tags: idx.tags === -1 ? null
-            : cell(idx.tags).split(/[,;]/).map(t=>t.trim()).filter(Boolean)
-      });
-    }
-    sources.push({territory:f.territory, rows:rows});
+/* th_pins -> the same {book, problems} shape the JSON path returns, plus
+   `notes` for the preview. Read through readJSON rather than window.Store:
+   route-board.html loads this file without data-store.js. */
+function parsePinsBook(){
+  const p = readJSON('th_pins');
+  const rows = (p && Array.isArray(p.rows)) ? p.rows : [];
+  if(!rows.length){
+    throw new Error('No pins have been uploaded yet. Open Accounts \u203a Master workbook '
+      + 'and upload Territory_Master.xlsx first.');
+  }
+  /* Grouped in sheet order, and the territories come out in the order they
+     first appear — which is the order the pool renders in. */
+  const byTerr = {};
+  const order = [];
+  rows.forEach((r, i)=>{
+    const terr = String(r.territory || '').trim();
+    if(!terr) return;
+    if(!byTerr[terr]){ byTerr[terr] = []; order.push(terr); }
+    byTerr[terr].push({
+      at:   'pin ' + (i + 1),
+      name: String(r.title || r.label || ''),
+      note: String(r.note || ''),
+      url:  String(r.mapsUrl || ''),
+      // null means the sheet had no Tags column at all, which carries the
+      // current book's tags forward instead of blanking them.
+      tags: Array.isArray(r.tags) ? r.tags.map(String) : null
+    });
   });
-  const parsed = bookFromSources(sources, 'Google Takeout (' + files.length + ' list(s))');
-  parsed.problems = problems.concat(parsed.problems);
-  parsed.notes = notes;
-  // Every row rejected: refuse rather than let Apply install an empty book.
+  const sources = order.map(t=>({territory:t, rows:byTerr[t]}));
+  const parsed = bookFromSources(sources, 'Territory_Master pins'
+    + (p && p.fileName ? ' (' + p.fileName + ')' : ''));
+  const taggedRows = rows.filter(r=>Array.isArray(r.tags)).length;
+  parsed.notes = order.map(t=>'<b>' + escapeHtml(t) + '</b> — ' + byTerr[t].length + ' pin(s)')
+    .concat([taggedRows
+      ? 'Tags came through on ' + taggedRows + ' pin(s).'
+      : 'No tags in the sheet — existing tags preserved.']);
   if(!Object.keys(parsed.book.accounts).length){
     throw new Error('No usable accounts found — all ' + parsed.problems.length
-      + ' row(s) were rejected. First: ' + (parsed.problems[0] || 'unknown reason'));
+      + ' pin(s) were rejected. First: ' + (parsed.problems[0] || 'unknown reason'));
   }
   return parsed;
 }
@@ -2052,68 +2071,89 @@ function parseXrefText(text){
   const table = parseDelimited(text, '\t');
   if(!table.length) throw new Error('Nothing pasted.');
   const idx = headerIndex(table[0], XREF_COLS);
-  if(idx.placeId === -1 && idx.mapsUrl === -1){
+  if(idx.sfAccountId === -1){
     // Also what a paste with no header row looks like, which is the likelier
     // mistake — so name both possibilities rather than guessing.
-    throw new Error('No PlaceID or MapsURL column, so nothing here can be keyed to an account. '
+    throw new Error('No SFAccountID column, which is what every row is keyed on. '
       + 'Check the header row was included. First row reads: ' + table[0].join(' | '));
   }
   const accounts = {};
   const unmatched = [];
   const problems = [];
-  let rows = 0;
+  let rows = 0, noPlace = 0;
   for(let i = 1; i < table.length; i++){
     const r = table[i];
     const cell = at => (at === -1 || r[at] == null) ? '' : xrefCell(r[at]);
     rows++;
     const rec = {
+      sfAccountId: cell(idx.sfAccountId),
       // CardCode is a STRING and stays one: 024060 is not 24060, and the
       // leading zero is part of the account number.
       cardCode:    cell(idx.cardCode),
-      sfAccountId: cell(idx.sfAccountId),
       city:        cell(idx.city),
       // Stored raw. "Waco/ East Austin" and "Waco/East Austin" both occur;
       // resolving them is shell.js's zoneByName job, not this importer's.
       route:       cell(idx.route),
-      name:        cell(idx.name)
+      name:        cell(idx.name),
+      placeId:     ''
     };
-    // PlaceID first. MapsURL is only a fallback because it is a formula and
-    // reads blank whenever the workbook was saved without recalculating.
-    let id = cell(idx.placeId);
-    if(!PLACE_ID_RE.test(id)) id = placeIdFromUrl(id) || placeIdFromUrl(cell(idx.mapsUrl)) || '';
-    if(!id){
+    /* PlaceID first, MapsURL only as a fallback: MapsURL is a formula and
+       reads blank whenever the workbook was saved without recalculating.
+       A row with neither is kept, not rejected — it simply cannot be shown
+       on the board, while Visits and Purchases still reach it by SFAccountID.
+       That is the whole reason this is keyed on SFAccountID. */
+    let pid = cell(idx.placeId);
+    if(!PLACE_ID_RE.test(pid)) pid = placeIdFromUrl(pid) || placeIdFromUrl(cell(idx.mapsUrl)) || '';
+    rec.placeId = pid;
+    if(!pid) noPlace++;
+
+    if(!rec.sfAccountId){
       unmatched.push({
-        name: rec.name, cardCode: rec.cardCode, sfAccountId: rec.sfAccountId,
-        city: rec.city, route: rec.route, reason: 'no place id'
+        name: rec.name, cardCode: rec.cardCode, sfAccountId: '',
+        city: rec.city, route: rec.route, reason: 'no salesforce account id'
       });
       continue;
     }
-    if(accounts[id]){
-      problems.push('row ' + (i+1) + ' (' + (rec.name || 'unnamed') + '): same place ID as "'
-        + (accounts[id].name || 'unnamed') + '" — kept the first.');
+    if(accounts[rec.sfAccountId]){
+      problems.push('row ' + (i+1) + ' (' + (rec.name || 'unnamed') + '): same SFAccountID as "'
+        + (accounts[rec.sfAccountId].name || 'unnamed') + '" — kept the first.');
       continue;
     }
-    accounts[id] = rec;
+    accounts[rec.sfAccountId] = rec;
   }
   if(!rows) throw new Error('Only a header row — no account rows to read.');
-  return {accounts: accounts, unmatched: unmatched, problems: problems, rows: rows};
+  return {accounts: accounts, unmatched: unmatched, problems: problems,
+          rows: rows, noPlace: noPlace};
 }
 
 let pendingXref = null;
 function showXrefPreview(parsed){
   pendingXref = parsed;
   const ids = Object.keys(parsed.accounts);
-  const inBook = ids.filter(id=>ACCOUNTS[id]);
-  const notInBook = ids.filter(id=>!ACCOUNTS[id]);
-  let h = '<div><b>'+parsed.rows+'</b> row(s) read, <b>'+ids.length+'</b> keyed to a place ID.</div>'
-        + '<div class="add">'+inBook.length+' matched an account in the current book</div>';
+  const withPlace = ids.filter(id=>parsed.accounts[id].placeId);
+  const inBook = withPlace.filter(id=>ACCOUNTS[parsed.accounts[id].placeId]);
+  const notInBook = withPlace.filter(id=>!ACCOUNTS[parsed.accounts[id].placeId]);
+  const noPlaceIds = ids.filter(id=>!parsed.accounts[id].placeId);
+  let h = '<div><b>'+parsed.rows+'</b> row(s) read, <b>'+ids.length
+        + '</b> keyed on SFAccountID.</div>'
+        + '<div class="add">'+inBook.length+' of them match an account on the board</div>';
   if(notInBook.length){
-    h += '<div class="upd">'+notInBook.length+' keyed, but not in the current book</div>'
+    h += '<div class="upd">'+notInBook.length+' have a place ID that is not in the current book</div>'
       +  listSample(notInBook.map(id=>({name: parsed.accounts[id].name || id})), 5);
+  }
+  if(noPlaceIds.length){
+    /* Not an error and not a loss. These are stored and reachable by anything
+       joining on SFAccountID — the visit log and the purchase CSVs — they just
+       have no pin, so no card can show them. */
+    h += '<div class="upd" style="margin-top:8px;">'+noPlaceIds.length
+      +  ' have no place ID, so they are stored but cannot appear on the board:</div><ul>'
+      +  noPlaceIds.slice(0,10).map(id=>'<li>'+escapeHtml(parsed.accounts[id].name || id)+'</li>').join('')
+      +  (noPlaceIds.length>10 ? '<li>… and '+(noPlaceIds.length-10)+' more</li>' : '')
+      +  '</ul>';
   }
   if(parsed.unmatched.length){
     h += '<div class="del" style="margin-top:8px;">'+parsed.unmatched.length
-      +  ' row(s) had no place ID and no Maps URL:</div><ul>'
+      +  ' row(s) had no SFAccountID and could not be keyed at all:</div><ul>'
       +  parsed.unmatched.slice(0,10).map(u=>'<li>'+escapeHtml(u.name || '(unnamed)')
            + (u.cardCode ? ' — '+escapeHtml(u.cardCode) : '')+'</li>').join('')
       +  (parsed.unmatched.length>10 ? '<li>… and '+(parsed.unmatched.length-10)+' more</li>' : '')
@@ -2257,11 +2297,12 @@ function showBookPreview(parsed){
   if(bigLoss){
     h += '<div class="danger" style="margin-top:8px;">This drops '+d.removed.length+' of '
       +  curTotal+' accounts ('+Math.round(lossPct*100)+'%).</div>'
-      +  '<div style="margin-top:4px;">That is what one missing export file looks like. Check every '
-      +  'list is in the selection before applying.</div>'
+      +  '<div style="margin-top:4px;">That is what a partial export looks like — one Maps list '
+      +  'missing from the Pins sheet, or a workbook saved mid-edit. Check the source before '
+      +  'applying; their notes and tags exist nowhere else.</div>'
       +  '<label class="danger" style="display:block; margin-top:6px; font-weight:400;">'
       +  '<input type="checkbox" id="bookLossAck" style="vertical-align:middle;"> '
-      +  'I have checked the selection — drop them.</label>';
+      +  'I have checked — drop them.</label>';
   }
   if(d.lostAssign.length || d.lostSf.length){
     h += '<div class="danger" style="margin-top:8px;">'
@@ -2292,30 +2333,40 @@ function clearBookPreview(){
   root.getElementById('bookApply').disabled = false;
 }
 
-/* The picked Takeout files and their derived territories. Kept separate from
-   the preview so it survives a parse error — when a file is misnamed, that
-   list is the thing you need to be looking at. */
-function showCsvFiles(files){
-  const el = root.getElementById('csvFiles');
-  el.innerHTML = files.map(f=>{
-    const terr = csvTerritoryOf(f.name);
-    return '<div class="f"><span class="fn">'+escapeHtml(f.name)+'</span>'
+/* What is sitting in th_pins, shown whether or not you import it — so "there
+   are no pins here" and "the pins are older than the book" are both visible
+   before you go looking for the button. */
+function showPinsStatus(){
+  const el = root.getElementById('pinsStatus');
+  const p = readJSON('th_pins');
+  const rows = (p && Array.isArray(p.rows)) ? p.rows : [];
+  const btn = root.getElementById('bookPins');
+  if(!rows.length){
+    el.innerHTML = '<div class="f"><span class="bad">No pins uploaded.</span>'
+      + '<span>Upload <span class="fn">Territory_Master.xlsx</span> on '
+      + 'Accounts &rsaquo; Master workbook first.</span></div>';
+    btn.disabled = true;
+  } else {
+    const terrs = {};
+    rows.forEach(r=>{ const t = String(r.territory||'').trim(); if(t) terrs[t] = (terrs[t]||0)+1; });
+    el.innerHTML = '<div class="f"><span class="terr">' + rows.length + ' pin(s)</span>'
       + '<span class="arrow">&rarr;</span>'
-      + (terr ? '<span class="terr">'+escapeHtml(terr)+'</span>'
-              : '<span class="bad">no territory name left once ".csv" is removed</span>')
-      + '</div>';
-  }).join('');
+      + '<span>' + Object.keys(terrs).map(t=>escapeHtml(t)+' '+terrs[t]).join(', ') + '</span></div>'
+      + (p.generated ? '<div class="f"><span class="fn">uploaded '
+          + escapeHtml(String(p.generated).slice(0,19).replace('T',' '))
+          + (p.fileName ? ' from ' + escapeHtml(p.fileName) : '') + '</span></div>' : '');
+    btn.disabled = false;
+  }
   el.style.display = 'block';
 }
-function clearCsvFiles(){
-  const el = root.getElementById('csvFiles');
+function clearPinsStatus(){
+  const el = root.getElementById('pinsStatus');
   el.innerHTML = ''; el.style.display = 'none';
 }
 
 function tryBookText(text){
   const msg = root.getElementById('bookMsg');
   msg.textContent = ''; msg.className = 'msg';
-  clearCsvFiles();     // a pasted book and a picked CSV set are different inputs
   try {
     showBookPreview(parseBookText(text));
   } catch(e){
@@ -2324,37 +2375,11 @@ function tryBookText(text){
   }
 }
 
-/* Reads every picked file before parsing any of them. A book assembled from
-   half the selection is exactly the partial import the loss guard exists to
-   catch, so there is no reason to build one in the first place. */
-function readFilesAsText(fileList, done, msgEl){
-  const files = Array.prototype.slice.call(fileList || []);
-  if(!files.length) return;
-  const out = new Array(files.length);
-  let left = files.length, failed = false;
-  files.forEach((f,i)=>{
-    const r = new FileReader();
-    r.onload = ()=>{
-      out[i] = {name:f.name, territory:csvTerritoryOf(f.name), text:String(r.result)};
-      if(!--left && !failed) done(out);
-    };
-    r.onerror = ()=>{
-      if(failed) return;
-      failed = true;
-      msgEl.textContent = 'Could not read ' + f.name + '.'; msgEl.className = 'msg err';
-    };
-    r.readAsText(f);
-  });
-}
-
-function tryCsvFiles(fileList, msgEl){
+function tryPinsBook(msgEl){
   msgEl.textContent = ''; msgEl.className = 'msg';
   clearBookPreview();
-  showCsvFiles(Array.prototype.slice.call(fileList || []));
-  readFilesAsText(fileList, files=>{
-    try { showBookPreview(parseTakeoutCsvs(files)); }
-    catch(e){ clearBookPreview(); msgEl.textContent = e.message; msgEl.className = 'msg err'; }
-  }, msgEl);
+  try { showBookPreview(parsePinsBook()); }
+  catch(e){ clearBookPreview(); msgEl.textContent = e.message; msgEl.className = 'msg err'; }
 }
 
 // ---- Annotations import ----
@@ -2597,14 +2622,19 @@ function buildDataPanel(){
 
   function refreshXrefStatus(){
     const ids = Object.keys(XREF.accounts);
-    const matched = ids.filter(id=>ACCOUNTS[id]).length;
+    const onBoard = Object.keys(XREF.byPlace).filter(pid=>ACCOUNTS[pid]).length;
     root.getElementById('xrefStatus').innerHTML = ids.length
-      ? 'Overlay: <b>'+ids.length+'</b> workbook row(s) keyed, <b>'+matched
-        + '</b> of them matching an account in the current book'
+      ? 'Overlay: <b>'+ids.length+'</b> workbook row(s) keyed on SFAccountID, <b>'+onBoard
+        + '</b> of them matching an account on the board'
         + (XREF.unmatched.length ? ', plus <b>'+XREF.unmatched.length+'</b> that could not be keyed' : '')
         + (XREF.generated ? ' (pasted '
             + escapeHtml(String(XREF.generated).slice(0,19).replace('T',' ')) + ')' : '')
         + '.'
+        /* An overlay from before the reshape still resolves, but only for the
+           accounts that had a pin — which is the limitation the reshape
+           removed, so say so rather than let it look complete. */
+        + (XREF.legacy ? ' <b>This overlay predates the move to SFAccountID keying</b> — '
+            + 'paste the sheet again to pick up the rows that have no map pin.' : '')
       : '<b>No overlay pasted.</b> CardCode, Salesforce account id, city and route are not '
         + 'available until the workbook is pasted in below.';
   }
@@ -2635,7 +2665,7 @@ function buildDataPanel(){
   root.getElementById('dataBtn').onclick = ()=>{
     refreshStatus(); refreshXrefStatus(); refreshWindowStatus(); renderWindowList();
     bookMsg.textContent=''; annMsg.textContent=''; xrefMsg.textContent='';
-    clearBookPreview(); clearCsvFiles(); clearXrefPreview(); clearAnnPreview();
+    clearBookPreview(); showPinsStatus(); clearXrefPreview(); clearAnnPreview();
     modal.style.display='flex';
   };
   [['winAll','all'],['winReview','review'],['winEdited','edited']].forEach(pair=>{
@@ -2645,12 +2675,7 @@ function buildDataPanel(){
   modal.addEventListener('click', e=>{ if(e.target.id==='dataModal') modal.style.display='none'; });
 
   // Book
-  root.getElementById('bookCsv').onchange = e=>{
-    // The File objects survive clearing .value, and clearing it is what lets
-    // the same selection be picked again after a fix.
-    tryCsvFiles(e.target.files, bookMsg);
-    e.target.value = '';
-  };
+  root.getElementById('bookPins').onclick = ()=>tryPinsBook(bookMsg);
   root.getElementById('bookFile').onchange = e=>readFileInto(e.target, tryBookText, bookMsg);
   root.getElementById('bookPasteToggle').onclick = ()=>{
     const ta = root.getElementById('bookPaste');
@@ -2661,7 +2686,7 @@ function buildDataPanel(){
   };
   root.getElementById('bookPreviewBtn').onclick = ()=>tryBookText(root.getElementById('bookPaste').value);
   root.getElementById('bookCancel').onclick = ()=>{
-    clearBookPreview(); clearCsvFiles(); bookMsg.textContent='';
+    clearBookPreview(); bookMsg.textContent='';
   };
   root.getElementById('bookCopy').onclick = ()=>copyText(bookForExport(), bookMsg);
   root.getElementById('bookDownload').onclick = ()=>downloadText('accounts.json', bookForExport(), bookMsg);

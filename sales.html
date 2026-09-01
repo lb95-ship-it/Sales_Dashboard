@@ -433,6 +433,8 @@
        data-tabs data-default="bonus">
     <button data-panel="bonus">Bonus Tracker</button>
     <button data-panel="lostsales">Lost Sales</button>
+    <button data-panel="purchases">Purchases</button>
+    <button data-panel="nqv">NQV gap</button>
   </div>
 
   <!-- ===================== BONUS TRACKER =====================
@@ -625,6 +627,147 @@
 
   </section>
 
+  <!-- ===================== PURCHASES =====================
+       The per-category order CSVs out of the Report Builder portal. One drop
+       zone, up to ten files, each file one category. A partial import is
+       normal: re-importing one category replaces only that category. -->
+  <section class="tabpanel" data-panel="purchases" role="tabpanel" aria-label="Purchases" hidden>
+
+    <!-- ---- Import ---- -->
+    <section id="puImportView">
+      <p class="section-label">
+        <span>Upload the category exports</span>
+        <span class="mono">.csv</span>
+      </p>
+
+      <p class="hint" style="margin-bottom:var(--s-3);">
+        One file per category, up to ten at a time. Each file&rsquo;s category is read
+        from the report header; where that fails you can set it yourself before
+        importing. Only the categories you upload are replaced &mdash; the rest are
+        left as they are.
+      </p>
+
+      <div class="row">
+        <label class="btn btn-primary" for="puFiles" style="cursor:pointer;">Choose CSV files&hellip;</label>
+        <input type="file" id="puFiles" accept=".csv,text/csv" multiple hidden>
+        <button class="btn" id="puClearPick" hidden>Clear selection</button>
+      </div>
+
+      <div class="err" id="puErr" hidden style="margin-top:var(--s-4);"></div>
+
+      <div id="puPreview" hidden style="margin-top:var(--s-5);">
+        <p class="section-label"><span>Ready to import</span></p>
+        <div class="card" id="puPreviewBody"></div>
+        <div class="row" style="margin-top:var(--s-4);">
+          <button class="btn btn-primary" id="puApplyBtn" style="flex:1;">Import these categories</button>
+          <button class="btn" id="puDiscardBtn">Discard</button>
+        </div>
+      </div>
+
+      <div class="row" id="puBackRow" hidden style="justify-content:center; margin-top:var(--s-5);">
+        <button class="btn btn-sm" id="puBackBtn">Back to the report</button>
+      </div>
+
+      <p class="hint" style="text-align:center; margin-top:var(--s-5);">
+        The files are read in your browser and kept on this device only. Nothing is
+        uploaded and nothing is committed to the repo.
+      </p>
+    </section>
+
+    <!-- ---- Report ---- -->
+    <section id="puReportView" hidden>
+
+      <div class="ls-chips" id="puCatRow"></div>
+      <p class="hint" id="puAsOf" style="margin-top:var(--s-2);"></p>
+
+      <div class="ls-stats" id="puStats" style="margin-top:var(--s-3);"></div>
+
+      <div class="ls-search" style="margin-top:var(--s-4);">
+        <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+        </svg>
+        <input type="search" class="input" id="puSearch" placeholder="Search account or card code"
+               aria-label="Search accounts">
+      </div>
+
+      <div id="puAccounts" style="margin-top:var(--s-4);"></div>
+
+      <p class="section-label" style="margin-top:var(--s-5);"><span>Month-end archive</span></p>
+      <div class="card">
+        <p class="hint" style="margin-bottom:var(--s-2);">
+          When a month is final, snapshot it here. Archiving copies what is loaded
+          now; it does not clear it, and importing afterwards does not disturb the
+          snapshot. Archiving a month you already have replaces it.
+        </p>
+        <div class="row">
+          <input type="month" class="input" id="puArchMonth" style="max-width:200px;">
+          <button class="btn" id="puArchBtn">Archive this month</button>
+        </div>
+        <div id="puArchList" style="margin-top:var(--s-3);"></div>
+      </div>
+
+      <div class="row" style="justify-content:center; margin-top:var(--s-5);">
+        <button class="btn btn-sm" id="puImportMoreBtn">Import more categories</button>
+        <button class="btn btn-sm btn-danger" id="puClearBtn">Clear loaded categories</button>
+      </div>
+      <div id="puClearConfirm" hidden style="margin-top:var(--s-3);">
+        <p class="hint" id="puClearText" style="text-align:center; max-width:60ch; margin:0 auto;"></p>
+        <div class="row" style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
+          <button class="btn btn-sm btn-danger" id="puClearYes">Yes, clear</button>
+          <button class="btn btn-sm" id="puClearNo">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+  </section>
+
+  <!-- ===================== NQV GAP =====================
+       Purchases joined to the visit log through the account crosswalk. The
+       question it answers is not "what did I sell" but "what am I selling that
+       is not counting", and — because credit runs on a rolling six weeks —
+       "what is about to stop counting". -->
+  <section class="tabpanel" data-panel="nqv" role="tabpanel" aria-label="NQV gap" hidden>
+
+    <div id="nqvBlocked" hidden>
+      <p class="section-label"><span>Not enough loaded yet</span></p>
+      <div class="card" id="nqvBlockedBody"></div>
+    </div>
+
+    <div id="nqvBody" hidden>
+      <div class="card">
+        <div class="row" style="align-items:flex-end; gap:var(--s-4);">
+          <div>
+            <label class="stat-label" for="nqvAsOf" style="display:block; margin-bottom:var(--s-2);">
+              Credit as of
+            </label>
+            <input type="date" class="input" id="nqvAsOf" style="max-width:180px;">
+          </div>
+          <p class="hint" style="flex:1; min-width:16ch;">
+            An office is credited while you have a <b>Visit</b> logged with it inside the
+            previous six weeks. Six weeks is one full route rotation, so an office you
+            miss on a pass goes uncredited before you are back.
+          </p>
+        </div>
+        <div class="ls-chips" id="nqvScopeRow" style="margin-top:var(--s-3);"></div>
+      </div>
+
+      <div class="ls-stats" id="nqvStats" style="margin-top:var(--s-4);"></div>
+
+      <div class="ls-chips" id="nqvBucketRow" style="margin-top:var(--s-4);"></div>
+
+      <div class="ls-search" style="margin-top:var(--s-3);">
+        <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+        </svg>
+        <input type="search" class="input" id="nqvSearch" placeholder="Search account or card code"
+               aria-label="Search accounts">
+      </div>
+
+      <div id="nqvList" style="margin-top:var(--s-4);"></div>
+    </div>
+
+  </section>
+
 </main>
 
 <!-- Export modal -->
@@ -649,7 +792,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788149452"></script>
+<script src="assets/js/data-store.js?v=1788231730"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -2262,6 +2405,889 @@
     if (hasData() && !Store.lostSales.readSummary()) writeSummary();
 
     showReport();
+  });
+
+})();
+
+/* ===========================================================================
+   Purchases — page-scoped.
+
+   Reads the per-category order CSVs out of the Report Builder portal. Each
+   file is one category and the rows are ORDER LINE ITEMS, not accounts: one
+   account appears many times, across several DocNum_1 values. They are
+   aggregated to distinct accounts per category with the line detail kept
+   underneath.
+
+   Two things about this export are load-bearing:
+
+   1. CardCode is TEXT and its leading zeros are significant. It stays a
+      string from the cell to the object key, and is never compared
+      numerically. Getting this wrong merges 024060 into 24060 silently.
+   2. The header row is not the first row, and three of its column names
+      (textbox22, textbox25, textbox51) are report-designer artifacts that
+      change if the report is regenerated. So the header is located by
+      finding the row containing CardCode, and only the stable names are
+      read from it.
+
+   Deliberately ignored: ZipCode is a billing address and two Austin accounts
+   carry a Nevada zip, so Accounts owns location; U_Top50 is the company's
+   metric and the user tracks her own Top 25 instead.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  /* The same category list the Bonus Tracker uses. Duplicated rather than
+     shared because the two IIFEs are page-scoped and nothing else on this
+     page crosses between them; if a third reader appears, hoist it. */
+  var CATS = [
+    { id:'2',  name:'Group 10',      bonus:false },
+    { id:'3',  name:'Surgical',      bonus:false },
+    { id:'4',  name:'Quintess',      bonus:true  },
+    { id:'5',  name:'Eyelid Hygiene',bonus:true  },
+    { id:'10', name:'Surgical Kits', bonus:false },
+    { id:'16', name:'Retaine Tears', bonus:true  },
+    { id:'17', name:'Retaine Supp.', bonus:true  },
+    { id:'18', name:'Zoria',         bonus:false },
+    { id:'20', name:'Device',        bonus:true  },
+    { id:'21', name:'Allergy',       bonus:true  }
+  ];
+  function catById(id) {
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].id === String(id)) return CATS[i];
+    return null;
+  }
+
+  var MAX_FILES = 10;
+  var esc = window.Shell && Shell.escapeHtml ? Shell.escapeHtml : function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  };
+
+  var pending = null;   // parsed files awaiting Import
+  var search  = '';
+  var activeCat = null;
+
+  /* --- Parsing ----------------------------------------------------------- */
+
+  /* RFC 4180. Descriptions carry commas, so this is a scanner, not a split. */
+  function parseCsv(text) {
+    var s = String(text == null ? '' : text).replace(/^\uFEFF/, '');
+    var rows = [], row = [], field = '', quoted = false, i = 0;
+    while (i < s.length) {
+      var c = s.charAt(i);
+      if (quoted) {
+        if (c === '"') {
+          if (s.charAt(i + 1) === '"') { field += '"'; i += 2; continue; }
+          quoted = false; i++; continue;
+        }
+        if (c === '\r') { if (s.charAt(i + 1) === '\n') i++; field += '\n'; i++; continue; }
+        field += c; i++; continue;
+      }
+      if (c === '"') { quoted = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r' || c === '\n') {
+        if (c === '\r' && s.charAt(i + 1) === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = ''; i++; continue;
+      }
+      field += c; i++;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function norm(h) { return String(h == null ? '' : h).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+  /* Same defensive number reader the Lost Sales import uses, and for the same
+     reason: figures arrive with $ , () and the occasional non-breaking space,
+     any one of which turns parseFloat into NaN for a value that looks fine. */
+  function num(raw) {
+    if (raw === null || raw === undefined) return null;
+    var s = String(raw).replace(/[   ]/g, ' ').trim();
+    if (!s || s === '-' || s === '—') return null;
+    var neg = /^\(.*\)$/.test(s) || s.indexOf('-') !== -1;
+    s = s.replace(/[()$,%\s\-+]/g, '');
+    if (!s || !/^\d*\.?\d+$/.test(s)) return null;
+    var n = parseFloat(s);
+    return isNaN(n) ? null : (neg ? -n : n);
+  }
+  function money(n) {
+    if (n === null || n === undefined) return '—';
+    return (n < 0 ? '-$' : '$') +
+      Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function money0(n) {
+    if (n === null || n === undefined) return '—';
+    return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+  }
+
+  /* The header is wherever CardCode is, not row 0: the export puts a title
+     block above it whose height is not fixed. */
+  function findHeader(rows) {
+    for (var i = 0; i < rows.length && i < 40; i++) {
+      for (var j = 0; j < rows[i].length; j++) {
+        if (norm(rows[i][j]) === 'cardcode') return i;
+      }
+    }
+    return -1;
+  }
+
+  var COLS = {
+    docDate:  ['docdate'],
+    docNum:   ['docnum1', 'docnum'],
+    cardCode: ['cardcode'],
+    cardName: ['cardname'],
+    itemCode: ['itemcode'],
+    descr:    ['dscription', 'description'],   // misspelled in the source
+    qty:      ['quanity', 'quantity'],         // misspelled in the source
+    price:    ['price'],
+    base:     ['base'],
+    lineTotal:['linetotal']
+  };
+  function headerIndex(headerRow) {
+    var n = headerRow.map(norm), idx = {};
+    Object.keys(COLS).forEach(function (field) {
+      idx[field] = -1;
+      COLS[field].some(function (want) {
+        var at = n.indexOf(want);
+        if (at === -1) return false;
+        idx[field] = at; return true;
+      });
+    });
+    /* Discount % is a report-designer column (textbox51) sitting between base
+       and LineTotal. Read positionally because its name is not stable, and
+       drop it if the position shifts rather than reading the wrong column. */
+    idx.discountPct = -1;
+    if (idx.base !== -1 && idx.lineTotal === idx.base + 2) idx.discountPct = idx.base + 1;
+    return idx;
+  }
+
+  /* The category id sits somewhere in the block above the header. Look for a
+     bare known id, then a known category name, then fall back to the
+     filename. Whatever is found is shown in the preview and can be overridden
+     there — a wrong category silently replacing a good one is worse than
+     asking. */
+  function detectCategory(rows, headerIdx, fileName) {
+    var i, j, cell, cat;
+    for (i = 0; i < headerIdx; i++) {
+      for (j = 0; j < rows[i].length; j++) {
+        cell = String(rows[i][j] == null ? '' : rows[i][j]).trim();
+        if (!cell) continue;
+        cat = catById(cell);
+        if (cat) return { cat: cat, how: 'id "' + cell + '" in the report header' };
+      }
+    }
+    for (i = 0; i < headerIdx; i++) {
+      for (j = 0; j < rows[i].length; j++) {
+        var v = norm(rows[i][j]);
+        if (!v) continue;
+        for (var k = 0; k < CATS.length; k++) {
+          if (v.indexOf(norm(CATS[k].name)) !== -1) {
+            return { cat: CATS[k], how: 'name in the report header' };
+          }
+        }
+      }
+    }
+    var fn = norm(fileName);
+    for (i = 0; i < CATS.length; i++) {
+      if (fn.indexOf(norm(CATS[i].name)) !== -1) {
+        return { cat: CATS[i], how: 'the filename' };
+      }
+    }
+    return { cat: null, how: null };
+  }
+
+  function parseFile(fileName, text) {
+    var rows = parseCsv(text);
+    if (!rows.length) throw new Error('"' + fileName + '" is empty.');
+    var h = findHeader(rows);
+    if (h === -1) {
+      throw new Error('"' + fileName + '": no CardCode column found in the first 40 rows. ' +
+        'That is the anchor for every other column, so this is probably not a category export.');
+    }
+    var idx = headerIndex(rows[h]);
+    if (idx.cardCode === -1 || idx.lineTotal === -1) {
+      throw new Error('"' + fileName + '": found a header row but no ' +
+        (idx.cardCode === -1 ? 'CardCode' : 'LineTotal') + ' column.');
+    }
+    var det = detectCategory(rows, h, fileName);
+
+    var accounts = {}, lineCount = 0, skipped = 0, total = 0;
+    var minDate = null, maxDate = null;
+    for (var r = h + 1; r < rows.length; r++) {
+      var row = rows[r];
+      /* trim() alone is enough here: it strips U+00A0 and U+FEFF along with
+         ordinary whitespace, and the numeric fields go through num(), which
+         handles a non-breaking space sitting INSIDE a figure. */
+      var cell = function (at) {
+        return (at === -1 || row[at] == null) ? '' : String(row[at]).trim();
+      };
+      /* CardCode is the key and it is a STRING. Trimmed only — never parsed,
+         never re-formatted, or 024060 becomes 24060 and merges with a
+         different account. */
+      var code = cell(idx.cardCode);
+      if (!code) { if (row.some(function (c) { return String(c).trim(); })) skipped++; continue; }
+
+      var lt   = num(cell(idx.lineTotal));
+      var qty  = num(cell(idx.qty));
+      var price= num(cell(idx.price));
+      var base = num(cell(idx.base));
+      var date = cell(idx.docDate);
+      if (date) {
+        if (minDate === null || date < minDate) minDate = date;
+        if (maxDate === null || date > maxDate) maxDate = date;
+      }
+
+      var a = accounts[code];
+      if (!a) {
+        a = accounts[code] = { cardCode: code, cardName: cell(idx.cardName),
+                               total: 0, units: 0, listTotal: 0, docNums: [], lines: [] };
+      }
+      if (!a.cardName) a.cardName = cell(idx.cardName);
+      if (lt !== null) { a.total += lt; total += lt; }
+      if (qty !== null) a.units += qty;
+      /* base is per-unit LIST, price is per-unit PAID. The gap is the discount
+         this account received; there is no margin data in this export. */
+      if (base !== null && qty !== null) a.listTotal += base * qty;
+      var dn = cell(idx.docNum);
+      if (dn && a.docNums.indexOf(dn) === -1) a.docNums.push(dn);
+      a.lines.push({
+        date: date, docNum: dn, itemCode: cell(idx.itemCode), descr: cell(idx.descr),
+        qty: qty, price: price, base: base, lineTotal: lt
+      });
+      lineCount++;
+    }
+
+    var codes = Object.keys(accounts);
+    if (!codes.length) {
+      throw new Error('"' + fileName + '": header found but no rows carried a CardCode.');
+    }
+    codes.forEach(function (c) {
+      var a = accounts[c];
+      a.discount = a.listTotal > 0 ? (a.listTotal - a.total) : 0;
+    });
+    return {
+      fileName: fileName, cat: det.cat, detectedHow: det.how,
+      accounts: accounts, accountCount: codes.length,
+      rowCount: lineCount, skipped: skipped, total: total,
+      firstDate: minDate, lastDate: maxDate,
+      hasDiscountCol: idx.discountPct !== -1
+    };
+  }
+
+  /* --- Import flow -------------------------------------------------------- */
+
+  function showErr(msg) {
+    var el = document.getElementById('puErr');
+    el.textContent = msg; el.hidden = false;
+  }
+  function clearErr() { document.getElementById('puErr').hidden = true; }
+
+  function readFiles(fileList, done) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    if (files.length > MAX_FILES) {
+      showErr('That is ' + files.length + ' files. Ten at a time is the limit — ' +
+              'one per category.');
+      return;
+    }
+    var out = new Array(files.length), left = files.length, failed = false;
+    files.forEach(function (f, i) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        out[i] = { name: f.name, text: String(fr.result) };
+        if (!--left && !failed) done(out);
+      };
+      fr.onerror = function () {
+        if (failed) return;
+        failed = true; showErr('Could not read ' + f.name + '.');
+      };
+      fr.readAsText(f);
+    });
+  }
+
+  function onFilesPicked(fileList) {
+    clearErr();
+    readFiles(fileList, function (files) {
+      var parsed = [];
+      try {
+        files.forEach(function (f) { parsed.push(parseFile(f.name, f.text)); });
+      } catch (e) {
+        pending = null;
+        document.getElementById('puPreview').hidden = true;
+        showErr(e.message);
+        return;
+      }
+      pending = parsed;
+      renderPreview();
+    });
+  }
+
+  function renderPreview() {
+    var existing = Store.purchases.readCategories();
+    var html = pending.map(function (p, i) {
+      var opts = CATS.map(function (c) {
+        var sel = (p.cat && p.cat.id === c.id) ? ' selected' : '';
+        return '<option value="' + c.id + '"' + sel + '>' + esc(c.name) +
+               (c.bonus ? ' — bonus' : '') + '</option>';
+      }).join('');
+      var replacing = p.cat && existing[p.cat.id];
+      return '<div class="pu-file"' + (i ? ' style="margin-top:var(--s-4);"' : '') + '>' +
+        '<div class="mono" style="font-size:12px;">' + esc(p.fileName) + '</div>' +
+        '<div class="row" style="margin-top:var(--s-2); align-items:center; gap:var(--s-2);">' +
+          '<label class="stat-label" for="puCat' + i + '">Category</label>' +
+          '<select class="input" id="puCat' + i + '" data-pufile="' + i + '" style="max-width:220px;">' +
+            '<option value=""' + (p.cat ? '' : ' selected') + '>— not detected —</option>' +
+            opts +
+        '</select></div>' +
+        '<p class="hint" style="margin-top:var(--s-2);">' +
+          (p.cat ? 'Detected from ' + esc(p.detectedHow) + '.'
+                 : '<b>Could not read the category from this file.</b> Pick it above before importing.') +
+          ' ' + p.accountCount + ' account(s), ' + p.rowCount + ' line item(s), ' + money0(p.total) + '.' +
+          (p.firstDate ? ' Dates ' + esc(p.firstDate) + ' to ' + esc(p.lastDate) + '.' : '') +
+          (p.skipped ? ' ' + p.skipped + ' row(s) had no CardCode and were skipped.' : '') +
+          (p.hasDiscountCol ? '' : ' Discount % column not in its usual position — not read.') +
+          (replacing ? ' <b>Replaces</b> the ' + esc(existing[p.cat.id].name) +
+                       ' data already loaded.' : '') +
+        '</p></div>';
+    }).join('');
+    document.getElementById('puPreviewBody').innerHTML = html;
+    document.getElementById('puPreview').hidden = false;
+    document.getElementById('puClearPick').hidden = false;
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#puPreviewBody [data-pufile]'), function (sel) {
+        sel.addEventListener('change', function () {
+          var p = pending[Number(sel.dataset.pufile)];
+          p.cat = catById(sel.value);
+          p.detectedHow = p.cat ? 'your choice' : null;
+          renderPreview();
+        });
+      });
+  }
+
+  function applyImport() {
+    if (!pending || !pending.length) return;
+    var missing = pending.filter(function (p) { return !p.cat; });
+    if (missing.length) {
+      showErr(missing.length + ' file(s) still have no category set. Pick one for each, ' +
+              'or remove them from the selection.');
+      return;
+    }
+    var dupes = {};
+    for (var i = 0; i < pending.length; i++) {
+      if (dupes[pending[i].cat.id]) {
+        showErr('Two files are both set to ' + pending[i].cat.name +
+                '. Each category can only come from one file.');
+        return;
+      }
+      dupes[pending[i].cat.id] = 1;
+    }
+    clearErr();
+
+    var cats = Store.purchases.readCategories();
+    pending.forEach(function (p) {
+      cats[p.cat.id] = {
+        id: p.cat.id, name: p.cat.name, bonus: p.cat.bonus,
+        importedAt: new Date().toISOString(), fileName: p.fileName,
+        rowCount: p.rowCount, total: p.total,
+        firstDate: p.firstDate, lastDate: p.lastDate,
+        accounts: p.accounts
+      };
+    });
+    var ok = Store.purchases.writeCategories(cats);
+    if (!ok) {
+      /* data-store falls back to an in-memory map when the quota is hit, which
+         would look like success and vanish on reload. Say so instead. */
+      showErr('Imported, but this device’s storage is full, so it was kept in memory only ' +
+              'and will be gone when you reload. Clear some categories or archived months.');
+    }
+    pending = null;
+    document.getElementById('puPreview').hidden = true;
+    document.getElementById('puFiles').value = '';
+    activeCat = null;
+    showReport();
+  }
+
+  /* --- Report ------------------------------------------------------------- */
+
+  function loaded() { return Store.purchases.readCategories(); }
+  function hasData() { return Object.keys(loaded()).length > 0; }
+
+  function catList() {
+    var cats = loaded();
+    return Object.keys(cats).map(function (k) { return cats[k]; })
+      .sort(function (a, b) { return b.total - a.total; });
+  }
+
+  function renderChips() {
+    var list = catList();
+    if (!activeCat || !loaded()[activeCat]) activeCat = list.length ? list[0].id : null;
+    document.getElementById('puCatRow').innerHTML = list.map(function (c) {
+      return '<button class="ls-chip' + (c.id === activeCat ? ' on' : '') + '" data-pucat="' +
+        esc(c.id) + '">' + esc(c.name) + (c.bonus ? ' •' : '') +
+        ' <span class="mono">' + money0(c.total) + '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pucat]'), function (b) {
+      b.addEventListener('click', function () {
+        activeCat = b.dataset.pucat; search = '';
+        document.getElementById('puSearch').value = '';
+        renderReport();
+      });
+    });
+  }
+
+  function renderStats() {
+    var c = loaded()[activeCat];
+    if (!c) { document.getElementById('puStats').innerHTML = ''; return; }
+    var codes = Object.keys(c.accounts);
+    var disc = codes.reduce(function (s, k) { return s + (c.accounts[k].discount || 0); }, 0);
+    var cells = [
+      ['Accounts', String(codes.length)],
+      ['Line items', String(c.rowCount)],
+      [c.bonus ? 'Total — bonus eligible' : 'Total', money0(c.total)],
+      ['Discount given', money0(disc)]
+    ];
+    /* .ls-stat is a pill built for span/value/span, not stacked divs. */
+    document.getElementById('puStats').innerHTML = cells.map(function (p) {
+      return '<div class="ls-stat"><span>' + esc(p[0]) + '</span><b>' +
+             esc(p[1]) + '</b></div>';
+    }).join('');
+  }
+
+  function renderAccounts() {
+    var c = loaded()[activeCat];
+    var el = document.getElementById('puAccounts');
+    if (!c) { el.innerHTML = ''; return; }
+    var q = search.toLowerCase();
+    var rows = Object.keys(c.accounts).map(function (k) { return c.accounts[k]; })
+      .filter(function (a) {
+        if (!q) return true;
+        return a.cardName.toLowerCase().indexOf(q) !== -1 ||
+               a.cardCode.toLowerCase().indexOf(q) !== -1;
+      })
+      .sort(function (a, b) { return b.total - a.total; });
+    if (!rows.length) {
+      el.innerHTML = '<p class="hint" style="text-align:center;">No accounts match.</p>';
+      return;
+    }
+    el.innerHTML = rows.map(function (a) {
+      return '<details class="card" style="margin-bottom:var(--s-2);">' +
+        '<summary style="cursor:pointer; display:flex; justify-content:space-between; gap:var(--s-3); align-items:baseline;">' +
+          '<span><b>' + esc(a.cardName || '(unnamed)') + '</b> ' +
+            '<span class="mono hint">' + esc(a.cardCode) + '</span></span>' +
+          '<span class="mono">' + money(a.total) + '</span>' +
+        '</summary>' +
+        '<p class="hint" style="margin-top:var(--s-2);">' +
+          a.lines.length + ' line(s) across ' + a.docNums.length + ' order(s)' +
+          (a.units ? ', ' + a.units.toLocaleString('en-US') + ' unit(s)' : '') +
+          (a.discount > 0 ? ', ' + money(a.discount) + ' off list' : '') + '.' +
+        '</p>' +
+        '<div style="overflow-x:auto; margin-top:var(--s-2);">' +
+        '<table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
+        '<tr><th style="text-align:left;">Date</th><th style="text-align:left;">Order</th>' +
+        '<th style="text-align:left;">Item</th><th style="text-align:right;">Qty</th>' +
+        '<th style="text-align:right;">Paid</th><th style="text-align:right;">List</th>' +
+        '<th style="text-align:right;">Total</th></tr>' +
+        a.lines.map(function (l) {
+          return '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.docNum) + '</td>' +
+            '<td>' + esc(l.descr || l.itemCode) + '</td>' +
+            '<td style="text-align:right;">' + (l.qty === null ? '—' : l.qty) + '</td>' +
+            '<td style="text-align:right;">' + money(l.price) + '</td>' +
+            '<td style="text-align:right;">' + money(l.base) + '</td>' +
+            '<td style="text-align:right;">' + money(l.lineTotal) + '</td></tr>';
+        }).join('') +
+        '</table></div></details>';
+    }).join('');
+  }
+
+  function renderArchives() {
+    var months = Store.purchases.readMonths();
+    var keys = Object.keys(months).sort().reverse();
+    var el = document.getElementById('puArchList');
+    if (!keys.length) { el.innerHTML = '<p class="hint">No months archived yet.</p>'; return; }
+    el.innerHTML = '<p class="hint">Archived: ' + keys.map(function (k) {
+      var n = Object.keys(months[k].categories || {}).length;
+      return '<b>' + esc(k) + '</b> (' + n + ' categor' + (n === 1 ? 'y' : 'ies') + ')';
+    }).join(', ') + '.</p>';
+  }
+
+  function renderReport() { renderChips(); renderStats(); renderAccounts(); renderArchives(); }
+
+  function showReport() {
+    if (!hasData()) { showImport(); return; }
+    document.getElementById('puImportView').hidden = true;
+    document.getElementById('puReportView').hidden = false;
+    document.getElementById('puBackRow').hidden = false;
+    var list = catList();
+    var newest = list.reduce(function (m, c) {
+      return (!m || c.importedAt > m) ? c.importedAt : m;
+    }, null);
+    document.getElementById('puAsOf').textContent =
+      list.length + ' categor' + (list.length === 1 ? 'y' : 'ies') + ' loaded' +
+      (newest ? ', most recent import ' + String(newest).slice(0, 10) : '') + '.';
+    renderReport();
+  }
+  function showImport() {
+    document.getElementById('puImportView').hidden = false;
+    document.getElementById('puReportView').hidden = true;
+    document.getElementById('puBackRow').hidden = !hasData();
+  }
+
+  /* --- Wiring ------------------------------------------------------------- */
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('puFiles').addEventListener('change', function (e) {
+      onFilesPicked(e.target.files);
+    });
+    document.getElementById('puClearPick').addEventListener('click', function () {
+      pending = null; clearErr();
+      document.getElementById('puPreview').hidden = true;
+      document.getElementById('puClearPick').hidden = true;
+      document.getElementById('puFiles').value = '';
+    });
+    document.getElementById('puApplyBtn').addEventListener('click', applyImport);
+    document.getElementById('puDiscardBtn').addEventListener('click', function () {
+      pending = null; clearErr();
+      document.getElementById('puPreview').hidden = true;
+      document.getElementById('puFiles').value = '';
+    });
+    document.getElementById('puBackBtn').addEventListener('click', showReport);
+    document.getElementById('puImportMoreBtn').addEventListener('click', showImport);
+    document.getElementById('puSearch').addEventListener('input', function (e) {
+      search = e.target.value.trim(); renderAccounts();
+    });
+
+    document.getElementById('puArchBtn').addEventListener('click', function () {
+      var m = document.getElementById('puArchMonth').value;
+      if (!m) { showErr('Pick a month to archive as.'); return; }
+      if (!hasData()) return;
+      var months = Store.purchases.readMonths();
+      months[m] = { archivedAt: new Date().toISOString(), categories: loaded() };
+      Store.purchases.writeMonths(months);
+      renderArchives();
+    });
+
+    /* Two-step, matching Lost Sales: clearing is cheap to undo by re-importing,
+       but not while you are mid-analysis. Archives are left alone. */
+    var clearBtn = document.getElementById('puClearBtn');
+    clearBtn.addEventListener('click', function () {
+      document.getElementById('puClearText').textContent =
+        'This clears the ' + catList().length + ' loaded categor' +
+        (catList().length === 1 ? 'y' : 'ies') +
+        '. Archived months are kept. Re-importing the CSVs restores it.';
+      document.getElementById('puClearConfirm').hidden = false;
+    });
+    document.getElementById('puClearNo').addEventListener('click', function () {
+      document.getElementById('puClearConfirm').hidden = true;
+    });
+    document.getElementById('puClearYes').addEventListener('click', function () {
+      Store.purchases.clear();
+      document.getElementById('puClearConfirm').hidden = true;
+      activeCat = null;
+      showImport();
+    });
+
+    if (hasData()) showReport(); else showImport();
+  });
+
+})();
+
+/* ===========================================================================
+   NQV gap — page-scoped.
+
+   The one place in the Hub that reads more than one pillar's store. It joins
+   three of them, each keyed differently, which is the whole reason the
+   crosswalk exists:
+
+     th_purchases_categories   keyed on CardCode
+     th_account_xref           keyed on SFAccountID, carries CardCode
+     th_visits                 keyed on SFAccountID
+
+   So: purchase -> CardCode -> crosswalk -> SFAccountID -> visit log.
+
+   THE SIX-WEEK RULE. An office is credited while a Visit is logged against it
+   within the previous 42 days. Not a calendar month — the bonus REPORT resets
+   monthly but the credit window rolls, and 42 days is one full route
+   rotation. That equality is the point of this whole view: an office missed
+   on one pass falls out of credit before the route comes back round, and the
+   week it spends about to lapse is the week to go.
+
+   Only Subject "Visit" counts. Stop, Email and the two call types are contact,
+   not credit — an account carrying those and no Visit is flagged, because
+   that is a logging problem the user can fix rather than a driving problem.
+
+   NEVER SILENTLY LINKS. A CardCode with no crosswalk row is reported as
+   unresolved, not dropped and not guessed at. A wrong join here would send
+   someone driving.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  var CREDIT_DAYS = 42;          // six weeks; one route rotation
+  var EXPIRING_WITHIN = 7;       // a week or less of credit left
+
+  var esc = window.Shell && Shell.escapeHtml ? Shell.escapeHtml : function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  };
+  function money0(n) {
+    if (n === null || n === undefined) return '—';
+    return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+  }
+  function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+  var scope = 'bonus';           // 'bonus' | 'all'
+  var bucket = 'gap';            // 'gap' | 'expiring' | 'covered' | 'unresolved'
+  var search = '';
+  var asOf = null;               // ISO date string
+
+  function todayIso() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  }
+  function daysBetween(fromIso, toIso) {
+    var a = new Date(fromIso + 'T00:00:00'), b = new Date(toIso + 'T00:00:00');
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+    return Math.round((b - a) / 86400000);
+  }
+  function isDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
+
+  /* --- The join ----------------------------------------------------------- */
+
+  /* The crosswalk is keyed on SFAccountID; purchases arrive keyed on CardCode.
+     Built per render rather than cached — it is 185 rows, and a stale index
+     after a re-import would be a silent wrong answer. */
+  function cardCodeIndex(xref) {
+    var byCard = {};
+    var accts = (xref && xref.accounts) || {};
+    Object.keys(accts).forEach(function (sfId) {
+      var r = accts[sfId];
+      var cc = String(r && r.cardCode || '').trim();
+      /* CardCode compared as a STRING. 024060 is not 24060 and must not be
+         normalised into it — that would join two different accounts. */
+      if (cc) byCard[cc] = r;
+    });
+    return byCard;
+  }
+
+  /* Last Visit, and last non-Visit touch, per SFAccountID. */
+  function visitIndex(visits) {
+    var out = {};
+    var rows = (visits && visits.rows) || {};
+    Object.keys(rows).forEach(function (k) {
+      var r = rows[k];
+      var id = r.sfAccountId;
+      if (!id) return;
+      var o = out[id] || (out[id] = { lastVisit: '', lastTouch: '', touches: [] });
+      if (!isDate(r.date)) return;
+      if (norm(r.subject) === 'visit') {
+        if (r.date > o.lastVisit) o.lastVisit = r.date;
+      } else {
+        if (r.date > o.lastTouch) o.lastTouch = r.date;
+        o.touches.push(r);
+      }
+    });
+    return out;
+  }
+
+  function build() {
+    var cats    = Store.purchases.readCategories();
+    var xref    = Store.accountXref.read();
+    var visits  = Store.visits.read();
+    var byCard  = cardCodeIndex(xref);
+    var byVisit = visitIndex(visits);
+    var anchor  = asOf || todayIso();
+
+    var catIds = Object.keys(cats).filter(function (id) {
+      return scope === 'all' ? true : cats[id].bonus;
+    });
+
+    /* Purchases aggregate across the selected categories, per CardCode. */
+    var accounts = {};
+    catIds.forEach(function (id) {
+      var c = cats[id];
+      Object.keys(c.accounts).forEach(function (cc) {
+        var a = c.accounts[cc];
+        var e = accounts[cc] || (accounts[cc] = {
+          cardCode: cc, cardName: a.cardName, total: 0, cats: []
+        });
+        if (!e.cardName) e.cardName = a.cardName;
+        e.total += a.total;
+        e.cats.push({ name: c.name, bonus: c.bonus, total: a.total });
+      });
+    });
+
+    var rows = Object.keys(accounts).map(function (cc) {
+      var e = accounts[cc];
+      var x = byCard[cc] || null;
+      if (!x) {
+        /* Not in the workbook at all. Reported, never guessed at. */
+        e.status = 'unresolved';
+        e.why = 'no row in the Territory Master workbook for this CardCode';
+        return e;
+      }
+      e.sfAccountId = x.sfAccountId || '';
+      e.name = x.name || e.cardName;
+      e.city = x.city || '';
+      e.route = x.route || '';
+      if (!e.sfAccountId) {
+        e.status = 'unresolved';
+        e.why = 'the workbook row has no SFAccountID';
+        return e;
+      }
+      var v = byVisit[e.sfAccountId];
+      e.lastVisit = v ? v.lastVisit : '';
+      e.lastTouch = v ? v.lastTouch : '';
+      e.days = e.lastVisit ? daysBetween(e.lastVisit, anchor) : null;
+      /* A touch that is not a Visit earns no credit. Worth surfacing on its
+         own: it means you were there and it was logged as the wrong thing. */
+      e.touchedNotCredited = !!(v && v.lastTouch &&
+        daysBetween(v.lastTouch, anchor) !== null &&
+        daysBetween(v.lastTouch, anchor) <= CREDIT_DAYS &&
+        (e.days === null || e.days > CREDIT_DAYS));
+      if (e.days === null)               e.status = 'gap';       // never visited
+      else if (e.days > CREDIT_DAYS)     e.status = 'gap';       // lapsed
+      else if (e.days > CREDIT_DAYS - EXPIRING_WITHIN) e.status = 'expiring';
+      else                               e.status = 'covered';
+      return e;
+    });
+
+    return { rows: rows, anchor: anchor, catIds: catIds, cats: cats,
+             hasPurchases: Object.keys(cats).length > 0,
+             hasXref: Object.keys((xref && xref.accounts) || {}).length > 0,
+             hasVisits: Object.keys((visits && visits.rows) || {}).length > 0 };
+  }
+
+  /* --- Render ------------------------------------------------------------- */
+
+  function preconditions(d) {
+    var missing = [];
+    if (!d.hasPurchases) missing.push(['Purchase CSVs',
+      'Sales &rsaquo; Purchases — upload the per-category exports.']);
+    if (!d.hasXref) missing.push(['The account crosswalk',
+      'Route &rsaquo; Data &rsaquo; Territory Master overlay — paste the Accounts sheet.']);
+    if (!d.hasVisits) missing.push(['The visit log',
+      'Accounts &rsaquo; Master workbook — upload Territory_Master.xlsx.']);
+    return missing;
+  }
+
+  function render() {
+    var d = build();
+    var missing = preconditions(d);
+    var blocked = document.getElementById('nqvBlocked');
+    var body = document.getElementById('nqvBody');
+
+    /* All three are required. Without the visit log every account would read
+       as never visited, which is a confident wrong answer rather than a gap. */
+    if (missing.length) {
+      blocked.hidden = false; body.hidden = true;
+      document.getElementById('nqvBlockedBody').innerHTML =
+        '<p class="hint">This view joins three imports. Still needed:</p><ul>' +
+        missing.map(function (m) {
+          return '<li><b>' + esc(m[0]) + '</b> — ' + m[1] + '</li>';
+        }).join('') + '</ul>';
+      return;
+    }
+    blocked.hidden = true; body.hidden = false;
+
+    var sums = { gap: 0, expiring: 0, covered: 0, unresolved: 0 };
+    var counts = { gap: 0, expiring: 0, covered: 0, unresolved: 0 };
+    d.rows.forEach(function (r) { sums[r.status] += r.total; counts[r.status]++; });
+
+    /* .ls-stat is a pill: span, value, span. `down` and `warn` already carry
+       the red and amber this view wants for the two buckets that need it. */
+    document.getElementById('nqvStats').innerHTML = [
+      ['Not counting',    money0(sums.gap),        counts.gap,        'down'],
+      ['Credit expiring', money0(sums.expiring),   counts.expiring,   'warn'],
+      ['Counting',        money0(sums.covered),    counts.covered,    ''],
+      ['Unresolved',      money0(sums.unresolved), counts.unresolved, '']
+    ].map(function (p) {
+      return '<div class="ls-stat' + (p[3] ? ' ' + p[3] : '') + '">' +
+             '<span>' + esc(p[0]) + '</span><b>' + esc(p[1]) + '</b>' +
+             '<span>' + p[2] + ' acct</span></div>';
+    }).join('');
+
+    var bonusOnly = scope === 'bonus';
+    document.getElementById('nqvScopeRow').innerHTML =
+      '<button class="ls-chip' + (bonusOnly ? ' on' : '') + '" data-nqvscope="bonus">' +
+        'Bonus-eligible categories</button>' +
+      '<button class="ls-chip' + (bonusOnly ? '' : ' on') + '" data-nqvscope="all">' +
+        'All categories</button>' +
+      '<span class="hint" style="align-self:center;">' + d.catIds.length +
+        ' of ' + Object.keys(d.cats).length + ' loaded</span>';
+
+    var labels = { gap: 'Not counting', expiring: 'Expiring', covered: 'Counting',
+                   unresolved: 'Unresolved' };
+    document.getElementById('nqvBucketRow').innerHTML =
+      ['gap', 'expiring', 'covered', 'unresolved'].map(function (b) {
+        return '<button class="ls-chip' + (bucket === b ? ' on' : '') + '" data-nqvbucket="' + b +
+          '">' + labels[b] + ' <span class="mono">' + counts[b] + '</span></button>';
+      }).join('');
+
+    var q = search.toLowerCase();
+    var list = d.rows.filter(function (r) {
+      if (r.status !== bucket) return false;
+      if (!q) return true;
+      return String(r.name || r.cardName || '').toLowerCase().indexOf(q) !== -1 ||
+             r.cardCode.toLowerCase().indexOf(q) !== -1;
+    }).sort(function (a, b) { return b.total - a.total; });
+
+    var el = document.getElementById('nqvList');
+    if (!list.length) {
+      el.innerHTML = '<p class="hint" style="text-align:center;">Nothing in this bucket.</p>';
+    } else {
+      el.innerHTML = list.map(function (r) {
+        var when = r.status === 'unresolved' ? esc(r.why)
+          : r.days === null ? 'no Visit ever logged'
+          : r.days + ' day(s) since last Visit (' + esc(r.lastVisit) + ')';
+        return '<details class="card" style="margin-bottom:var(--s-2);">' +
+          '<summary style="cursor:pointer; display:flex; justify-content:space-between; gap:var(--s-3); align-items:baseline;">' +
+            '<span><b>' + esc(r.name || r.cardName || '(unnamed)') + '</b> ' +
+              '<span class="mono hint">' + esc(r.cardCode) + '</span>' +
+              (r.city ? ' <span class="hint">' + esc(r.city) + '</span>' : '') + '</span>' +
+            '<span class="mono">' + money0(r.total) + '</span>' +
+          '</summary>' +
+          '<p class="hint" style="margin-top:var(--s-2);">' + when +
+            (r.route ? ' &middot; ' + esc(r.route) : '') + '.' +
+            (r.touchedNotCredited
+              ? ' <b>Logged as a touch, not a Visit</b> — last contact ' + esc(r.lastTouch) +
+                ', which earns no credit.'
+              : '') +
+          '</p>' +
+          '<p class="hint" style="margin-top:var(--s-2);">' +
+            r.cats.map(function (c) {
+              return esc(c.name) + ' ' + money0(c.total) + (c.bonus ? '' : ' (non-bonus)');
+            }).join(' &middot; ') +
+          '</p></details>';
+      }).join('');
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-nqvscope]'), function (b) {
+      b.addEventListener('click', function () { scope = b.dataset.nqvscope; render(); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-nqvbucket]'), function (b) {
+      b.addEventListener('click', function () { bucket = b.dataset.nqvbucket; render(); });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var d = document.getElementById('nqvAsOf');
+    asOf = todayIso();
+    d.value = asOf;
+    d.addEventListener('change', function () { asOf = d.value || todayIso(); render(); });
+    document.getElementById('nqvSearch').addEventListener('input', function (e) {
+      search = e.target.value.trim(); render();
+    });
+    render();
+    /* Re-derive when any of the three stores it reads changes, including from
+       another tab — this view owns none of its data. */
+    if (window.Store && Store.onChange) {
+      Store.onChange(function (key) {
+        if (key === Store.KEYS.purchaseCats || key === Store.KEYS.visits ||
+            key === Store.KEYS.accountXref) render();
+      });
+    }
   });
 
 })();

@@ -280,6 +280,18 @@
 
   <div id="views"></div>
 
+  <!-- ===================== FIELD RANKINGS =====================
+       Read from the workbook's Rankings sheet on Accounts. A rank is always
+       drawn with its denominator, and the two bases are never mixed. -->
+  <section class="card" id="rankCard" style="margin-top:var(--s-5);">
+    <div class="card-head">
+      <h2>Field rankings</h2>
+      <span class="pill" id="rankCount"></span>
+    </div>
+    <div id="rankBasisRow" class="ka-chips" style="margin-top:var(--s-2);"></div>
+    <div id="rankBody" style="margin-top:var(--s-3);"></div>
+  </section>
+
   <p class="hint" style="text-align:center; margin-top:var(--s-4);">
     Evaluations stay in this browser. They are never committed to the repo and
     never leave your device.
@@ -290,7 +302,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788149452"></script>
+<script src="assets/js/data-store.js?v=1788231730"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -1397,6 +1409,158 @@
       }
     });
   });
+})();
+
+/* ===========================================================================
+   Field rankings — page-scoped.
+
+   Read-only. The Rankings sheet is parsed by the workbook uploader on
+   Accounts; this end only draws it.
+
+   Two rules the source imposes, both of which produce a confident lie if
+   ignored:
+
+     1. Monthly and 90-day trailing rows are NOT comparable. The same rep sat
+        at #17 on a 90-day report and #11 on a monthly one covering the same
+        period. One basis is selected at a time and the series never mixes.
+     2. A rank without its denominator means nothing — #12 of 34 is not #12 of
+        36, and TotalReps moves between reports. Every rank below is rendered
+        through outOf(), which refuses to print one without the other.
+
+   There is no Orders value column in the source, only an Orders rank, so
+   nothing here tries to show an Orders figure.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  var esc = window.Shell && Shell.escapeHtml ? Shell.escapeHtml : function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  };
+  var basis = null;
+
+  /* The only way a rank is allowed to reach the page. */
+  function outOf(rank, total) {
+    if (rank === null || rank === undefined) return '—';
+    if (total === null || total === undefined) return String(rank) + ' <span class="hint">of ?</span>';
+    return String(rank) + ' <span class="hint">of ' + total + '</span>';
+  }
+  function pct(v) {
+    if (v === null || v === undefined) return '—';
+    /* Stored as a fraction: 0.068 is +6.8%. */
+    return (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  }
+  function delta(cur, prev) {
+    /* Ranks improve DOWNWARD, so a fall in the number is a gain. Only
+       meaningful between two reports of the same basis, which is all
+       Store.rankings.series() ever returns. */
+    if (cur === null || prev === null || cur === undefined || prev === undefined) return '';
+    var d = prev - cur;
+    if (!d) return ' <span class="hint">no change</span>';
+    return d > 0 ? ' <span style="color:var(--green)">&#9650; ' + d + '</span>'
+                 : ' <span style="color:var(--red)">&#9660; ' + Math.abs(d) + '</span>';
+  }
+
+  function render() {
+    var all = Store.rankings.read();
+    var bases = Store.rankings.bases();
+    var count = Object.keys(all.reports).length;
+    var card = document.getElementById('rankCard');
+    var body = document.getElementById('rankBody');
+    var pill = document.getElementById('rankCount');
+
+    if (!count) {
+      pill.textContent = 'No data';
+      document.getElementById('rankBasisRow').innerHTML = '';
+      body.innerHTML = '<p class="hint">Upload <b>Territory_Master.xlsx</b> on ' +
+        '<b>Accounts &rsaquo; Master workbook</b> — its Rankings sheet lands here.</p>';
+      return;
+    }
+    pill.textContent = count + ' report' + (count === 1 ? '' : 's');
+    /* Land on Monthly when it is there. Alphabetical order would default to
+       "90-day trailing", which is an artifact of the sort rather than a
+       choice — and the monthly report is the one that lines up with how the
+       bonus period is measured. */
+    if (!basis || bases.indexOf(basis) === -1) {
+      basis = bases.filter(function (b) {
+        return String(b).toLowerCase().replace(/[^a-z]/g, '') === 'monthly';
+      })[0] || bases[0];
+    }
+
+    document.getElementById('rankBasisRow').innerHTML = bases.map(function (b) {
+      return '<button class="ka-chip' + (b === basis ? ' on' : '') + '" data-rankbasis="' +
+        esc(b) + '">' + esc(b) + '</button>';
+    }).join('') + (bases.length > 1
+      ? '<span class="hint" style="align-self:center; margin-left:var(--s-2);">' +
+        'kept separate — not comparable</span>' : '');
+
+    var series = Store.rankings.series(basis);
+    var latest = series[series.length - 1];
+    var prev = series.length > 1 ? series[series.length - 2] : null;
+
+    var rows = [
+      ['Overall',        latest.overallRank,  prev && prev.overallRank],
+      ['Patient Direct', latest.pdRank,       prev && prev.pdRank],
+      ['Primera Scripts',latest.primeraRank,  prev && prev.primeraRank],
+      ['Orders',         latest.ordersRank,   prev && prev.ordersRank],
+      ['Revenue',        latest.revRank,      prev && prev.revRank]
+    ];
+
+    body.innerHTML =
+      '<p class="hint">' + esc(latest.repName || '') +
+        (latest.region ? ' &middot; ' + esc(latest.region) : '') +
+        ' &middot; report ' + esc(latest.reportDate) +
+        ' &middot; <b>' + esc(latest.basis) + '</b>' +
+        (prev ? ' &middot; change against ' + esc(prev.reportDate) : '') + '</p>' +
+      '<div class="ka-figs" style="margin-top:var(--s-3);">' +
+        rows.map(function (r) {
+          return '<div><div class="ka-fig-lbl">' + esc(r[0]) + '</div>' +
+                 '<div class="ka-fig-val">' + outOf(r[1], latest.totalReps) +
+                 (prev ? delta(r[1], r[2]) : '') + '</div></div>';
+        }).join('') +
+        '<div><div class="ka-fig-lbl">Revenue vs prior</div>' +
+        '<div class="ka-fig-val' + (latest.revPct === null ? ''
+          : latest.revPct < 0 ? ' neg' : ' pos') + '">' + pct(latest.revPct) + '</div></div>' +
+      '</div>' +
+      (series.length > 1
+        ? '<p class="section-label" style="margin-top:var(--s-4);"><span>History</span></p>' +
+          '<div style="overflow-x:auto;"><table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
+          '<tr><th style="text-align:left;">Report</th><th style="text-align:right;">Overall</th>' +
+          '<th style="text-align:right;">PD</th><th style="text-align:right;">Scripts</th>' +
+          '<th style="text-align:right;">Orders</th><th style="text-align:right;">Rev</th>' +
+          '<th style="text-align:right;">Rev %</th></tr>' +
+          series.slice().reverse().map(function (s) {
+            return '<tr><td>' + esc(s.reportDate) + '</td>' +
+              '<td style="text-align:right;">' + outOf(s.overallRank, s.totalReps) + '</td>' +
+              '<td style="text-align:right;">' + outOf(s.pdRank, s.totalReps) + '</td>' +
+              '<td style="text-align:right;">' + outOf(s.primeraRank, s.totalReps) + '</td>' +
+              '<td style="text-align:right;">' + outOf(s.ordersRank, s.totalReps) + '</td>' +
+              '<td style="text-align:right;">' + outOf(s.revRank, s.totalReps) + '</td>' +
+              '<td style="text-align:right;">' + pct(s.revPct) + '</td></tr>';
+          }).join('') + '</table></div>'
+        : '<p class="hint" style="margin-top:var(--s-3);">One report so far on this basis. ' +
+          'Movement appears once there are two.</p>');
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rankbasis]'), function (b) {
+      b.addEventListener('click', function () { basis = b.dataset.rankbasis; render(); });
+    });
+
+    /* Home's Performance card is fed by more than one part of this page, and
+       writeSummary MERGES, so this adds the rank fields without disturbing
+       the evaluation fields the other IIFE writes. The basis rides along
+       because a rank is meaningless without it. */
+    Store.performance.writeSummary({
+      rankBasis: latest.basis, rankDate: latest.reportDate,
+      overallRank: latest.overallRank, totalReps: latest.totalReps
+    });
+  }
+
+  Shell.ready(function () {
+    render();
+    Store.onChange(function (key) { if (key === Store.KEYS.rankings) render(); });
+  });
+
 })();
 </script>
 </body>

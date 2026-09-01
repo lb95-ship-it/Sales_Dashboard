@@ -43,6 +43,11 @@
     perfEvals:        'th_performance_evals',     // Performance (internal)
     perfSummary:      'th_performance_summary',   // Performance -> Home
     accountXref:      'th_account_xref',          // Territory Master overlay (Route Board)
+    purchaseCats:     'th_purchases_categories',  // Purchases (internal)
+    purchaseMonths:   'th_purchases_months',      // Purchases (internal)
+    visits:           'th_visits',                // Visit log (internal)
+    pins:             'th_pins',                  // Maps pins -> Route Board book
+    rankings:         'th_rankings',              // Field rankings (internal)
     routeBoardWeek:   'th_route.week.v2'          // Route Board (READ ONLY here)
   };
 
@@ -424,8 +429,15 @@
 
   /* -------------------------------------------------------------------------
      Territory Master overlay — the columns of the Accounts sheet that the
-     Google-derived account book cannot carry: CardCode, Salesforce account
-     id, city and route, keyed on Google place ID.
+     Google-derived account book cannot carry: CardCode, city and route,
+     keyed on SFAccountID.
+
+     Keyed on SFAccountID rather than place ID because the workbook carries an
+     SFAccountID on all 185 rows but a PlaceID on only 182, and SFAccountID is
+     the join key the Visits sheet uses. Under place-ID keying the three
+     accounts with no map pin were unreachable by anything except Route Board.
+     Place ID is a FIELD here; readers that need it (Route Board) index on it
+     themselves.
 
      A side table, deliberately. It joins to the account book on place ID and
      is never merged into it: the book is Google's and gets regenerated, the
@@ -446,11 +458,17 @@
      ------------------------------------------------------------------------- */
   var accountXref = {
     /* { generated,
-         accounts:  { [placeId]: { cardCode, sfAccountId, city, route, name } },
+         accounts:  { [sfAccountId]: { sfAccountId, cardCode, city, route,
+                                       name, placeId } },
          unmatched: [ { name, cardCode, sfAccountId, city, route, reason } ] }
 
+       `placeId` is '' on the rows with no map pin. That is normal, not a
+       failure — those accounts still join to Visits and Purchases, they just
+       cannot be drawn on the Route Board.
+
        `cardCode` is a STRING and must stay one — 024060 is not 24060, and the
-       leading zero is part of the account number. */
+       leading zero is part of the account number. It is also the join key for
+       the purchase CSVs, so this is where SFAccountID and CardCode meet. */
     read: function () { return get(KEYS.accountXref, null); },
     write: function (x) {
       return set(KEYS.accountXref, {
@@ -460,6 +478,186 @@
       });
     },
     clear: function () { return remove(KEYS.accountXref); }
+  };
+
+  /* -------------------------------------------------------------------------
+     Purchases — the per-category order CSVs out of the Report Builder portal.
+
+     Two keys, split the way Lost Sales splits its own:
+
+       categories  the CURRENT working set, keyed by category id. Re-importing
+                   one category replaces only that category, because the export
+                   is per-category and a partial import is the normal case, not
+                   an error. Ten files at once is one import; one file is also
+                   one import.
+       months      month-end snapshots, keyed "YYYY-MM". Archiving is an
+                   explicit act, not a side effect of importing: only the user
+                   knows when a month is final.
+
+     Keyed on CardCode throughout, which is TEXT — 83 accounts are 6-digit and
+     102 are 7-digit beginning with 5, and the leading zeros are significant.
+     Never parseInt it, never compare it numerically. This is the single most
+     likely silent failure in the system, so it is a string from the CSV cell
+     all the way to the object key.
+
+     Real account names and real order dollars. Device local, never committed.
+     ------------------------------------------------------------------------- */
+  var purchases = {
+    /* { generated, categories: { [catId]: { id, name, bonus, importedAt,
+           fileName, rowCount, total, accounts: { [cardCode]: {...} } } } } */
+    readCategories: function () { return get(KEYS.purchaseCats, {}) || {}; },
+    writeCategories: function (cats) {
+      return set(KEYS.purchaseCats, cats && typeof cats === 'object' ? cats : {});
+    },
+
+    /* { "2026-08": { archivedAt, categories: { … same shape … } } } */
+    readMonths: function () { return get(KEYS.purchaseMonths, {}) || {}; },
+    writeMonths: function (months) {
+      return set(KEYS.purchaseMonths, months && typeof months === 'object' ? months : {});
+    },
+
+    /* Clears the working set only. The archives are the history the working
+       set exists to produce, so they outlive it and go separately. */
+    clear:    function () { return remove(KEYS.purchaseCats); },
+    clearAll: function () {
+      remove(KEYS.purchaseMonths);
+      return remove(KEYS.purchaseCats);
+    }
+  };
+
+  /* -------------------------------------------------------------------------
+     Visit log — the Visits sheet of the master workbook, itself a Salesforce
+     activity export.
+
+     The first thing in the Hub that records that a call HAPPENED. Until this
+     existed, `th_route.week.v2` held exactly one week and was overwritten on
+     save, so touch counts, last-visited dates and NQV reconciliation had
+     nothing to stand on.
+
+     ACCUMULATES, unlike every other import here. A re-upload of an
+     overlapping week corrects those rows and leaves the rest of the history
+     alone, so `rows` is a map keyed SFAccountID|Date|Subject rather than a
+     list that would double on the second upload.
+
+     Joined on SFAccountID, never on the account name — the same office is
+     spelled differently across the systems this data passes through.
+
+     `subject` is stored verbatim. The export carries five values (Visit,
+     Email, Outbound call, Stop, Inbound call) and only `Visit` earns bonus
+     credit; the other four are touches. They are matched case-insensitively
+     but never collapsed, because the distinction is the point.
+     ------------------------------------------------------------------------- */
+  var visits = {
+    /* { generated,
+         rows: { "<sfAccountId>|<date>|<subject>": { sfAccountId, accountName,
+                 date, subject, comments1, contactFirst, contactLast, comments2 } } } */
+    read: function () {
+      var v = get(KEYS.visits, null);
+      if (!v || typeof v !== 'object') return { generated: null, rows: {} };
+      return { generated: v.generated || null,
+               rows: (v.rows && typeof v.rows === 'object') ? v.rows : {} };
+    },
+    write: function (v) {
+      return set(KEYS.visits, {
+        generated: (v && v.generated) || new Date().toISOString(),
+        rows: (v && v.rows && typeof v.rows === 'object') ? v.rows : {}
+      });
+    },
+    clear: function () { return remove(KEYS.visits); }
+  };
+
+  /* -------------------------------------------------------------------------
+     Pins — the Maps saved-places export, carried in the workbook's Pins sheet.
+     Name, note, territory, tags and Maps URL for every saved place.
+
+     A HANDOFF, not a destination. The workbook uploader parses this sheet and
+     parks it here; Route Board's Data panel is what turns it into the account
+     book, because that is where the merge rules, the diff preview and the
+     >10%-loss guard already live. Rebuilding those in a second writer is how
+     an import quietly destroys the notes and pillar tags that exist nowhere
+     else.
+
+     So this key is written by Key Accounts and read by Route Board, and the
+     book itself still has exactly one writer.
+
+     Rows keep sheet order: Route Board renders each territory's pool in it.
+     ------------------------------------------------------------------------- */
+  var pins = {
+    /* { generated, fileName, rows: [ { label, title, territory, mapsUrl,
+         placeId, tags: [], note } ] } */
+    read: function () {
+      var p = get(KEYS.pins, null);
+      if (!p || typeof p !== 'object') return null;
+      return { generated: p.generated || null, fileName: p.fileName || '',
+               rows: Array.isArray(p.rows) ? p.rows : [] };
+    },
+    write: function (p) {
+      return set(KEYS.pins, {
+        generated: (p && p.generated) || new Date().toISOString(),
+        fileName:  (p && p.fileName) || '',
+        rows:      Array.isArray(p && p.rows) ? p.rows : []
+      });
+    },
+    clear: function () { return remove(KEYS.pins); }
+  };
+
+  /* -------------------------------------------------------------------------
+     Field rankings — the company's periodic ranking of the whole rep field,
+     carried in the workbook's Rankings sheet.
+
+     TWO RULES, both of which produce a confidently wrong chart if ignored:
+
+     1. `basis` is "Monthly" or "90-day trailing" and rows of different basis
+        ARE NOT COMPARABLE. The same rep placed #17 on a 90-day report and #11
+        on a monthly one covering the same period. Plot them on one line and
+        the page renders a collapse that never happened. Every read here is
+        filtered to a single basis, and the key carries it.
+     2. `totalReps` is the denominator and it moves (34 and 36 both seen).
+        A rank without its total is meaningless — #12 of 34 is not #12 of 36.
+        Nothing should ever display one without the other.
+
+     Keyed reportDate|basis, so re-importing a workbook corrects a report
+     rather than appending a duplicate, and history accumulates.
+
+     `revPct` is stored as the FRACTION the sheet holds (0.068), not 6.8.
+     ------------------------------------------------------------------------- */
+  var rankings = {
+    /* { generated, reports: { "<reportDate>|<basis>": { reportDate, basis,
+         totalReps, overallRank, region, repName, pdMonth, pdRank,
+         primeraMonth, primeraRank, ordersRank, revPct, revRank } } }
+
+       There is no Orders VALUE column in the source — the monthly report
+       publishes only an Orders rank, so `ordersRank` has no sibling total. */
+    read: function () {
+      var r = get(KEYS.rankings, null);
+      if (!r || typeof r !== 'object') return { generated: null, reports: {} };
+      return { generated: r.generated || null,
+               reports: (r.reports && typeof r.reports === 'object') ? r.reports : {} };
+    },
+    write: function (r) {
+      return set(KEYS.rankings, {
+        generated: (r && r.generated) || new Date().toISOString(),
+        reports: (r && r.reports && typeof r.reports === 'object') ? r.reports : {}
+      });
+    },
+    /* Every distinct basis present, so a reader can offer them without
+       hardcoding the two spellings seen so far. */
+    bases: function () {
+      var reports = rankings.read().reports, seen = {}, out = [];
+      Object.keys(reports).forEach(function (k) {
+        var b = reports[k].basis;
+        if (b && !seen[b]) { seen[b] = 1; out.push(b); }
+      });
+      return out.sort();
+    },
+    /* One basis, oldest first. The only sanctioned way to read a series. */
+    series: function (basis) {
+      var reports = rankings.read().reports;
+      return Object.keys(reports).map(function (k) { return reports[k]; })
+        .filter(function (r) { return r.basis === basis; })
+        .sort(function (a, b) { return a.reportDate < b.reportDate ? -1 : 1; });
+    },
+    clear: function () { return remove(KEYS.rankings); }
   };
 
   /* Read-only window into Route Board's own store. No writer here on purpose.
@@ -499,6 +697,10 @@
     prescribers: prescribers,
     performance: performance,
     accountXref: accountXref,
+    purchases: purchases,
+    visits: visits,
+    pins: pins,
+    rankings: rankings,
     routeBoard: routeBoard
   };
 

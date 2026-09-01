@@ -195,9 +195,18 @@
 
   <header class="page-head">
     <h1>Key Accounts</h1>
-    <span class="eyebrow mono">Worksheets</span>
+    <span class="eyebrow mono" id="kaHdrSub">Worksheets</span>
   </header>
 
+  <!-- Two tools, one page — the same [data-tabs] mechanism Sales and Route
+       Planning use. Shell.tabs() wires it automatically. -->
+  <div class="subtabs" role="tablist" aria-label="Account tools"
+       data-tabs data-default="worksheets">
+    <button data-panel="worksheets">Worksheets</button>
+    <button data-panel="workbook">Master workbook</button>
+  </div>
+
+  <section class="tabpanel" data-panel="worksheets" role="tabpanel" aria-label="Key Account Worksheets">
 
   <!-- ---- Import ---- -->
   <section id="kaImportView">
@@ -268,9 +277,85 @@
     </div>
   </section>
 
+  </section>
+
+  <!-- ===================== MASTER WORKBOOK =====================
+       Territory_Master.xlsx, uploaded whole. Each tool reads only the sheet it
+       needs and ignores the rest, so importing Visits cannot disturb Accounts.
+       Visits is the first slot; the others are listed but not yet consumed. -->
+  <section class="tabpanel" data-panel="workbook" role="tabpanel" aria-label="Master workbook" hidden>
+
+    <section id="mwImportView">
+      <p class="section-label">
+        <span>Upload Territory_Master</span>
+        <span class="mono">.xlsx</span>
+      </p>
+
+      <label class="ka-drop" id="mwDrop">
+        <span class="ka-drop-title">Choose Territory_Master.xlsx</span>
+        <span class="ka-drop-sub">
+          Tap to pick the file, or drag it here. The whole workbook is read at once
+          and each sheet goes to its own slot.
+        </span>
+        <input type="file" id="mwFile" accept=".xlsx,.xlsm,.xls">
+      </label>
+
+      <div class="err" id="mwErr" hidden style="margin-top:var(--s-4);"></div>
+
+      <div id="mwPreview" hidden style="margin-top:var(--s-5);">
+        <p class="section-label"><span>Sheets found</span></p>
+        <div class="card" id="mwSheetList"></div>
+        <div class="row" style="margin-top:var(--s-4);">
+          <button class="btn btn-primary" id="mwApplyBtn" style="flex:1;">Import these sheets</button>
+          <button class="btn" id="mwDiscardBtn">Discard</button>
+        </div>
+      </div>
+
+      <div class="row" id="mwBackRow" hidden style="justify-content:center; margin-top:var(--s-5);">
+        <button class="btn btn-sm" id="mwBackBtn">Back to the visit log</button>
+      </div>
+
+      <p class="hint" style="text-align:center; margin-top:var(--s-5);">
+        The workbook is read in your browser and kept on this device only.
+        Nothing is uploaded and nothing is committed to the repo.
+      </p>
+    </section>
+
+    <section id="mwLogView" hidden>
+      <p class="hint" id="mwAsOf" style="margin-bottom:var(--s-3);"></p>
+
+      <div class="ka-figs" id="mwStats"></div>
+
+      <div class="ka-chips" id="mwSubjectRow" style="margin-top:var(--s-3);"></div>
+
+      <div class="ka-search" style="margin-top:var(--s-3);">
+        <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+        </svg>
+        <input type="search" class="input" id="mwSearch"
+               placeholder="Search account or Salesforce id&hellip;" aria-label="Search the visit log">
+      </div>
+
+      <div class="stack" id="mwList" style="margin-top:var(--s-4);"></div>
+
+      <div class="row" style="justify-content:center; gap:var(--s-4); margin-top:var(--s-8);">
+        <button class="btn btn-sm" id="mwAddBtn">Upload a newer workbook</button>
+        <button class="btn btn-sm btn-danger" id="mwClearBtn">Clear the visit log</button>
+      </div>
+      <div id="mwClearConfirm" hidden style="margin-top:var(--s-3);">
+        <p class="hint" id="mwClearText" style="text-align:center; max-width:60ch; margin:0 auto;"></p>
+        <div class="row" style="justify-content:center; gap:var(--s-3); margin-top:var(--s-3);">
+          <button class="btn btn-sm btn-danger" id="mwClearYes">Yes, clear</button>
+          <button class="btn btn-sm" id="mwClearNo">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+  </section>
+
 </main>
 
-<script src="assets/js/data-store.js?v=1788149452"></script>
+<script src="assets/js/data-store.js?v=1788231730"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -1148,6 +1233,733 @@
     if (book && !Store.keyAccounts.readSummary()) writeSummary();
 
     showBook();
+  });
+
+})();
+
+/* ===========================================================================
+   Master workbook — page-scoped.
+
+   Territory_Master.xlsx uploaded whole, each sheet read into its own slot.
+   Visits is the only slot wired today; the preview lists every recognised
+   sheet so it is obvious what is and is not being consumed.
+
+   Why the visit log matters: nothing in the Hub recorded that a call
+   happened. th_route.week.v2 holds one week and is overwritten on save, so
+   touch counts, last-visited dates and NQV reconciliation had nothing to
+   stand on. This is that foundation.
+
+   Three things about the Visits sheet are load-bearing:
+
+   1. The join key is SFAccountID, never AccountName. The same office is
+      spelled differently in each system this data passes through.
+   2. Rows MERGE on SFAccountID|Date|Subject and accumulate. Re-uploading an
+      overlapping week has to correct those rows and leave the rest of the
+      history alone — a list would double on the second upload.
+   3. The current export has continuation rows for extra contacts, carrying a
+      blank SFAccountID. They are SKIPPED, never forward-filled: guessing that
+      a blank row belongs to the account above it is how a visit gets credited
+      to the wrong office.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  var XLSX_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+
+  /* Every sheet the workbook is expected to carry. `reads` marks the ones this
+     build actually consumes, so the preview can be honest about the rest. */
+  var SHEETS = [
+    { key:'visits',    match:'visits',    label:'Visits',      reads:true,
+      note:'the visit log below' },
+    { key:'accounts',  match:'accounts',  label:'Accounts',    reads:false,
+      note:'read by Route Board’s Data panel for now' },
+    { key:'rankings',  match:'rankings',  label:'Rankings',    reads:true,
+      note:'shown on Performance' },
+    { key:'pins',      match:'pins',      label:'Pins',        reads:true,
+      note:'handed to Route Board for the account book' },
+    { key:'prescribers', match:'prescribers', label:'Prescribers', reads:false,
+      note:'not read yet' }
+  ];
+
+  var esc = window.Shell && Shell.escapeHtml ? Shell.escapeHtml : function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  };
+  function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+  var pending = null;
+  var search = '';
+  var subjectFilter = null;
+
+  /* --- Loading ------------------------------------------------------------ */
+
+  /* Key Accounts has its own copy of this loader. Both check window.XLSX
+     first, so whichever tab is used second reuses what the first loaded. */
+  var xlsxPromise = null;
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (xlsxPromise) return xlsxPromise;
+    xlsxPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = XLSX_SRC;
+      s.onload = function () { window.XLSX ? resolve(window.XLSX) : reject(new Error('empty')); };
+      s.onerror = function () { xlsxPromise = null; reject(new Error('network')); };
+      document.head.appendChild(s);
+    });
+    return xlsxPromise;
+  }
+  function readArrayBuffer(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload  = function () { resolve(new Uint8Array(fr.result)); };
+      fr.onerror = function () { reject(new Error('unreadable')); };
+      fr.readAsArrayBuffer(file);
+    });
+  }
+
+  /* --- Parsing ------------------------------------------------------------ */
+
+  var COLS = {
+    sfAccountId:  ['sfaccountid'],
+    accountName:  ['accountname'],
+    date:         ['date'],
+    subject:      ['subject'],
+    comments1:    ['comments1'],
+    contactFirst: ['contactnamefirst'],
+    contactLast:  ['contactnamelast'],
+    comments2:    ['comments2']
+  };
+  function headerIndex(row) {
+    var n = row.map(norm), idx = {};
+    Object.keys(COLS).forEach(function (f) {
+      idx[f] = -1;
+      COLS[f].some(function (want) {
+        var at = n.indexOf(want);
+        if (at === -1) return false;
+        idx[f] = at; return true;
+      });
+    });
+    return idx;
+  }
+
+  /* The Date column arrives as text and the format is not guaranteed. Anything
+     that resolves to a real calendar date is normalised to YYYY-MM-DD so it
+     sorts and merges; anything that does not keeps its raw text, because a
+     wrong date is worse than an unparsed one. */
+  function isoDate(raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return '';
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (m) {
+      var y = m[3].length === 2 ? '20' + m[3] : m[3];
+      return y + '-' + pad(m[1]) + '-' + pad(m[2]);       // US order, as exported
+    }
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+    return s;
+  }
+  function pad(n) { return String(n).length < 2 ? '0' + n : String(n); }
+
+  function findSheet(wb, match) {
+    for (var i = 0; i < wb.SheetNames.length; i++) {
+      if (norm(wb.SheetNames[i]) === match) return wb.SheetNames[i];
+    }
+    for (var j = 0; j < wb.SheetNames.length; j++) {
+      if (norm(wb.SheetNames[j]).indexOf(match) === 0) return wb.SheetNames[j];
+    }
+    return null;
+  }
+
+  function parseVisits(grid) {
+    var h = -1;
+    for (var i = 0; i < grid.length && i < 20; i++) {
+      for (var j = 0; j < grid[i].length; j++) {
+        if (norm(grid[i][j]) === 'sfaccountid') { h = i; break; }
+      }
+      if (h !== -1) break;
+    }
+    if (h === -1) throw new Error('The Visits sheet has no SFAccountID column.');
+    var idx = headerIndex(grid[h]);
+    if (idx.date === -1 || idx.subject === -1) {
+      throw new Error('The Visits sheet is missing its ' +
+        (idx.date === -1 ? 'Date' : 'Subject') + ' column.');
+    }
+
+    var rows = {}, skipped = 0, subjects = {}, dupes = 0;
+    for (var r = h + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) {
+        return (at === -1 || g[at] == null) ? '' : String(g[at]).trim();
+      };
+      var id = cell(idx.sfAccountId);
+      if (!id) {
+        /* Continuation row for an extra contact. Skipped on purpose — see the
+           header comment. Blank spacer rows are not counted as skips. */
+        if (g.some(function (c) { return String(c == null ? '' : c).trim(); })) skipped++;
+        continue;
+      }
+      var subject = cell(idx.subject);
+      var date = isoDate(cell(idx.date));
+      var key = id + '|' + date + '|' + norm(subject);
+      if (rows[key]) dupes++;
+      rows[key] = {
+        sfAccountId: id, accountName: cell(idx.accountName),
+        date: date, subject: subject,
+        comments1: cell(idx.comments1),
+        contactFirst: cell(idx.contactFirst), contactLast: cell(idx.contactLast),
+        comments2: cell(idx.comments2)
+      };
+      var sk = norm(subject) || 'blank';
+      subjects[sk] = subjects[sk] || { label: subject || '(blank)', n: 0 };
+      subjects[sk].n++;
+    }
+    var keys = Object.keys(rows);
+    if (!keys.length) throw new Error('The Visits sheet has no rows carrying an SFAccountID.');
+    return { rows: rows, skipped: skipped, dupes: dupes, subjects: subjects, count: keys.length };
+  }
+
+  /* --- Pins ---------------------------------------------------------------
+     The Maps saved-places export. Parsed here, parked in th_pins, and turned
+     into the account book by Route Board — see the note on Store.pins.
+
+     Tags carry pillar coverage (Purchasing Retail, Prescribing, Patient
+     Direct, Top 25, …) and exist nowhere else in the workbook, so they are
+     read verbatim apart from one normalisation: the sheet spells one tag both
+     "Extras" and "Extra", and left alone that reads as two different tags on
+     two groups of accounts. */
+  var PIN_COLS = {
+    label:     ['label'],
+    title:     ['title'],
+    territory: ['territory'],
+    mapsUrl:   ['mapsurl'],
+    placeId:   ['placeid'],
+    tags:      ['tags'],
+    note:      ['note']
+  };
+  function pinHeaderIndex(row) {
+    var n = row.map(norm), idx = {};
+    Object.keys(PIN_COLS).forEach(function (f) {
+      idx[f] = -1;
+      PIN_COLS[f].some(function (want) {
+        var at = n.indexOf(want);
+        if (at === -1) return false;
+        idx[f] = at; return true;
+      });
+    });
+    return idx;
+  }
+  /* One tag, two spellings in the source. Normalising on the way in is right:
+     the alternative is Route Board showing two filter chips for one thing. */
+  function normTag(t) {
+    var s = String(t == null ? '' : t).trim();
+    return /^ℹ️?\s*Extras?$/i.test(s) ? 'ℹ️ Extras' : s;
+  }
+
+  function parsePins(grid) {
+    var h = -1;
+    for (var i = 0; i < grid.length && i < 20; i++) {
+      for (var j = 0; j < grid[i].length; j++) {
+        if (norm(grid[i][j]) === 'mapsurl' || norm(grid[i][j]) === 'territory') { h = i; break; }
+      }
+      if (h !== -1) break;
+    }
+    if (h === -1) return { rows: [], skipped: 0, error: 'no Territory or MapsURL column' };
+    var idx = pinHeaderIndex(grid[h]);
+    if (idx.territory === -1) {
+      return { rows: [], skipped: 0, error: 'no Territory column, so nothing can be filed' };
+    }
+    var rows = [], skipped = 0, terrs = {}, tagCounts = {};
+    for (var r = h + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) { return (at === -1 || g[at] == null) ? '' : String(g[at]).trim(); };
+      var terr = cell(idx.territory);
+      var url  = cell(idx.mapsUrl);
+      var title = cell(idx.title) || cell(idx.label);
+      if (!terr && !url && !title) continue;             // blank spacer row
+      if (!terr || !url) { skipped++; continue; }
+      var tags = idx.tags === -1 ? null
+        : cell(idx.tags).split(/[,;]/).map(normTag).filter(Boolean);
+      if (tags) tags.forEach(function (t) { tagCounts[t] = (tagCounts[t] || 0) + 1; });
+      terrs[terr] = (terrs[terr] || 0) + 1;
+      rows.push({
+        label: cell(idx.label), title: title, territory: terr,
+        mapsUrl: url, placeId: cell(idx.placeId),
+        tags: tags, note: cell(idx.note)
+      });
+    }
+    return { rows: rows, skipped: skipped, territories: terrs, tagCounts: tagCounts,
+             hasTagCol: idx.tags !== -1, error: null };
+  }
+
+  /* --- Rankings -----------------------------------------------------------
+     The company's periodic ranking of the whole field. Keyed reportDate|basis
+     because Monthly and 90-day trailing reports are NOT comparable — the same
+     rep was #17 on one and #11 on the other in the same period — and merging
+     them into one series would draw a swing that never happened. */
+  var RANK_COLS = {
+    reportDate:   ['reportdate'],
+    basis:        ['basis'],
+    totalReps:    ['totalreps'],
+    overallRank:  ['overallrank'],
+    region:       ['region'],
+    repName:      ['repname'],
+    pdMonth:      ['pdmonth'],
+    pdRank:       ['pdrank'],
+    primeraMonth: ['primeramonth'],
+    primeraRank:  ['primerarank'],
+    ordersRank:   ['ordersrank'],
+    revPct:       ['revpct', 'rev%', 'rev'],
+    revRank:      ['revrank']
+  };
+  function rankHeaderIndex(row) {
+    var n = row.map(norm), idx = {};
+    Object.keys(RANK_COLS).forEach(function (f) {
+      idx[f] = -1;
+      RANK_COLS[f].some(function (want) {
+        var at = n.indexOf(want);
+        if (at === -1) return false;
+        idx[f] = at; return true;
+      });
+    });
+    return idx;
+  }
+  function rankNum(raw) {
+    var s = String(raw == null ? '' : raw).replace(/[   ]/g, ' ').trim();
+    if (!s) return null;
+    var neg = /^\(.*\)$/.test(s) || s.indexOf('-') !== -1;
+    var pct = s.indexOf('%') !== -1;
+    s = s.replace(/[()$,%\s\-+]/g, '');
+    if (!s || !/^\d*\.?\d+$/.test(s)) return null;
+    var v = parseFloat(s);
+    if (isNaN(v)) return null;
+    v = neg ? -v : v;
+    /* The sheet holds Rev +/-% as a FRACTION (0.068 = +6.8%). Excel sometimes
+       hands back the formatted string instead, so a value that arrived with a
+       % sign is divided back down rather than stored a hundred times too big. */
+    return pct ? v / 100 : v;
+  }
+
+  function parseRankings(grid) {
+    var h = -1;
+    for (var i = 0; i < grid.length && i < 20; i++) {
+      for (var j = 0; j < grid[i].length; j++) {
+        if (norm(grid[i][j]) === 'basis' || norm(grid[i][j]) === 'reportdate') { h = i; break; }
+      }
+      if (h !== -1) break;
+    }
+    if (h === -1) return { reports: {}, skipped: 0, error: 'no ReportDate or Basis column' };
+    var idx = rankHeaderIndex(grid[h]);
+    if (idx.reportDate === -1 || idx.basis === -1) {
+      return { reports: {}, skipped: 0,
+               error: 'missing the ' + (idx.reportDate === -1 ? 'ReportDate' : 'Basis') +
+                      ' column, which the rows are keyed on' };
+    }
+    var reports = {}, skipped = 0, bases = {};
+    for (var r = h + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) { return (at === -1 || g[at] == null) ? '' : String(g[at]).trim(); };
+      var date = isoDate(cell(idx.reportDate));
+      var basis = cell(idx.basis);
+      if (!date || !basis) {
+        if (g.some(function (c) { return String(c == null ? '' : c).trim(); })) skipped++;
+        continue;
+      }
+      bases[basis] = (bases[basis] || 0) + 1;
+      reports[date + '|' + norm(basis)] = {
+        reportDate: date, basis: basis,
+        totalReps:    rankNum(cell(idx.totalReps)),
+        overallRank:  rankNum(cell(idx.overallRank)),
+        region:       cell(idx.region), repName: cell(idx.repName),
+        pdMonth:      rankNum(cell(idx.pdMonth)),   pdRank:      rankNum(cell(idx.pdRank)),
+        primeraMonth: rankNum(cell(idx.primeraMonth)),
+        primeraRank:  rankNum(cell(idx.primeraRank)),
+        ordersRank:   rankNum(cell(idx.ordersRank)),
+        revPct:       rankNum(cell(idx.revPct)),    revRank:     rankNum(cell(idx.revRank))
+      };
+    }
+    return { reports: reports, skipped: skipped, bases: bases,
+             count: Object.keys(reports).length, error: null };
+  }
+
+  /* --- Import flow -------------------------------------------------------- */
+
+  function showErr(m) {
+    var el = document.getElementById('mwErr'); el.textContent = m; el.hidden = false;
+  }
+  function clearErr() { document.getElementById('mwErr').hidden = true; }
+
+  function handleFile(file) {
+    clearErr();
+    loadXlsx().then(function () {
+      return readArrayBuffer(file);
+    }).then(function (bytes) {
+      var wb = window.XLSX.read(bytes, { type: 'array', cellDates: true });
+      var found = SHEETS.map(function (s) {
+        var name = findSheet(wb, s.match);
+        return { spec: s, name: name };
+      });
+      var vis = found.filter(function (f) { return f.spec.key === 'visits'; })[0];
+      if (!vis.name) {
+        throw new Error('No Visits sheet in this workbook. Sheets present: ' +
+          wb.SheetNames.join(', '));
+      }
+      /* raw:false gives what Excel shows in the cell rather than a serial
+         number; defval keeps rows rectangular so a blank column cannot shift
+         the next one into its place. */
+      var gridOf = function (name) {
+        return window.XLSX.utils.sheet_to_json(wb.Sheets[name],
+          { header: 1, raw: false, defval: '' });
+      };
+      var sheetNamed = function (key) {
+        var f = found.filter(function (x) { return x.spec.key === key; })[0];
+        return f && f.name ? f.name : null;
+      };
+      /* Pins and Rankings are optional: a workbook without them still imports
+         its visit log rather than refusing the whole upload. */
+      pending = {
+        fileName: file.name, found: found,
+        visits: parseVisits(gridOf(vis.name)),
+        pins: sheetNamed('pins') ? parsePins(gridOf(sheetNamed('pins'))) : null,
+        rankings: sheetNamed('rankings') ? parseRankings(gridOf(sheetNamed('rankings'))) : null
+      };
+      renderPreview();
+    }).catch(function (e) {
+      pending = null;
+      document.getElementById('mwPreview').hidden = true;
+      showErr(e && e.message === 'network'
+        ? 'Could not load the spreadsheet reader. It comes from a CDN, so this needs a connection the first time.'
+        : (e && e.message) || 'Not a readable Excel workbook — is it really an .xlsx?');
+    });
+  }
+
+  function renderPreview() {
+    var v = pending.visits;
+    var existing = Store.visits.read();
+    var existingKeys = Object.keys(existing.rows);
+    var incoming = Object.keys(v.rows);
+    var fresh = incoming.filter(function (k) { return !existing.rows[k]; }).length;
+
+    var sheetRows = pending.found.map(function (f) {
+      return '<div class="row" style="justify-content:space-between; gap:var(--s-3);">' +
+        '<span>' + esc(f.spec.label) + '</span>' +
+        '<span class="mono hint">' + (f.name ? esc(f.spec.note) : 'not in this workbook') + '</span>' +
+        '</div>';
+    }).join('');
+
+    var subj = Object.keys(v.subjects).sort(function (a, b) {
+      return v.subjects[b].n - v.subjects[a].n;
+    }).map(function (k) {
+      return esc(v.subjects[k].label) + ' ' + v.subjects[k].n;
+    }).join(' &middot; ');
+
+    document.getElementById('mwSheetList').innerHTML = sheetRows +
+      '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>' + v.count + '</b> visit row(s) read &mdash; ' + subj + '.' +
+        (v.skipped ? ' <b>' + v.skipped + '</b> row(s) had no SFAccountID and were skipped ' +
+                     '(continuation rows for extra contacts).' : '') +
+        (v.dupes ? ' ' + v.dupes + ' row(s) collapsed onto an identical account, date and subject.' : '') +
+      '</p>' +
+      '<p class="hint" style="margin-top:var(--s-2);">' +
+        (existingKeys.length
+          ? '<b>' + fresh + '</b> of these are new; the other ' + (v.count - fresh) +
+            ' correct rows already in the log. ' + existingKeys.length +
+            ' row(s) already stored are left alone.'
+          : 'Nothing is in the log yet, so all of these are new.') +
+      '</p>' + pinsSummary() + rankingsSummary();
+    document.getElementById('mwPreview').hidden = false;
+  }
+
+  function rankingsSummary() {
+    var r = pending.rankings;
+    if (!r) return '';
+    if (r.error) {
+      return '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>Rankings sheet not read</b> — ' + esc(r.error) + '.</p>';
+    }
+    var existing = Store.rankings.read().reports;
+    var fresh = Object.keys(r.reports).filter(function (k) { return !existing[k]; }).length;
+    var bases = Object.keys(r.bases);
+    return '<p class="hint" style="margin-top:var(--s-3);">' +
+      '<b>' + r.count + '</b> ranking report(s) read: ' +
+      bases.map(function (b) { return esc(b) + ' ' + r.bases[b]; }).join(', ') + '.' +
+      (r.skipped ? ' ' + r.skipped + ' row(s) had no date or basis and were skipped.' : '') +
+      ' ' + fresh + ' new, ' + (r.count - fresh) + ' correcting a report already stored.' +
+      '</p>' +
+      (bases.length > 1
+        ? '<p class="hint" style="margin-top:var(--s-2);">Both bases are kept apart — ' +
+          'Performance never plots one against the other.</p>'
+        : '');
+  }
+
+  function pinsSummary() {
+    var p = pending.pins;
+    if (!p) return '';
+    if (p.error) {
+      return '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>Pins sheet not read</b> — ' + esc(p.error) + '.</p>';
+    }
+    var terrs = Object.keys(p.territories);
+    var tags = Object.keys(p.tagCounts).sort(function (a, b) {
+      return p.tagCounts[b] - p.tagCounts[a];
+    });
+    return '<p class="hint" style="margin-top:var(--s-3);">' +
+      '<b>' + p.rows.length + '</b> pin(s) across <b>' + terrs.length + '</b> territor' +
+      (terrs.length === 1 ? 'y' : 'ies') + ': ' +
+      terrs.map(function (t) { return esc(t) + ' ' + p.territories[t]; }).join(', ') + '.' +
+      (p.skipped ? ' ' + p.skipped + ' row(s) had no territory or no Maps URL and were skipped.' : '') +
+      (p.hasTagCol
+        ? ' Tags: ' + tags.slice(0, 6).map(function (t) {
+            return esc(t) + ' ' + p.tagCounts[t]; }).join(', ') +
+          (tags.length > 6 ? ', and ' + (tags.length - 6) + ' more' : '') + '.'
+        : ' <b>No Tags column</b> — pillar coverage and Top 25 would be carried forward.') +
+      '</p>' +
+      '<p class="hint" style="margin-top:var(--s-2);">These are handed to Route Board, not ' +
+      'applied here. Open <b>Route</b> &rsaquo; <b>Data</b> to see the diff against your ' +
+      'current book and import it — that is where the notes and tags you would be replacing ' +
+      'are checked.</p>';
+  }
+
+  function applyImport() {
+    if (!pending) return;
+    var cur = Store.visits.read();
+    var rows = cur.rows;
+    /* Merge, never replace. The upload is one week; the log is the history. */
+    Object.keys(pending.visits.rows).forEach(function (k) { rows[k] = pending.visits.rows[k]; });
+    var ok = Store.visits.write({ generated: new Date().toISOString(), rows: rows });
+
+    /* Pins REPLACE, unlike the visit log. Every field comes from the sheet, so
+       there is no accumulated history to protect here — and the thing that does
+       need protecting, the book's notes and tags, is guarded on the Route Board
+       side where the diff is shown. */
+    if (pending.pins && !pending.pins.error && pending.pins.rows.length) {
+      if (!Store.pins.write({ generated: new Date().toISOString(),
+                              fileName: pending.fileName, rows: pending.pins.rows })) {
+        ok = false;
+      }
+    }
+
+    /* Rankings MERGE like the visit log, not replace like the pins: each
+       upload carries the reports published so far, and an older workbook
+       must not delete the months a newer one already contributed. */
+    if (pending.rankings && !pending.rankings.error && pending.rankings.count) {
+      var cur = Store.rankings.read().reports;
+      Object.keys(pending.rankings.reports).forEach(function (k) {
+        cur[k] = pending.rankings.reports[k];
+      });
+      if (!Store.rankings.write({ generated: new Date().toISOString(), reports: cur })) {
+        ok = false;
+      }
+    }
+    if (!ok) {
+      showErr('Imported, but this device’s storage is full, so it was kept in memory only ' +
+              'and will be gone when you reload.');
+    }
+    pending = null;
+    document.getElementById('mwPreview').hidden = true;
+    document.getElementById('mwFile').value = '';
+    showLog();
+  }
+
+  /* --- The log ------------------------------------------------------------ */
+
+  function byAccount() {
+    var rows = Store.visits.read().rows;
+    var acc = {};
+    Object.keys(rows).forEach(function (k) {
+      var r = rows[k];
+      var a = acc[r.sfAccountId];
+      if (!a) {
+        a = acc[r.sfAccountId] = { sfAccountId: r.sfAccountId, accountName: r.accountName,
+                                   touches: 0, visits: 0, lastVisit: '', lastTouch: '',
+                                   subjects: {}, rows: [] };
+      }
+      if (!a.accountName && r.accountName) a.accountName = r.accountName;
+      a.touches++;
+      var s = norm(r.subject);
+      a.subjects[s] = (a.subjects[s] || 0) + 1;
+      /* Only "Visit" earns bonus credit. The other four are contact, not
+         credit, so they move lastTouch but never lastVisit. */
+      if (s === 'visit') {
+        a.visits++;
+        if (r.date > a.lastVisit) a.lastVisit = r.date;
+      }
+      if (r.date > a.lastTouch) a.lastTouch = r.date;
+      a.rows.push(r);
+    });
+    return acc;
+  }
+
+  function hasData() { return Object.keys(Store.visits.read().rows).length > 0; }
+
+  function renderStats() {
+    var rows = Store.visits.read().rows;
+    var keys = Object.keys(rows);
+    var acc = byAccount();
+    var visitRows = keys.filter(function (k) { return norm(rows[k].subject) === 'visit'; });
+    var dates = keys.map(function (k) { return rows[k].date; })
+      .filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }).sort();
+    var cells = [
+      ['Accounts touched', String(Object.keys(acc).length)],
+      ['Credited visits', String(visitRows.length)],
+      ['All touches', String(keys.length)],
+      ['Range', dates.length ? dates[0] + ' → ' + dates[dates.length - 1] : '—']
+    ];
+    document.getElementById('mwStats').innerHTML = cells.map(function (p) {
+      return '<div><div class="ka-fig-lbl">' + esc(p[0]) +
+             '</div><div class="ka-fig-val">' + esc(p[1]) + '</div></div>';
+    }).join('');
+  }
+
+  function renderSubjects() {
+    var rows = Store.visits.read().rows;
+    var counts = {};
+    Object.keys(rows).forEach(function (k) {
+      var s = norm(rows[k].subject) || 'blank';
+      counts[s] = counts[s] || { label: rows[k].subject || '(blank)', n: 0 };
+      counts[s].n++;
+    });
+    var order = Object.keys(counts).sort(function (a, b) { return counts[b].n - counts[a].n; });
+    document.getElementById('mwSubjectRow').innerHTML =
+      '<button class="ka-chip' + (subjectFilter ? '' : ' on') + '" data-mwsubj="">All</button>' +
+      order.map(function (s) {
+        return '<button class="ka-chip' + (subjectFilter === s ? ' on' : '') +
+          '" data-mwsubj="' + esc(s) + '">' + esc(counts[s].label) +
+          ' <span class="mono">' + counts[s].n + '</span></button>';
+      }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mwsubj]'), function (b) {
+      b.addEventListener('click', function () {
+        subjectFilter = b.dataset.mwsubj || null;
+        renderSubjects(); renderList();
+      });
+    });
+  }
+
+  function renderList() {
+    var acc = byAccount();
+    var q = search.toLowerCase();
+    var list = Object.keys(acc).map(function (k) { return acc[k]; })
+      .filter(function (a) {
+        if (subjectFilter && !a.subjects[subjectFilter]) return false;
+        if (!q) return true;
+        return (a.accountName || '').toLowerCase().indexOf(q) !== -1 ||
+               a.sfAccountId.toLowerCase().indexOf(q) !== -1;
+      })
+      .sort(function (a, b) {
+        if (b.lastTouch !== a.lastTouch) return b.lastTouch < a.lastTouch ? -1 : 1;
+        return b.touches - a.touches;
+      });
+    var el = document.getElementById('mwList');
+    if (!list.length) {
+      el.innerHTML = '<p class="hint" style="text-align:center;">Nothing matches.</p>';
+      return;
+    }
+    el.innerHTML = list.map(function (a) {
+      var rows = a.rows.slice().sort(function (x, y) { return y.date < x.date ? -1 : 1; });
+      return '<details class="card" style="margin-bottom:var(--s-2);">' +
+        '<summary style="cursor:pointer; display:flex; justify-content:space-between; gap:var(--s-3); align-items:baseline;">' +
+          '<span><b>' + esc(a.accountName || '(unnamed)') + '</b> ' +
+            '<span class="mono hint">' + esc(a.sfAccountId) + '</span></span>' +
+          '<span class="mono">' + (a.lastVisit ? esc(a.lastVisit) : 'no visit') + '</span>' +
+        '</summary>' +
+        '<p class="hint" style="margin-top:var(--s-2);">' +
+          a.visits + ' credited visit(s), ' + a.touches + ' touch(es) in all' +
+          (a.lastTouch && a.lastTouch !== a.lastVisit ? ', last contact ' + esc(a.lastTouch) : '') +
+          '.</p>' +
+        '<div style="overflow-x:auto; margin-top:var(--s-2);">' +
+        '<table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
+        '<tr><th style="text-align:left;">Date</th><th style="text-align:left;">Subject</th>' +
+        '<th style="text-align:left;">Contact</th><th style="text-align:left;">Comments</th></tr>' +
+        rows.map(function (r) {
+          var who = (r.contactFirst + ' ' + r.contactLast).trim();
+          var cm = [r.comments1, r.comments2].filter(Boolean).join(' — ');
+          return '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.subject) + '</td>' +
+            '<td>' + esc(who) + '</td><td>' + esc(cm) + '</td></tr>';
+        }).join('') +
+        '</table></div></details>';
+    }).join('');
+  }
+
+  function showLog() {
+    if (!hasData()) { showImport(); return; }
+    document.getElementById('mwImportView').hidden = true;
+    document.getElementById('mwLogView').hidden = false;
+    document.getElementById('mwBackRow').hidden = false;
+    var g = Store.visits.read().generated;
+    document.getElementById('mwAsOf').textContent =
+      'Visit log' + (g ? ', last uploaded ' + String(g).slice(0, 10) : '') +
+      '. Re-uploading a newer workbook adds to it.';
+    renderStats(); renderSubjects(); renderList();
+  }
+  function showImport() {
+    document.getElementById('mwImportView').hidden = false;
+    document.getElementById('mwLogView').hidden = true;
+    document.getElementById('mwBackRow').hidden = !hasData();
+  }
+
+  /* --- Wiring ------------------------------------------------------------- */
+
+  Shell.ready(function () {
+    var drop = document.getElementById('mwDrop');
+    document.getElementById('mwFile').addEventListener('change', function (e) {
+      if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+    });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+    });
+    drop.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    document.getElementById('mwApplyBtn').addEventListener('click', applyImport);
+    document.getElementById('mwDiscardBtn').addEventListener('click', function () {
+      pending = null; clearErr();
+      document.getElementById('mwPreview').hidden = true;
+      document.getElementById('mwFile').value = '';
+    });
+    document.getElementById('mwBackBtn').addEventListener('click', showLog);
+    document.getElementById('mwAddBtn').addEventListener('click', showImport);
+    document.getElementById('mwSearch').addEventListener('input', function (e) {
+      search = e.target.value.trim(); renderList();
+    });
+
+    var clearBtn = document.getElementById('mwClearBtn');
+    clearBtn.addEventListener('click', function () {
+      document.getElementById('mwClearText').textContent =
+        'This clears the whole visit log — ' +
+        Object.keys(Store.visits.read().rows).length +
+        ' row(s) of history, not just the last upload. Re-uploading the workbook ' +
+        'restores only what that workbook still contains.';
+      document.getElementById('mwClearConfirm').hidden = false;
+    });
+    document.getElementById('mwClearNo').addEventListener('click', function () {
+      document.getElementById('mwClearConfirm').hidden = true;
+    });
+    document.getElementById('mwClearYes').addEventListener('click', function () {
+      Store.visits.clear();
+      document.getElementById('mwClearConfirm').hidden = true;
+      showImport();
+    });
+
+    /* The eyebrow names the tool you are looking at, the way Sales does. */
+    var tabList = document.querySelector('[data-tabs]');
+    if (tabList) {
+      tabList.addEventListener('th:tab', function (e) {
+        document.getElementById('kaHdrSub').textContent =
+          e.detail.panel === 'workbook' ? 'Master workbook' : 'Worksheets';
+      });
+    }
+
+    if (hasData()) showLog(); else showImport();
   });
 
 })();

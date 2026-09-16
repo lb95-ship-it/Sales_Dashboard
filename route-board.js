@@ -286,6 +286,16 @@ const CSS = `  :host{
   .sched .t{opacity:0.8;}
   .card.conflict{border-color:var(--wed); background:var(--wed-soft);}
   .card.conflict .sched{background:var(--wed-soft); color:var(--wed); border-color:var(--wed-line);}
+  /* Divider for search hits from territories outside this week's pool. Reads
+     as a section break rather than a card, so the pool above it still looks
+     like the whole of the route's own work. */
+  .other-routes{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    margin:12px 0 6px; padding-top:9px; border-top:1px dashed var(--line);
+    font-size:11px; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--ink-dim);
+  }
+  .other-routes b{font-weight:600; color:var(--ink); letter-spacing:0;}
   .fits-row{display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap;}
   .fits-row .lbl{font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint);}
   .fits-row button{
@@ -496,7 +506,8 @@ const MARKUP = `<div id="app">
     <aside class="source">
       <div class="source-head">
         <div class="source-title"><span>Unassigned</span><b id="srcCount"></b></div>
-        <input class="search" id="search" placeholder="Search accounts...">
+        <input class="search" id="search" placeholder="Search every route..."
+               title="Searches this week's pool first, then every other route in the book">
         <div class="fits-row" id="fitsRow">
           <span class="lbl" title="Show only accounts whose note allows this day, plus everyone with no stated day">Fits</span>
         </div>
@@ -1450,6 +1461,51 @@ function matchesFilter(a){
   return true;
 }
 
+/* ---- Search reaches past the route ---------------------------------
+   The pool is the week's two territories, and that is right: it is the
+   list of what you are there to work.
+
+   But a pool-only search cannot answer "am I anywhere near X this week",
+   and an office on another route that sits on the road you are already
+   driving is exactly the one worth adding to a day. So a search — and
+   only a search, never the tag or day filters, which exist to narrow the
+   route in front of you — also looks through every other territory in
+   the book.
+
+   Matches come back as their own group under the pool and are never
+   mixed into it. Two reasons, both of which would bite: the pool is the
+   week's work and its count must not move because you typed something,
+   and a card from another route needs to read as one — it keeps its own
+   territory colour and initials, which is the only warning that placing
+   it adds a drive.
+
+   Assigning one needs no other change: day columns already hold accounts
+   from any territory, which is what stops a placed card vanishing when
+   the week's territories switch.
+   -------------------------------------------------------------------- */
+/* One letter matches most of the book and turns the group into a second
+   copy of the account list. */
+const SEARCH_MIN = 2;
+function otherRouteMatches(pool){
+  if(String(view.search || '').trim().length < SEARCH_MIN) return [];
+  const inPool = {};
+  pool.forEach(a=>{ inPool[a.id] = 1; });
+  const out = [];
+  Object.keys(ACCOUNTS).forEach(id=>{
+    const a = ACCOUNTS[id];
+    if(!a || inPool[id] || week.assign[id]) return;
+    if(!matchesFilter(a)) return;
+    // A skip is a decision about the pool, but it is still a decision —
+    // honour it here the same way, and reveal it under the same toggle.
+    if(annotations.skipped[id] && !view.showSkipped) return;
+    out.push(a);
+  });
+  /* The pool has a meaningful order — the one the Google list is in, which
+     is roughly the order you drive it. This has none, so it is alphabetical:
+     the only order a search result across six routes can justify. */
+  return out.sort((x,y)=>x.name.localeCompare(y.name));
+}
+
 // ---- Render everything ----
 function render(){
   const pool = poolAccounts();
@@ -1464,10 +1520,25 @@ function render(){
   const inPool = unassigned.filter(a=>!annotations.skipped[a.id]);
   const shown = view.showSkipped ? inPool.concat(skippedList) : inPool;
 
-  srcEl.innerHTML = shown.length ? shown.map(a=>cardHTML(a)).join('')
-    : (skippedList.length && !view.showSkipped
-        ? '<div class="empty">Everything left here is skipped. Show skipped to see it.</div>'
-        : '<div class="empty">All accounts in this territory are placed.</div>');
+  const elsewhere = otherRouteMatches(pool);
+  const elsewhereHTML = elsewhere.length
+    ? `<div class="other-routes"><span>Other routes</span><b>${elsewhere.length}</b></div>`
+      + elsewhere.map(a=>cardHTML(a)).join('')
+    : '';
+
+  let srcHTML;
+  if(shown.length){
+    srcHTML = shown.map(a=>cardHTML(a)).join('');
+  } else if(String(view.search || '').trim()){
+    // The group below says what was found elsewhere, so an empty pool needs
+    // a line only when the search found nothing at all.
+    srcHTML = elsewhere.length ? '' : '<div class="empty">Nothing matches, on this route or any other.</div>';
+  } else if(skippedList.length && !view.showSkipped){
+    srcHTML = '<div class="empty">Everything left here is skipped. Show skipped to see it.</div>';
+  } else {
+    srcHTML = '<div class="empty">All accounts in this territory are placed.</div>';
+  }
+  srcEl.innerHTML = srcHTML + elsewhereHTML;
   root.getElementById('srcCount').textContent = inPool.length + ' left';
   renderSkipToggle(skippedList.length);
 

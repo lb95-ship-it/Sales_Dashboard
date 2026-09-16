@@ -675,7 +675,7 @@ const DAYFULL = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'
    The fourth is not: it is a th_* key shared with the rest of the Hub, so
    the standalone board and the board inside Route Planning read the same
    workbook. It is still read through readJSON here rather than through
-   window.Store, because route-board.html loads this file without
+   window.Store, because route-board-local.html loads this file without
    data-store.js and must keep working that way.
 
    Everything is keyed on the Google place ID (e.g. "0x865b39...:0xa3a6c1..."),
@@ -1984,7 +1984,7 @@ function headerIndex(header, cols){
 
 /* th_pins -> the same {book, problems} shape the JSON path returns, plus
    `notes` for the preview. Read through readJSON rather than window.Store:
-   route-board.html loads this file without data-store.js. */
+   route-board-local.html loads this file without data-store.js. */
 function parsePinsBook(){
   const p = readJSON('th_pins');
   const rows = (p && Array.isArray(p.rows)) ? p.rows : [];

@@ -7,7 +7,7 @@ the account book (customer names, contacts, visit notes, Top 25 flags).
 |---|---|
 | `legacy-territory-lists.json` | Raw territory lists exported out of Google Lists. Input to the converter. |
 | `accounts.json` | Generated account book, keyed by Google place ID. Portable / importable. |
-| `accounts.js` | Generated. What `route-board.html` loads (a plain `<script>`, so it works over `file://`). |
+| `accounts.js` | Generated. What `route-board-local.html` loads (a plain `<script>`, so it works over `file://`). |
 
 ## Rebuilding
 
@@ -16,7 +16,7 @@ powershell -ExecutionPolicy Bypass -File tools\build-book.ps1
 ```
 
 This regenerates `accounts.json` + `accounts.js` and stamps a cache-busting
-version onto the `<script>` tag in `route-board.html`.
+version onto the `<script>` tag in `route-board-local.html`.
 
 The build refuses to write if more than 10% of rows lack a Google place ID, so a
 malformed export cannot quietly replace a good book. Pass `-Force` to override.

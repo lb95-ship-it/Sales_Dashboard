@@ -309,6 +309,19 @@ const CSS = `  :host{
     color:var(--ink-dim);
   }
   .other-routes b{font-weight:600; color:var(--ink); letter-spacing:0;}
+  /* The Sales queue sits above the pool rather than below it, so its rule
+     goes on the bottom edge and it takes the accent colour: this is a list
+     you asked for, not one a search turned up. */
+  .other-routes.flagged{
+    margin:0 0 6px; padding:0 0 9px;
+    border-top:none; border-bottom:1px dashed var(--line);
+    color:var(--accent);
+  }
+  .tag.pick{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:0.04em; opacity:1;
+    padding:1px 5px; border-radius:4px;
+    background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-line);
+  }
   .fits-row{display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap;}
   .fits-row .lbl{font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint);}
   .fits-row button{
@@ -1145,6 +1158,10 @@ function assignTo(id, day, index){
   const arr = week.order[day] || (week.order[day] = []);
   const at = (typeof index === 'number' && index >= 0 && index <= arr.length) ? index : arr.length;
   arr.splice(at, 0, id);
+  /* On a day now, so the Sales queue is done with it. Left on the queue it
+     would come back above the pool every week from here on, asking to be
+     planned again. */
+  dropPick(id);
 }
 function unassign(id){
   const d = week.assign[id];
@@ -1604,7 +1621,7 @@ function cardHTML(a, stop, total){
     ${metaHTML(a.id)}
     ${noteHTML}
     ${schedHTML}
-    <div class="card-tags">${tagStr}<span class="terr-mini" title="${escapeAttr(a.territories.join(', '))}">${terrLabel(a)}</span></div>
+    <div class="card-tags">${PICKED[a.id] ? `<span class="tag pick" title="${escapeAttr('Flagged on Sales' + (PICKED[a.id].why ? ' — ' + PICKED[a.id].why : ''))}">Sales</span>` : ''}${tagStr}<span class="terr-mini" title="${escapeAttr(a.territories.join(', '))}">${terrLabel(a)}</span></div>
     <div class="card-actions">
       <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener">View</a>
       <a class="dir" href="${escapeAttr(dirUrl(a))}" target="_blank" rel="noopener">Directions</a>
@@ -1639,6 +1656,48 @@ function matchesFilter(a){
   // Accounts with no stated day fit every day, so they stay in the list.
   if(view.fitsDay && !fitsDay(schedFor(a), view.fitsDay)) return false;
   return true;
+}
+
+/* ---- Flagged on Sales ----------------------------------------------
+   Accounts the Sales page has flagged as needing a visit, arriving
+   through th_route_picks — a queue, not a plan. Sales writes a place id
+   and a reason; nothing is placed on a day, because which day an office
+   belongs on depends on the road and the visit window, which is the
+   decision this board exists to make.
+
+   They show above the pool and outside it, for the same reason the
+   cross-route search results show below it: the pool is this week's
+   territory, and a flagged account can be from anywhere in the book.
+   Placing one takes it off the queue — it is in the plan now, and the
+   queue has done its job.
+
+   Read raw rather than through window.Store, like th_pins and th_visits:
+   route-board-local.html loads this file without data-store.js.
+   -------------------------------------------------------------------- */
+const PICKS_KEY = 'th_route_picks';
+let PICKED = {};
+
+function readPicks(){
+  const p = readJSON(PICKS_KEY);
+  return (p && p.ids && typeof p.ids === 'object') ? p.ids : {};
+}
+function dropPick(id){
+  const ids = readPicks();
+  if(!ids[id]) return;
+  delete ids[id];
+  lsSet(PICKS_KEY, JSON.stringify({generated: new Date().toISOString(), ids: ids}));
+  PICKED = ids;
+}
+/* Queued, in the book, not already placed, and not already sitting in this
+   week's pool — an account in both places is one card, in the pool, wearing
+   the flag rather than repeated above it. */
+function pickAccounts(pool){
+  const inPool = {};
+  pool.forEach(a=>{ inPool[a.id] = 1; });
+  return Object.keys(PICKED)
+    .filter(id=>ACCOUNTS[id] && !week.assign[id] && !inPool[id])
+    .map(id=>ACCOUNTS[id])
+    .sort((x,y)=>x.name.localeCompare(y.name));
 }
 
 /* ---- Search reaches past the route ---------------------------------
@@ -1688,6 +1747,7 @@ function otherRouteMatches(pool){
 
 // ---- Render everything ----
 function render(){
+  PICKED = readPicks();
   const pool = poolAccounts();
   const placed = assignedAccounts();
 
@@ -1706,6 +1766,12 @@ function render(){
       + elsewhere.map(a=>cardHTML(a)).join('')
     : '';
 
+  const picked = pickAccounts(pool);
+  const pickedHTML = picked.length
+    ? `<div class="other-routes flagged"><span>Flagged on Sales</span><b>${picked.length}</b></div>`
+      + picked.map(a=>cardHTML(a)).join('')
+    : '';
+
   let srcHTML;
   if(shown.length){
     srcHTML = shown.map(a=>cardHTML(a)).join('');
@@ -1718,7 +1784,7 @@ function render(){
   } else {
     srcHTML = '<div class="empty">All accounts in this territory are placed.</div>';
   }
-  srcEl.innerHTML = srcHTML + elsewhereHTML;
+  srcEl.innerHTML = pickedHTML + srcHTML + elsewhereHTML;
   root.getElementById('srcCount').textContent = inPool.length + ' left';
   renderSkipToggle(skippedList.length);
 

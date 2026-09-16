@@ -776,7 +776,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="assets/js/data-store.js?v=1788244374"></script>
+<script src="assets/js/data-store.js?v=1789543294"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
 <script>
 /* ===========================================================================
@@ -3209,6 +3209,10 @@
       e.name = x.name || e.cardName;
       e.city = x.city || '';
       e.route = x.route || '';
+      /* The Route Board keys its book on place id, so this is what lets a row
+         here become a card there. Blank on an account with no pin, which is
+         why the button below can be honest about not being able to add it. */
+      e.placeId = x.placeId || '';
       if (!e.sfAccountId) {
         e.status = 'unresolved';
         e.why = 'the workbook row has no SFAccountID';
@@ -3244,13 +3248,47 @@
     if (!d.hasPurchases) missing.push(['Purchase CSVs',
       'Sales &rsaquo; Purchases — upload the per-category exports.']);
     if (!d.hasXref) missing.push(['The account crosswalk',
-      'Route &rsaquo; Data &rsaquo; Territory Master overlay — paste the Accounts sheet.']);
+      'Accounts &rsaquo; Master workbook — upload Territory_Master.xlsx. Its Accounts ' +
+      'sheet is the crosswalk; pasting it into Route &rsaquo; Data still works too.']);
     if (!d.hasVisits) missing.push(['The visit log',
       'Accounts &rsaquo; Master workbook — upload Territory_Master.xlsx.']);
     return missing;
   }
 
+  /* --- Onto the planning board --------------------------------------------
+     A row in this report is "an account I need to visit", which is the same
+     sentence the Route Board's pool is made of. th_route_picks is the join:
+     this writes a place id, the board shows that account in its pool whatever
+     territory it belongs to, and placing it on a day clears it.
+
+     Deliberately a queue and not an assignment. Which day an office belongs
+     on depends on the road, its visit window and what is already on that day
+     — decisions the board is built for and a lost-sales report knows nothing
+     about.
+     ---------------------------------------------------------------------- */
+  var picks = {};
+
+  function boardBtn(r, when) {
+    if (r.status === 'unresolved') return '';
+    if (!r.placeId) {
+      return '<p class="hint" style="margin-top:var(--s-3);">' +
+        'No map pin on this account, so the planning board has nothing to show. ' +
+        'Its workbook row needs a PlaceID or a MapsURL.</p>';
+    }
+    var queued = !!picks[r.placeId];
+    return '<div class="row" style="margin-top:var(--s-3);">' +
+      '<button class="btn btn-sm' + (queued ? '' : ' btn-primary') +
+        '" data-board="' + esc(r.placeId) +
+        '" data-name="' + esc(r.name || r.cardName || '') +
+        '" data-cc="' + esc(r.cardCode) +
+        '" data-why="' + esc(when || '') + '">' +
+        (queued ? 'On the planning board — tap to take off'
+                : '＋ Add to the planning board') +
+      '</button></div>';
+  }
+
   function render() {
+    picks = (window.Store && Store.routePicks) ? Store.routePicks.read().ids : {};
     var d = build();
     var missing = preconditions(d);
     var blocked = document.getElementById('nqvBlocked');
@@ -3337,7 +3375,7 @@
             r.cats.map(function (c) {
               return esc(c.name) + ' ' + money0(c.total) + (c.bonus ? '' : ' (non-bonus)');
             }).join(' &middot; ') +
-          '</p></details>';
+          '</p>' + boardBtn(r, when) + '</details>';
       }).join('');
     }
 
@@ -3357,13 +3395,30 @@
     document.getElementById('nqvSearch').addEventListener('input', function (e) {
       search = e.target.value.trim(); render();
     });
+
+    /* Delegated: the list is rebuilt on every filter change, and rebinding a
+       button per row each time is how listeners leak. Tapping again takes the
+       account back off, so the button is its own undo. */
+    document.getElementById('nqvList').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-board]') : null;
+      if (!b || !window.Store || !Store.routePicks) return;
+      var id = b.getAttribute('data-board');
+      if (picks[id]) Store.routePicks.remove(id);
+      else Store.routePicks.add(id, {
+        name:     b.getAttribute('data-name'),
+        cardCode: b.getAttribute('data-cc'),
+        why:      b.getAttribute('data-why')
+      });
+      render();
+    });
+
     render();
     /* Re-derive when any of the three stores it reads changes, including from
        another tab — this view owns none of its data. */
     if (window.Store && Store.onChange) {
       Store.onChange(function (key) {
         if (key === Store.KEYS.purchaseCats || key === Store.KEYS.visits ||
-            key === Store.KEYS.accountXref) render();
+            key === Store.KEYS.accountXref || key === Store.KEYS.routePicks) render();
       });
     }
   });

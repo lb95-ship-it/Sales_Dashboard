@@ -49,7 +49,8 @@
     pins:             'th_pins',                  // Maps pins -> Route Board book
     rankings:         'th_rankings',              // Field rankings (internal)
     prescribing:      'th_prescribing',           // Workbook -> Prescriptions handoff
-    routeBoardWeek:   'th_route.week.v2'          // Route Board (READ ONLY here)
+    routeBoardWeek:   'th_route.week.v2',         // Route Board (READ ONLY here)
+    routePicks:       'th_route_picks'            // Sales -> Route Board pool
   };
 
   /* -------------------------------------------------------------------------
@@ -494,6 +495,59 @@
   };
 
   /* -------------------------------------------------------------------------
+     Route picks — accounts flagged on Sales as needing a visit, waiting for
+     the Route Board's pool.
+
+     A QUEUE, not a plan. Nothing is placed on a day here: which day an office
+     belongs on is the decision the Route Board exists to make, and guessing it
+     from a lost-sales report would be putting a stop on a road nobody chose.
+
+     Keyed on PLACE ID, because that is what the board keys its book on. Sales
+     reaches it through the crosswalk — CardCode to SFAccountID to place id —
+     so an account with no pin cannot be queued, and Sales says so rather than
+     queueing something the board could never show.
+
+     Written by Sales, read and emptied by the Route Board: placing an account
+     on a day takes it off the queue, because the queue has done its job at
+     that point. Not namespaced per mount, the same as th_pins — the standalone
+     board and the board inside Route Planning see one list.
+     ------------------------------------------------------------------------- */
+  var routePicks = {
+    /* { generated, ids: { [placeId]: { name, cardCode, why, added } } } */
+    read: function () {
+      var p = get(KEYS.routePicks, null);
+      var ids = (p && p.ids && typeof p.ids === 'object') ? p.ids : {};
+      return { generated: (p && p.generated) || null, ids: ids };
+    },
+    write: function (ids) {
+      return set(KEYS.routePicks, {
+        generated: new Date().toISOString(),
+        ids: (ids && typeof ids === 'object') ? ids : {}
+      });
+    },
+    /* Re-adding an account that is already queued refreshes its reason rather
+       than duplicating it — the same flag raised twice is one flag. */
+    add: function (placeId, info) {
+      if (!placeId) return false;
+      var cur = routePicks.read().ids;
+      cur[placeId] = {
+        name:     (info && info.name) || '',
+        cardCode: (info && info.cardCode) || '',
+        why:      (info && info.why) || '',
+        added:    new Date().toISOString()
+      };
+      return routePicks.write(cur);
+    },
+    remove: function (placeId) {
+      var cur = routePicks.read().ids;
+      if (!cur[placeId]) return true;
+      delete cur[placeId];
+      return routePicks.write(cur);
+    },
+    clear: function () { return remove(KEYS.routePicks); }
+  };
+
+  /* -------------------------------------------------------------------------
      Purchases — the per-category order CSVs out of the Report Builder portal.
 
      Two keys, split the way Lost Sales splits its own:
@@ -752,6 +806,7 @@
     prescribers: prescribers,
     performance: performance,
     accountXref: accountXref,
+    routePicks: routePicks,
     purchases: purchases,
     visits: visits,
     pins: pins,

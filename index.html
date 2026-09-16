@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/shell.css?v=1788054532">
+<link rel="stylesheet" href="assets/css/shell.css?v=1789538658">
 
 <style>
   /* -----------------------------------------------------------------------
@@ -119,7 +119,11 @@
   <div class="stack">
 
     <!-- Route ------------------------------------------------------------ -->
-    <a class="card card-link" href="route-planning.html">
+    <!-- Destination is set in renderRoute(): this card carries both the board's
+         stops-per-day strip and the schedule's note for today, and those now
+         live on two different pages. It links to whichever one the card is
+         actually showing. -->
+    <a class="card card-link" href="route-planning.html" id="routeCard">
       <div class="card-head">
         <h2>This week&rsquo;s route</h2>
         <span id="routeBadge"></span>
@@ -127,7 +131,7 @@
       <div id="routeBody"></div>
       <div class="card-foot row-between">
         <span class="stat-label" id="routeFoot"></span>
-        <span class="card-cta">Open Route Planning
+        <span class="card-cta"><span id="routeCta">Open Schedule Builder</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
@@ -379,6 +383,9 @@
       body.innerHTML = todayLine ||
         empty('No week planned yet on the Route Board.');
       foot.textContent = todayLine ? 'Schedule Builder' : 'Route Board';
+      /* Nothing on the board yet, so the useful destination is the board
+         itself when there is no schedule note either. */
+      linkCardTo(todayLine ? 'schedule' : 'board');
       return;
     }
 
@@ -394,6 +401,19 @@
 
     badge.outerHTML = '<span class="pill pill-accent" id="routeBadge">' + total + ' stops</span>';
     foot.textContent = total === 1 ? '1 account assigned' : total + ' accounts assigned';
+    linkCardTo('board');
+  }
+
+  /* The Route Board and the Schedule Builder are two pages now, so the card
+     sends you to the one it is showing rather than to a tab bar you would
+     then have to choose from. */
+  function linkCardTo(which) {
+    var card = document.getElementById('routeCard');
+    var cta = document.getElementById('routeCta');
+    if (!card || !cta) return;
+    var board = which === 'board';
+    card.setAttribute('href', board ? 'route-week.html' : 'route-planning.html');
+    cta.textContent = board ? 'Open Route Board' : 'Open Schedule Builder';
   }
 
   /* --- Bonus ------------------------------------------------------------- */

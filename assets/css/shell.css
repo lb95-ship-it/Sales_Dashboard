@@ -244,6 +244,35 @@ hr.rule { border: 0; border-top: 1px solid var(--rule); margin: var(--s-5) 0; }
   background: var(--teal-dim);
   color: var(--teal-deep);
 }
+/* Link variant of the same bar, for a sub-tab that navigates between two
+   PAGES instead of toggling panels on one. Same geometry, same states — the
+   only difference is that `aria-current="page"` does the job `aria-selected`
+   does for the button form, because a link to the page you are already on is
+   not a selected tab, it is the current page. */
+.subtabs a {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  color: var(--ink-light);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+.subtabs a:hover {
+  color: var(--ink-mid);
+  background: var(--bg);
+  text-decoration: none;
+}
+.subtabs a[aria-current='page'] {
+  background: var(--teal-dim);
+  color: var(--teal-deep);
+}
 .tabpanel[hidden] { display: none; }
 
 /* ---------------------------------------------------------------------------

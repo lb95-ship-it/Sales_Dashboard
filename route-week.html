@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Route Board &middot; Territory Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/shell.css?v=1789538658">
+
+<style>
+  /* -----------------------------------------------------------------------
+     Route Board frame.
+
+     The component is `height:100%` of whatever contains it and uses
+     container queries (`container-type:inline-size`) for its own responsive
+     layout — so it needs a box with a real height. On its own page that box
+     is never hidden, which is why the mount below is no longer lazy.
+     ----------------------------------------------------------------------- */
+  #routeBoardFrame {
+    height: 70vh;
+    min-height: 520px;
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+  @media (min-width: 900px) {
+    #routeBoardFrame { height: calc(100vh - 210px); min-height: 560px; }
+  }
+
+  /* -----------------------------------------------------------------------
+     Wider column. This block ships only on this page, so it widens the board
+     without touching the Schedule Builder's 640px reading column even though
+     both pages answer to data-page="route".
+
+     The Route Board's own container queries need ~820px of frame before it
+     leaves the cramped stacked layout, and the shell's reading column caps
+     at --content-max (640px).
+
+     Bounded against the space beside the fixed 216px rail rather than raw
+     vw: the rail is `position:fixed`, so a plain centred 1100px box slides
+     underneath it at 1180px (iPad landscape), and a 96vw box overflows
+     horizontally in the 900–1179px band where .page is offset by the rail.
+     The max() keeps the column clear of the rail when space is tight and
+     lets it centre normally once the viewport is wide enough.
+     ----------------------------------------------------------------------- */
+  body[data-page="route"] .page {
+    max-width: min(1100px, 96vw);
+  }
+  @media (min-width: 900px) {
+    body[data-page="route"] .page {
+      max-width: min(1100px, calc(100vw - var(--sidebar-w) - var(--s-4)));
+      margin-left: max(var(--sidebar-w), calc((100vw - 1100px) / 2));
+      margin-right: auto;
+    }
+  }
+
+  /* Theme hooks. These are set on the host ELEMENT, so they beat the
+     component's own `:host{}` defaults (id selector vs :host) and inherit
+     through the shadow boundary — no internal edits.
+
+     Only typography and radius are overridden. The colour palette is
+     deliberately left alone: the board carries role-split zone tokens of its
+     own that the shell has no equivalent for. */
+  #routeBoard {
+    --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'DM Mono', ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
+    --radius: var(--r-md);
+    /* The board never styles its checkboxes, so they render in the browser's
+       default magenta. accent-color is an inherited property, so setting it
+       here reaches into the shadow tree. */
+    accent-color: var(--teal);
+  }
+</style>
+</head>
+
+<body data-page="route">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main class="page" id="main">
+
+  <header class="page-head">
+    <h1>Route Board</h1>
+    <span class="eyebrow mono" id="todayLabel"></span>
+  </header>
+
+  <!-- Two pages, one pillar. This bar looks like the sub-tabs it replaced and
+       behaves like navigation, because that is what it now is: the board and
+       the schedule were splitting one screen between them and neither had the
+       room. The nav rail still shows a single "Route" tab for both. -->
+  <nav class="subtabs" aria-label="Route planning pages">
+    <a href="route-week.html" aria-current="page">Route Board</a>
+    <a href="route-planning.html">Schedule Builder</a>
+  </nav>
+
+  <!-- Note there is deliberately no <script src="data/accounts.js"> on this
+       page: that file is gitignored and never reaches the deployed site, so
+       requesting it here would only 404 on every load. The board reads its
+       book out of th_route.* instead. Local book testing happens in the
+       standalone route-board.html, which is what tools/build-book.ps1 stamps. -->
+  <div id="routeBoardFrame"><div id="routeBoard"></div></div>
+  <div id="routeBoardFallback" hidden></div>
+
+</main>
+
+<script src="assets/js/data-store.js?v=1788244374"></script>
+<script src="assets/js/shell.js?v=1788054532"></script>
+<script src="route-board.js?v=1788230783" charset="utf-8"></script>
+<script>
+/* ===========================================================================
+   Route Board host — page-scoped.
+
+   All this page does is give the component a sized box and report the two
+   ways mounting can fail. The board owns everything else: its storage under
+   the `th_route.*` prefix, its own Data panel, and its own empty state.
+   Nothing here reads or writes those keys — Home reads `th_route.week.v2`
+   through Store.routeBoard.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  function showFallback(kind, title, detail) {
+    var frame = document.getElementById('routeBoardFrame');
+    var box = document.getElementById('routeBoardFallback');
+    frame.hidden = true;
+    box.hidden = false;
+    box.className = 'empty';
+    box.innerHTML = '<strong>' + Shell.escapeHtml(title) + '</strong>' +
+                    Shell.escapeHtml(detail);
+    box.setAttribute('data-fallback', kind);
+  }
+
+  Shell.ready(function () {
+    document.getElementById('todayLabel').textContent =
+      new Date().toLocaleDateString('en-US',
+        { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+    if (typeof RouteBoard === 'undefined') {
+      showFallback('script',
+        'route-board.js did not load.',
+        'The file should sit next to this page at the repo root.');
+      return;
+    }
+
+    /* No book-presence check here on purpose. The board handles that case
+       itself — it mounts against an empty book and opens its own Data panel
+       so you can paste one in. Gating the mount would put the host page in
+       front of the only UI that can fix it. */
+    try {
+      RouteBoard.mount(document.getElementById('routeBoard'), {
+        storagePrefix: 'th_route'
+      });
+    } catch (err) {
+      showFallback('error',
+        'Route Board failed to start.',
+        'The account book loaded but the board could not render it: ' +
+        (err && err.message ? err.message : 'unknown error'));
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

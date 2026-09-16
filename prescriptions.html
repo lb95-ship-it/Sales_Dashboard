@@ -95,6 +95,16 @@
   .doc[data-state="done"][data-zone]::before { background: var(--zone); }
   .doc-name { font-size: var(--fs-lg); font-weight: 500; line-height: 1.25; }
   .doc-sub { font-size: var(--fs-xs); color: var(--ink-light); margin-top: 2px; }
+  /* An NPI two prescribers share is the clinic's, not either doctor's. Amber
+     rather than red: the page still works, the sheet is what needs correcting. */
+  .doc-sub.npi-clinic { color: var(--amber); }
+  /* Marks an office reached by a looser name match than an exact one, so a
+     bridged spelling difference is visible rather than silently smoothed. */
+  .loose {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+    padding: 1px 4px; border-radius: var(--r-sm);
+    background: var(--amber-dim); color: var(--amber);
+  }
   .doc-meta { display: grid; justify-items: end; gap: 4px; flex-shrink: 0; text-align: right; }
   .doc-meta .m { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
 
@@ -880,13 +890,30 @@
             '<h2 class="doc-name">' + Shell.escapeHtml(p.name) + '</h2>' +
             '<p class="doc-sub">' + Shell.escapeHtml([p.title, p.city].filter(Boolean).join(', ')) + '</p>' +
             /* Which office this doctor writes from, out of the workbook's
-               Prescribers sheet. Absent rather than guessed when unmapped. */
+               Prescribers sheet, and the NPI that row carries. Both absent
+               rather than guessed when there is no row to read them from. */
             (function () {
-              var a = accountFor(p.id);
-              return a
-                ? '<p class="doc-sub"><b>' + Shell.escapeHtml(a.accountName || 'account') +
-                  '</b> <span class="mono">' + Shell.escapeHtml(a.cardCode) + '</span></p>'
-                : '';
+              var m = mappingFor(p.id);
+              if (!m) return '';
+              var row = m.row, out = '';
+              if (row.cardCode) {
+                out += '<p class="doc-sub"><b>' + Shell.escapeHtml(row.accountName || 'account') +
+                  '</b> <span class="mono">' + Shell.escapeHtml(row.cardCode) + '</span>' +
+                  (m.how === 'name'
+                    ? ' <span class="loose" title="The two sheets spell this name differently — matched on the name with credentials and middle initials set aside. Spelling them the same way on both sheets removes the guesswork.">by name</span>'
+                    : '') + '</p>';
+              }
+              var npi = String(row.npi || '').trim();
+              if (npi) {
+                var n = sharedNpis()[npi] || 1;
+                out += '<p class="doc-sub mono' + (n > 1 ? ' npi-clinic' : '') + '"' +
+                  (n > 1 ? ' title="' + Shell.escapeHtml(n + ' prescribers on the sheet carry this NPI. ' +
+                      'An individual NPI belongs to one person, so this one is the clinic’s. ' +
+                      'Put the doctor’s own NPI on the Prescribers sheet.') + '"' : '') +
+                  '>NPI ' + Shell.escapeHtml(npi) +
+                  (n > 1 ? ' &middot; clinic NPI, on ' + n + ' prescribers' : '') + '</p>';
+              }
+              return out;
             })() +
             '<span class="zone-pick" style="margin-top:var(--s-2)' + (z ? ';--zone:' + z.color : '') + '">' +
               '<span class="zone-chip' + (z ? '' : ' is-unset') + '">' +
@@ -1024,12 +1051,104 @@
               '<td style="text-align:right;">' + e.scripts + '</td></tr>';
           }).join('') + '</table></div>'
         : '<p class="hint">No prescriber resolves to an account yet.</p>') +
-      (unmapped.length
-        ? '<p class="hint" style="margin-top:var(--s-3);"><b>Not tied to an account:</b> ' +
-          unmapped.map(function (p) { return Shell.escapeHtml(p.name); }).join(', ') +
-          '. Give them a CardCode on the workbook&rsquo;s Prescribers sheet and re-upload — ' +
-          'nothing here is guessed from a name or a city.</p>'
-        : '');
+      clinicNpiHTML() + unmappedHTML(unmapped);
+  }
+
+  /* Every prescriber carrying an NPI that another prescriber also carries.
+     The card says it one doctor at a time; this is the line that says how
+     many there are, because a sheet with five of them has one bad lookup in
+     it, not five unrelated mistakes.
+
+     Worth stating plainly, because it is the thing most likely to be blamed
+     for a missing account: a shared NPI does NOT break the join. The join
+     runs on the name and never reads the NPI at all. What a shared NPI means
+     is that the sheet is recording the clinic in a column meant for the
+     doctor. */
+  function clinicNpiHTML() {
+    var wb = workbook();
+    var mapping = (wb && wb.mapping) || {};
+    var counts = sharedNpis();
+    var hits = [];
+    Object.keys(mapping).forEach(function (slug) {
+      var n = String(mapping[slug].npi || '').trim();
+      if (n && counts[n] > 1) hits.push(mapping[slug].name || slug.replace(/-/g, ' '));
+    });
+    if (!hits.length) return '';
+    return '<p class="hint" style="margin-top:var(--s-3);">' +
+      '<b>' + hits.length + ' prescriber(s) share an NPI with another:</b> ' +
+      hits.map(Shell.escapeHtml).join(', ') +
+      '. An individual NPI belongs to one person, so a shared one is the ' +
+      'clinic&rsquo;s. This does not break the account join &mdash; that runs on ' +
+      'the name and never reads the NPI &mdash; but the sheet is recording the ' +
+      'clinic where it means the doctor.</p>';
+  }
+
+  /* --- Why a prescriber has no account ------------------------------------
+     Three different faults produce one empty account, and each needs a
+     different correction. The old message named only one of them, so a doctor
+     whose CardCode was already in the sheet — and whose real problem was that
+     the two sheets spell the name differently — was told to add a CardCode
+     that was already there. That is advice you cannot follow.
+     ---------------------------------------------------------------------- */
+
+  /* The closest thing on the Prescribers sheet: a row sharing a word of three
+     letters or more. Never used as a match — it is here so that a spelling
+     difference can be seen and fixed rather than hunted for. */
+  function nearestSheetName(docId, mapping) {
+    var want = String(docId).replace(/-/g, ' ').split(/\s+/)
+      .filter(function (t) { return t.length > 2; });
+    if (!want.length) return '';
+    var best = '', bestScore = 0;
+    Object.keys(mapping).forEach(function (slug) {
+      var nm = String(mapping[slug].name || slug.replace(/-/g, ' '));
+      var have = nm.toLowerCase().split(/[^a-z0-9]+/);
+      var score = want.filter(function (t) { return have.indexOf(t) !== -1; }).length;
+      if (score > bestScore) { bestScore = score; best = nm; }
+    });
+    return bestScore ? best : '';
+  }
+
+  function unmappedHTML(list) {
+    if (!list.length) return '';
+    var wb = workbook();
+    var mapping = (wb && wb.mapping) || {};
+    var ix = looseIndex();
+    var nocard = [], ambiguous = [], norow = [];
+    list.forEach(function (p) {
+      var m = mappingFor(p.id);
+      if (m) { nocard.push(p.name); return; }
+      if (ix.ambiguous[matchKey(String(p.id).replace(/-/g, ' '))]) { ambiguous.push(p.name); return; }
+      norow.push({ name: p.name, near: nearestSheetName(p.id, mapping) });
+    });
+
+    var names = function (a) { return a.map(Shell.escapeHtml).join(', '); };
+    var out = '';
+    if (nocard.length) {
+      out += '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>On the sheet, no account number:</b> ' + names(nocard) +
+        '. Their row exists, but ResolvedCardCode is empty or did not resolve — ' +
+        'an Excel #N/A reads as empty here. Fix the lookup on the Prescribers ' +
+        'sheet and re-upload.</p>';
+    }
+    if (norow.length) {
+      out += '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>No row on the Prescribers sheet:</b> ' +
+        norow.map(function (u) {
+          return Shell.escapeHtml(u.name) +
+            (u.near ? ' <span class="mono">(closest on the sheet: ' +
+                      Shell.escapeHtml(u.near) + ')</span>' : '');
+        }).join(', ') +
+        '. Either add the row, or make the two sheets spell the name the same ' +
+        'way — a credential or a middle initial is already ignored, anything ' +
+        'more is not.</p>';
+    }
+    if (ambiguous.length) {
+      out += '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>Two rows could be this prescriber:</b> ' + names(ambiguous) +
+        '. Nothing is picked when the sheet says the same name twice — give the ' +
+        'duplicate rows distinct names, or remove the one that is stale.</p>';
+    }
+    return out;
   }
 
   function clearPreview() {
@@ -1045,16 +1164,100 @@
 
   function workbook() { return Store.prescribing.read(); }
 
-  /* The mapping is keyed by the same slug this page derives from a prescriber
-     name, so this is a lookup and never a fuzzy match. A doctor with no row,
-     or a row whose ResolvedCardCode did not resolve, returns null and the card
-     simply shows no office — guessing one would send someone to the wrong
-     building. */
-  function accountFor(docId) {
+  /* --- Matching a prescriber to their row ---------------------------------
+     The roster's ids are slugify(name) off the Prescribing sheet, and the
+     mapping is keyed the same way off the Prescribers sheet. Where the two
+     sheets spell a doctor identically that is a lookup, and it always was.
+
+     They do not always spell a doctor identically. "SMITH, ROBERT J" on one
+     and "Robert Smith MD" on the other are two slugs, the lookup misses, and
+     the doctor is reported as having no account — under a message telling you
+     to add a CardCode that is already sitting in the sheet. That is the error
+     that cannot be corrected by doing what it says.
+
+     NPI cannot rescue it. The Prescribing sheet has no NPI column, so the
+     roster never carries one; the name is the only field common to both
+     sides. So a miss is retried on a looser key, and the looseness is SHOWN
+     on the card rather than applied quietly. A key that is ambiguous on the
+     sheet is refused, not guessed — two doctors are not worth one wrong
+     office.
+     ---------------------------------------------------------------------- */
+
+  /* Credentials trailing a name. Stripped from both sides, because which
+     sheet carries them is not consistent. */
+  var CRED_RE = /\b(m\.?d|d\.?o|o\.?d|p\.?a-?c?|n\.?p|d\.?d\.?s|d\.?m\.?d|pharm\.?d|ph\.?d|faao|facs|rn|apn)\b/gi;
+
+  function matchKey(s) {
+    var t = String(s || '').toLowerCase().replace(/[.,]/g, ' ').replace(CRED_RE, ' ');
+    return t.split(/[^a-z0-9]+/).filter(Boolean)
+      /* A middle initial appears on one sheet and not the other more often
+         than it appears on both, so it cannot be part of the key. */
+      .filter(function (tok) { return tok.length > 1; })
+      /* Sorted, because "Smith, Robert" and "Robert Smith" are one doctor
+         written two ways and the order is the whole of the difference. */
+      .sort().join('-');
+  }
+
+  /* The mapping indexed by that looser key, rebuilt only when the workbook
+     behind it changes. A key two sheet rows both produce is marked ambiguous
+     and matches nothing. */
+  var looseIdx = { stamp: null, byKey: {}, ambiguous: {} };
+  function looseIndex() {
     var wb = workbook();
-    if (!wb) return null;
-    var m = wb.mapping[docId];
-    return (m && m.cardCode) ? m : null;
+    var mapping = (wb && wb.mapping) || {};
+    var stamp = (wb && wb.generated || '') + '|' + Object.keys(mapping).length;
+    if (looseIdx.stamp === stamp) return looseIdx;
+    looseIdx = { stamp: stamp, byKey: {}, ambiguous: {} };
+    Object.keys(mapping).forEach(function (slug) {
+      var k = matchKey(mapping[slug].name || slug.replace(/-/g, ' '));
+      if (!k) return;
+      if (looseIdx.byKey[k] && looseIdx.byKey[k] !== slug) looseIdx.ambiguous[k] = true;
+      else looseIdx.byKey[k] = slug;
+    });
+    return looseIdx;
+  }
+
+  /* NPIs carried by more than one prescriber row. An individual's NPI belongs
+     to exactly one person, so a shared one is not a doctor's at all — it is
+     the clinic's, a type-2 organisation NPI standing in for whoever actually
+     wrote. That is the one thing about an NPI this page can tell from the
+     sheet alone, without asking the registry, so it is flagged and never
+     corrected: which doctor it should have been is not knowable here. */
+  function sharedNpis() {
+    var ix = looseIndex();                       // shares the rebuild stamp
+    if (ix.npiCount) return ix.npiCount;
+    var wb = workbook();
+    var mapping = (wb && wb.mapping) || {};
+    var count = {};
+    Object.keys(mapping).forEach(function (slug) {
+      var n = String(mapping[slug].npi || '').trim();
+      if (n) count[n] = (count[n] || 0) + 1;
+    });
+    ix.npiCount = count;
+    return count;
+  }
+
+  /* { row, how } — how is 'exact' when the two sheets agreed on the spelling
+     and 'name' when they did not and the looser key bridged it. Null means
+     no row, or a row this cannot safely pick. */
+  function mappingFor(docId) {
+    var wb = workbook();
+    var mapping = (wb && wb.mapping) || {};
+    if (mapping[docId]) return { row: mapping[docId], how: 'exact' };
+    var k = matchKey(String(docId).replace(/-/g, ' '));
+    if (!k) return null;
+    var ix = looseIndex();
+    if (ix.ambiguous[k]) return null;
+    var slug = ix.byKey[k];
+    return slug ? { row: mapping[slug], how: 'name' } : null;
+  }
+
+  /* A doctor with no row, or a row whose ResolvedCardCode did not resolve,
+     returns null and the card shows no office — guessing one would send
+     someone to the wrong building. */
+  function accountFor(docId) {
+    var m = mappingFor(docId);
+    return (m && m.row && m.row.cardCode) ? m.row : null;
   }
 
   function refreshWorkbookRow() {

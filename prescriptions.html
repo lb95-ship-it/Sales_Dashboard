@@ -105,6 +105,18 @@
     padding: 1px 4px; border-radius: var(--r-sm);
     background: var(--amber-dim); color: var(--amber);
   }
+  /* The paste fallback, folded away. It is still one tap from open — it just
+     no longer sits in front of the source the data actually comes from. */
+  .paste-alt { margin-top: var(--s-4); }
+  .paste-alt > summary {
+    cursor: pointer; list-style: none;
+    font-size: var(--fs-sm); color: var(--teal); font-weight: 500;
+    padding: var(--s-2) 0;
+  }
+  .paste-alt > summary::-webkit-details-marker { display: none; }
+  .paste-alt > summary::before { content: '＋ '; }
+  .paste-alt[open] > summary::before { content: '− '; }
+
   .doc-meta { display: grid; justify-items: end; gap: 4px; flex-shrink: 0; text-align: right; }
   .doc-meta .m { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-light); }
 
@@ -248,43 +260,53 @@
         <button class="btn btn-sm" id="importCancel" hidden>Cancel</button>
       </div>
 
-      <p class="stat-label" style="margin-bottom:var(--s-3);">
-        Paste a dispensing export below &mdash; tab-separated straight out of Excel,
-        CSV, or this tool&rsquo;s own JSON. Columns are read in this order:
-      </p>
-      <p class="stat-label mono" style="margin-bottom:var(--s-3); color:var(--ink-mid);">
-        prescriber &middot; drug &middot; date written &middot; date filled &middot; city
-      </p>
-      <p class="hint" style="margin-bottom:var(--s-3);">
-        A header row is optional &mdash; it is skipped if there is one. Anything
-        after the fifth column is ignored.
-      </p>
-
-      <!-- The workbook's Prescribing sheet is these same five columns, so it
-           comes in here rather than through a second parser. -->
-      <div id="wbRow" hidden style="margin-bottom:var(--s-4); padding-bottom:var(--s-4); border-bottom:1px solid var(--rule);">
-        <div class="row" style="align-items:center; gap:var(--s-3);">
-          <button class="btn btn-primary" id="wbImportBtn">Import from the workbook</button>
+      <!-- The Prescribing sheet of Territory_Master.xlsx is the source. A
+           newer workbook is read on its own, the moment this page opens; this
+           button is for a re-read, and for an upload that lands while the page
+           is already sitting here. -->
+      <div id="wbRow">
+        <div class="row" style="align-items:center; gap:var(--s-3); flex-wrap:wrap;">
+          <button class="btn btn-primary" id="wbImportBtn">Read the workbook</button>
           <span class="hint" id="wbHint"></span>
         </div>
       </div>
 
-      <div class="import-body">
-        <textarea id="pasteBox" spellcheck="false"
-          placeholder="Prescriber&#9;Drug&#9;Date Written&#9;Date Filled&#9;City&#10;Doe, Jane&#9;DEMOVECTIN&#9;6/4/26&#9;6/5/26&#9;Austin"></textarea>
+      <!-- Paste is the fallback now, not the way in. It stays because an
+           export that never reached the workbook still has to get in
+           somehow, and because it is the only path that takes this tool's
+           own JSON back. -->
+      <details class="paste-alt">
+        <summary>Paste an export instead</summary>
 
-        <div class="row" style="margin-top:var(--s-3);">
-          <button class="btn btn-primary" id="previewBtn">Preview changes</button>
-          <button class="btn" id="clearPasteBtn">Clear</button>
+        <p class="stat-label" style="margin-bottom:var(--s-3);">
+          Tab-separated straight out of Excel, CSV, or this tool&rsquo;s own JSON.
+          Columns are read in this order:
+        </p>
+        <p class="stat-label mono" style="margin-bottom:var(--s-3); color:var(--ink-mid);">
+          prescriber &middot; drug &middot; date written &middot; date filled &middot; city
+        </p>
+        <p class="hint" style="margin-bottom:var(--s-3);">
+          A header row is optional &mdash; it is skipped if there is one. Anything
+          after the fifth column is ignored.
+        </p>
+
+        <div class="import-body">
+          <textarea id="pasteBox" spellcheck="false"
+            placeholder="Prescriber&#9;Drug&#9;Date Written&#9;Date Filled&#9;City&#10;Doe, Jane&#9;DEMOVECTIN&#9;6/4/26&#9;6/5/26&#9;Austin"></textarea>
+
+          <div class="row" style="margin-top:var(--s-3);">
+            <button class="btn btn-primary" id="previewBtn">Preview changes</button>
+            <button class="btn" id="clearPasteBtn">Clear</button>
+          </div>
         </div>
+      </details>
 
-        <div id="importMsg" class="msg"></div>
-        <div id="importPreview" class="preview" hidden></div>
+      <div id="importMsg" class="msg"></div>
+      <div id="importPreview" class="preview" hidden></div>
 
-        <div class="row" id="applyRow" hidden style="margin-top:var(--s-3);">
-          <button class="btn btn-primary" id="applyBtn">Apply import</button>
-          <button class="btn" id="cancelApplyBtn">Discard</button>
-        </div>
+      <div class="row" id="applyRow" hidden style="margin-top:var(--s-3);">
+        <button class="btn btn-primary" id="applyBtn">Apply import</button>
+        <button class="btn" id="cancelApplyBtn">Discard</button>
       </div>
     </div>
 
@@ -812,7 +834,10 @@
       return (p.lastWritten && p.lastWritten > m) ? p.lastWritten : m;
     }, '');
     document.getElementById('asOf').textContent = latest
-      ? 'Prescription data as of ' + disp(latest) + ' — import a new export any time to add to it.'
+      ? 'Prescription data as of ' + disp(latest) +
+        (roster.fromWorkbook
+          ? ' — read from the workbook’s Prescribing sheet. Upload a newer workbook on Accounts and it lands here on its own.'
+          : ' — imported by paste. Upload the workbook on Accounts to have it come in on its own.')
       : '';
 
     document.getElementById('filterRow').innerHTML = FILTERS.map(function (f) {
@@ -1000,7 +1025,7 @@
     document.getElementById('rosterView').hidden = true;
     document.getElementById('importCancel').hidden = !!isFirstRun;
     document.getElementById('importTitle').textContent =
-      isFirstRun ? 'Import prescriber data' : 'Import a new export';
+      isFirstRun ? 'Prescribing data' : 'Read the workbook again';
     window.scrollTo(0, 0);
   }
 
@@ -1260,16 +1285,69 @@
     return (m && m.row && m.row.cardCode) ? m.row : null;
   }
 
+  /* --- The workbook reads itself in ---------------------------------------
+     The Prescribing sheet is the source. It used to be an option sitting
+     above a paste box: upload the workbook on Accounts, come here, press
+     "Import from the workbook", then press "Apply import" — four steps to
+     move data that was already on the device and already parsed.
+
+     So it applies itself, on open. What makes that safe to do unattended is
+     the merge it goes through, which is the same one the paste box has always
+     used: additive (a doctor or a prescription is added, nothing is
+     replaced), idempotent by multiset (re-reading the same export adds
+     nothing), and it never touches th_prescribers_followups, where every
+     tick, flag and note lives.
+
+     The workbook's own stamp is recorded on the roster, so an upload is read
+     once rather than on every page load, and a NEW upload is read again.
+     ---------------------------------------------------------------------- */
+
+  /* Generated time plus row count: a re-upload of the same file moves the
+     time, and a workbook edited and re-uploaded inside the same second still
+     moves the count. */
+  function wbStamp(wb) {
+    return String((wb && wb.generated) || '') + '|' +
+           ((wb && wb.rows && wb.rows.length) || 0);
+  }
+
+  function importWorkbook(force) {
+    var wb = workbook();
+    if (!wb || !Array.isArray(wb.rows) || !wb.rows.length) return null;
+    var stamp = wbStamp(wb);
+    if (!force && roster && roster.fromWorkbook === stamp) return null;
+
+    var parsed;
+    /* The Prescribing sheet is the same five columns in the same order as a
+       pasted export, so it goes through the same parser rather than getting a
+       second code path that could drift from it. */
+    try { parsed = parseImport(wb.rows.map(function (r) { return r.join('\t'); }).join('\n')); }
+    catch (e) { return { error: e.message }; }
+
+    var merged = mergeRoster(roster, parsed);
+    roster = merged.roster;
+    roster.fromWorkbook = stamp;
+    Store.prescribers.writeRoster(roster);
+    writeSummary();
+    return { stats: merged.stats, rows: parsed.rowsKept, fileName: wb.fileName || '' };
+  }
+
   function refreshWorkbookRow() {
     var wb = workbook();
-    var row = document.getElementById('wbRow');
-    if (!wb || !wb.rows.length) { row.hidden = true; return; }
-    row.hidden = false;
-    document.getElementById('wbHint').innerHTML =
-      '<b>' + wb.rows.length + '</b> row(s) waiting from ' +
+    var btn = document.getElementById('wbImportBtn');
+    var hint = document.getElementById('wbHint');
+    if (!wb || !wb.rows.length) {
+      btn.disabled = true;
+      hint.innerHTML = 'Nothing on this device yet. Upload <b>Territory_Master.xlsx</b> on ' +
+        '<b>Accounts &rsaquo; Master workbook</b> &mdash; its Prescribing sheet lands here.';
+      return;
+    }
+    btn.disabled = false;
+    var already = roster && roster.fromWorkbook === wbStamp(wb);
+    hint.innerHTML = '<b>' + wb.rows.length + '</b> row(s) from ' +
       Shell.escapeHtml(wb.fileName || 'the workbook') +
       (wb.generated ? ', uploaded ' + Shell.escapeHtml(String(wb.generated).slice(0, 10)) : '') +
-      '. Your follow-up ticks are kept.';
+      (already ? '. Already read &mdash; reading again changes nothing.' : '. Not read yet.') +
+      ' Your follow-up ticks are kept either way.';
   }
 
   function doPreview() {
@@ -1311,7 +1389,13 @@
 
   function doApply() {
     if (!pending) return;
+    /* mergeRoster builds a fresh roster object, so the stamp has to be
+       carried across by hand: pasting an export does not un-read the
+       workbook, and losing the stamp would have the next page load read it
+       again for nothing. */
+    var stamp = roster && roster.fromWorkbook;
     roster = pending.roster;
+    if (stamp) roster.fromWorkbook = stamp;
     Store.prescribers.writeRoster(roster);
     writeSummary();
     clearPreview();
@@ -1371,12 +1455,22 @@
       Store.remove(Store.KEYS.prescriberFollow);
       followups = {};
     }
-    roster = null;
+    /* An empty roster that still carries the stamp. Clearing has to mean
+       cleared: without this the workbook is still on the device, unread by
+       an empty roster, and the next page load would quietly put all of it
+       back. Pressing "Read the workbook" asks for it explicitly, which is
+       the difference. */
+    var wb = workbook();
+    roster = (wb && wb.rows && wb.rows.length)
+      ? { generated: new Date().toISOString(), prescribers: [], fromWorkbook: wbStamp(wb) }
+      : null;
+    if (roster) Store.prescribers.writeRoster(roster);
     showAll = {};
     clearPreview();
     document.getElementById('pasteBox').value = '';
     document.getElementById('importMsg').textContent = '';
     document.getElementById('clearConfirm').hidden = true;
+    refreshWorkbookRow();
     /* First-run import view: there is no roster left to cancel back to. */
     showImport(true);
     toast(includeNotes ? 'All prescriber data cleared' : 'Imported data cleared');
@@ -1400,17 +1494,28 @@
     var fu = Store.prescribers.readFollowups();
     followups = (fu && typeof fu === 'object' && !Array.isArray(fu)) ? fu : {};
 
-    /* The workbook's Prescribing sheet is the same five columns in the same
-       order, so it is fed through the paste box and the existing parse rather
-       than getting a second code path. Everything downstream — the merge, the
-       preview, the follow-up protection — is untouched. */
+    /* Read on open, before anything renders, so the page never shows a roster
+       that is one upload out of date. */
+    var auto = importWorkbook(false);
+
     refreshWorkbookRow();
     document.getElementById('wbImportBtn').addEventListener('click', function () {
-      var p = Store.prescribing.read();
-      if (!p || !p.rows.length) return;
-      document.getElementById('pasteBox').value =
-        p.rows.map(function (r) { return r.join('\t'); }).join('\n');
-      doPreview();
+      /* Forced: the stamp says it has been read, and pressing the button is
+         asking for it anyway. The merge makes that a no-op rather than a
+         duplicate, which is exactly why the button can be offered. */
+      var res = importWorkbook(true);
+      refreshWorkbookRow();
+      if (!res) { toast('No workbook to read'); return; }
+      if (res.error) {
+        var m = document.getElementById('importMsg');
+        m.textContent = 'The Prescribing sheet could not be read: ' + res.error;
+        m.className = 'msg err';
+        return;
+      }
+      toast(res.stats.newOrders
+        ? '+' + res.stats.newOrders + ' prescription' + (res.stats.newOrders === 1 ? '' : 's')
+        : 'Already up to date ✓');
+      showRoster();
     });
 
     document.getElementById('previewBtn').addEventListener('click', doPreview);
@@ -1557,6 +1662,18 @@
       showRoster();
     } else {
       showImport(true);
+    }
+
+    /* Said after the view is chosen, so the message lands on whichever one
+       is actually on screen. */
+    if (auto && auto.error) {
+      var am = document.getElementById('importMsg');
+      am.textContent = 'The workbook’s Prescribing sheet could not be read: ' + auto.error;
+      am.className = 'msg err';
+      toast('Workbook not read');
+    } else if (auto && auto.stats.newOrders) {
+      toast('+' + auto.stats.newOrders + ' prescription' +
+            (auto.stats.newOrders === 1 ? '' : 's') + ' from the workbook');
     }
   });
 

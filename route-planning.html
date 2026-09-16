@@ -547,14 +547,58 @@
     }
   }
 
-  /* --- Calendar ---------------------------------------------------------- */
+  /* --- Calendar ------------------------------------------------------------
+     One file per route, not one file for the schedule.
 
-  /* Unchanged from the original: try the iOS calendar scheme, and if the page
-     is still in the foreground a second later, assume it did nothing and hand
-     over an .ics file instead. */
+     The six routes are six calendars in iOS, colour-coded, linked through to
+     Outlook — so the unit that can be imported is a route, because importing
+     is where the calendar gets chosen. A single combined file lands entirely
+     on whichever calendar is picked, which is what the old export did and why
+     it was no use.
+
+     A subscription URL per route would keep updating itself, and was
+     considered and rejected: subscribed calendars arrive as NEW read-only
+     calendars rather than adding events to the six that already exist.
+
+     Each file carries both kinds of event for its route:
+
+       Mon-Fri  an all-day bar titled with the route name and nothing else.
+                No "(follow-up route)" in parentheses — the follow-up is its
+                own event on its own calendar, which is the whole point.
+       Sunday   an all-day "Follow-Ups" on the Sunday BEFORE a week whose
+                follow-up territory is this route.
+
+     UIDs are derived from the date and the route, so re-importing a file
+     updates the events it already put there instead of doubling them.
+     ---------------------------------------------------------------------- */
+
+  /* A year out. Long enough to plan against, short enough that a file is
+     eight or nine events rather than a wall of them. */
+  var ICS_WEEKS = 52;
+
+  /* The route's name AS THE CALENDAR SPELLS IT, which is not always what this
+     app calls it: the green calendar reads "Waco/ North I-35" where the
+     account book says "Waco/East Austin". The book's spelling cannot change —
+     build-book.ps1 generates it and the Route Board keys on it — so the
+     difference is declared here, once, and only affects event titles. */
+  var CAL_NAMES = {
+    'Waco/East Austin':     'Waco/ North I-35',
+    'North West Austin':    'North West Austin',
+    'Hill Country':         'Hill Country',
+    'North Central Austin': 'North Central Austin',
+    'South Central Austin': 'South Central Austin',
+    'South West Austin':    'South West Austin'
+  };
+  function calName(zoneName) { return CAL_NAMES[zoneName] || zoneName; }
+
+  /* Try the iOS calendar app. The old fallback handed over a combined .ics,
+     which is exactly the file this page no longer produces — so a browser
+     that ignores the scheme gets pointed at the per-route buttons instead. */
   function openCalendar() {
     window.open('calshow://', '_self');
-    setTimeout(function () { if (!document.hidden) exportICS(); }, 1000);
+    setTimeout(function () {
+      if (!document.hidden) showToast('Use a route’s Calendar button below');
+    }, 1000);
   }
 
   function icsEscape(s) {
@@ -562,39 +606,82 @@
                     .replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   }
 
-  function exportICS() {
-    var viewedMonday = getViewedMonday();
-    var cycleIdx = getCycleIndex(viewedMonday);
-    /* DTSTAMP is required on every VEVENT by RFC 5545. The original omitted
-       it; Google tolerates that, stricter importers reject the file. */
+  /* "Waco/East Austin Follow-Ups" -> the zone it names. The rotation states a
+     follow-up as a sentence rather than an id, so the suffix comes off before
+     Shell resolves the rest; every spelling in ZONES resolves through an alias
+     it already knows. */
+  function followupZone(text) {
+    return Shell.zoneByName(String(text || '').replace(/\s*follow-?ups?\s*$/i, ''));
+  }
+
+  function icsDate(d) { return fmtISO(d).replace(/-/g, ''); }
+
+  function routeIcs(zi) {
+    var zone = ZONES[zi];
+    var z = Shell.zoneByName(zone.primary);
+    var zid = z ? z.id : 'z' + zi;
+    /* DTSTAMP is required on every VEVENT by RFC 5545. Google tolerates its
+       absence; stricter importers reject the file. */
     var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0',
-                 'PRODID:-//OCuSOFT Territory//EN', 'CALSCALE:GREGORIAN'];
+                 'PRODID:-//OCuSOFT Territory//EN', 'CALSCALE:GREGORIAN',
+                 'X-WR-CALNAME:' + icsEscape(calName(zone.primary))];
+    /* Always from the REAL current week, never the week being browsed: a file
+       that starts three weeks out because the page was left on "+3 weeks"
+       would be missing the weeks in between and nothing would say so. */
+    var start = currentMonday();
+    var events = 0;
 
-    for (var i = 0; i < 6; i++) {
-      var zone = ZONES[(cycleIdx + i) % 6];
-      var ws = addWeeks(viewedMonday, i);
-      var ds = fmtISO(ws).replace(/-/g, '');
-      /* DTEND is exclusive for all-day events, so Saturday spans Mon-Fri. */
-      var de = fmtISO(addDays(ws, 5)).replace(/-/g, '');
-      lines.push('BEGIN:VEVENT',
-        'UID:ocusoft-' + ds + '@territory',
-        'DTSTAMP:' + stamp,
-        'DTSTART;VALUE=DATE:' + ds,
-        'DTEND;VALUE=DATE:' + de,
-        'SUMMARY:' + icsEscape(zone.primary + ' (' + zone.followup + ')'),
-        'END:VEVENT');
+    for (var i = 0; i < ICS_WEEKS; i++) {
+      var mon = addWeeks(start, i);
+      var idx = getCycleIndex(mon);
+
+      if (idx === zi) {
+        /* DTEND is exclusive for all-day events, so Saturday spans Mon-Fri. */
+        lines.push('BEGIN:VEVENT',
+          'UID:ocusoft-' + zid + '-' + icsDate(mon) + '@territory',
+          'DTSTAMP:' + stamp,
+          'DTSTART;VALUE=DATE:' + icsDate(mon),
+          'DTEND;VALUE=DATE:' + icsDate(addDays(mon, 5)),
+          'SUMMARY:' + icsEscape(calName(zone.primary)),
+          'END:VEVENT');
+        events++;
+      }
+
+      /* The Sunday before a week whose follow-up territory is this route. One
+         day, all day, titled "Follow-Ups" and nothing else — which calendar it
+         lands on is what says whose follow-ups they are. */
+      var fu = followupZone(ZONES[idx].followup);
+      if (fu && z && fu.id === z.id) {
+        var sun = addDays(mon, -1);
+        lines.push('BEGIN:VEVENT',
+          'UID:ocusoft-fu-' + zid + '-' + icsDate(sun) + '@territory',
+          'DTSTAMP:' + stamp,
+          'DTSTART;VALUE=DATE:' + icsDate(sun),
+          'DTEND;VALUE=DATE:' + icsDate(mon),
+          'SUMMARY:Follow-Ups',
+          'END:VEVENT');
+        events++;
+      }
     }
     lines.push('END:VCALENDAR');
+    return { text: lines.join('\r\n'), events: events };
+  }
 
-    var blob = new Blob([lines.join('\r\n')], { type: 'text/calendar' });
+  function downloadRouteIcs(zi) {
+    var zone = ZONES[zi];
+    var built = routeIcs(zi);
+    var blob = new Blob([built.text], { type: 'text/calendar' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'territory_schedule.ics';
+    /* Named for the calendar it belongs on, because choosing that calendar is
+       the one thing the import asks you to do. */
+    a.download = calName(zone.primary).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() +
+                 ' route.ics';
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Calendar file downloaded');
+    showToast(built.events + ' events — import onto ' + calName(zone.primary));
   }
 
   /* --- Route maps ---------------------------------------------------------
@@ -640,6 +727,11 @@
         ' aria-label="Start the ' + name + ' route"' +
         ' title="Driving directions through the pins filed under ' + name + '">' +
         'Start Route</button>' +
+      '<button type="button" class="btn btn-sm" data-cal="' + zi + '"' +
+        ' aria-label="Download the ' + name + ' calendar file"' +
+        ' title="A year of ' + name + ' weeks and its follow-up Sundays, as one' +
+        ' .ics to import onto that route&#39;s calendar">' +
+        'Calendar</button>' +
       '</div>';
   }
 
@@ -816,6 +908,7 @@
       if (!btn) return;
       if (btn.hasAttribute('data-maplist'))    openMapList(+btn.getAttribute('data-maplist'));
       if (btn.hasAttribute('data-startroute')) startRoute(+btn.getAttribute('data-startroute'));
+      if (btn.hasAttribute('data-cal'))        downloadRouteIcs(+btn.getAttribute('data-cal'));
     });
 
     /* Catch the last keystrokes if the debounce hasn't fired yet. pagehide

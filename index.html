@@ -22,6 +22,10 @@
     .hero { grid-template-columns: auto 1fr; align-items: center; }
   }
 
+  /* The caption is a grid, so a bare button stretches the full width of it
+     and stops reading as a link and starts reading as a form control. */
+  #calBtn { justify-self: start; }
+
   .week-strip {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -110,6 +114,10 @@
         <span class="mono" style="font-size:var(--fs-sm); color:var(--ink-light);"
               id="heroDates"></span>
         <span class="row" id="heroPills"></span>
+        <!-- The same one-tap calendar link the Schedule Builder carries, put
+             where it is reached fastest: directly under the route you are
+             on, without opening a page first. -->
+        <button class="btn btn-sm" type="button" id="calBtn">Open Calendar</button>
       </div>
     </div>
   </section>
@@ -703,8 +711,26 @@
     renderFreshness();
   }
 
+  /* --- Calendar ----------------------------------------------------------
+     The same two-step the Schedule Builder's button uses: ask iOS to open the
+     Calendar app, and if this page is still on screen a second later, take it
+     that the scheme went nowhere.
+
+     Where Schedule Builder then hands over an .ics file, this hands over the
+     page that can build one. Rebuilding the export here would put a second
+     copy of the six-week rotation and the cycle anchor on Home, and the two
+     would disagree the first time either was corrected.
+     ---------------------------------------------------------------------- */
+  function openCalendar() {
+    window.open('calshow://', '_self');
+    setTimeout(function () {
+      if (!document.hidden) window.location.href = 'route-planning.html';
+    }, 1000);
+  }
+
   Shell.ready(function () {
     renderAll();
+    document.getElementById('calBtn').addEventListener('click', openCalendar);
     /* Repaint if another tab writes a summary while this one is open. */
     Store.onChange(renderAll);
   });

@@ -94,7 +94,20 @@ const CSS = `  :host{
     flex-shrink:0;
   }
   .brand{font-weight:700; letter-spacing:-0.01em; font-size:15px; white-space:nowrap;}
-  .brand .wk{color:var(--accent);}
+  /* Week navigation. The label doubles as the way back to this week, which is
+     where it wants to be after planning three weeks ahead. */
+  .wknav{gap:4px;}
+  .wknav .btn.nav{padding:5px 9px; font-size:14px; line-height:1;}
+  .wknav .wk{min-width:96px; font-weight:600; color:var(--accent);}
+  .wknav .wk.now{background:transparent; border-color:transparent; cursor:default;}
+  /* The offer to start from the last time this territory came round. Dashed,
+     because it is a suggestion sitting where a plan is about to be. */
+  .carry{
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    margin:8px 12px 0; padding:8px 10px;
+    border:1px dashed var(--line); border-radius:8px;
+    font-size:12px; color:var(--ink-dim);
+  }
   .ctrl{display:flex; align-items:center; gap:6px;}
   .ctrl label{font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.06em;}
   select{
@@ -482,7 +495,12 @@ const CSS = `  :host{
 
 const MARKUP = `<div id="app">
   <header>
-    <div class="brand">Route Board <span class="wk" id="weekLabel"></span></div>
+    <div class="brand">Route Board</div>
+    <div class="ctrl wknav">
+      <button class="btn nav" id="wkPrev" title="Previous week" aria-label="Previous week">&#8249;</button>
+      <button class="btn wk" id="weekLabel" title="Back to this week"></button>
+      <button class="btn nav" id="wkNext" title="Next week" aria-label="Next week">&#8250;</button>
+    </div>
     <div class="ctrl">
       <label>Primary</label>
       <select id="primarySel"></select>
@@ -524,6 +542,7 @@ const MARKUP = `<div id="app">
         <button class="expand-btn" id="expandBtn" aria-pressed="false"
                 title="Fill the board with the five days and hide the account list">Expand</button>
       </div>
+      <div class="carry" id="carryRow" style="display:none;"></div>
       <div class="days" id="days"></div>
     </section>
   </div>
@@ -884,46 +903,207 @@ function saveAnnotations(){
   }));
 }
 
-// ---- Week (assignments + pickers) ----------------------------------
-let week = {
-  primary: TERRITORIES[0],
-  follow: '(none)',
-  top25only: true,
-  assign: {},      // placeId -> 'Mon'|'Tue'|...  (accounts in the current book)
-  orphanAssign: {},// same, for accounts the current book does not contain
-  order: {}        // 'Mon' -> [placeId, ...]  the drive order within that day
-};
-(function loadWeek(){
-  const s = readJSON(STORE.week);
-  if(!s) return;
-  if(TERRITORIES.indexOf(s.primary) !== -1) week.primary = s.primary;
-  if(s.follow === '(none)' || TERRITORIES.indexOf(s.follow) !== -1) week.follow = s.follow;
-  if(typeof s.top25only === 'boolean') week.top25only = s.top25only;
-  // Assignments for accounts outside the current book are quarantined, not
-  // deleted, so reverting a bad import restores the week intact.
+/* ---- Weeks (assignments + pickers), one plan per week ---------------
+   The board used to hold exactly one week. Planning the next one meant
+   clearing this one, and the plan you had just worked — the one that took
+   an hour to sequence — was gone. With a six-week rotation that is the
+   worst possible thing to throw away: the next time this territory comes
+   round, last time's plan is most of the answer.
+
+   So plans are keyed by the Monday they belong to and kept. Navigate
+   weeks the way the Schedule Builder does, plan ahead, and come back to
+   find it as you left it.
+
+   `routeBoard.week.v2` survives as the CURRENT week's plan and nothing
+   else. It is what Home reads through Store.routeBoard.dayCounts(), and
+   Home means this week — so it is written through whenever the week being
+   edited is the real one, and left alone when you are planning ahead. A
+   next-week plan must not show up on Home as today's work.
+   -------------------------------------------------------------------- */
+const WEEKS_KEY = NS + '.weeks.v3';
+
+/* Local dates throughout. `new Date('2026-09-14')` parses as UTC and lands
+   on the 13th for anyone west of Greenwich, which would file a plan under
+   the wrong Monday for half the world and all of Texas. */
+function mondayOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+function isoOf(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+       + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dateOfIso(s){
+  const p = String(s).split('-');
+  return new Date(+p[0], +p[1]-1, +p[2]);
+}
+function addWeeks(iso, n){
+  const d = dateOfIso(iso);
+  d.setDate(d.getDate() + n*7);
+  return isoOf(d);
+}
+function shortIso(iso){
+  const d = dateOfIso(iso);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+const THIS_MONDAY = isoOf(mondayOf(new Date()));
+
+function blankWeek(){
+  return {
+    primary: TERRITORIES[0],
+    follow: '(none)',
+    top25only: true,
+    assign: {},      // placeId -> 'Mon'|'Tue'|...  (accounts in the current book)
+    orphanAssign: {},// same, for accounts the current book does not contain
+    order: {}        // 'Mon' -> [placeId, ...]  the drive order within that day
+  };
+}
+
+/* A stored plan -> the in-memory shape, with everything validated on the way
+   in. Assignments for accounts outside the CURRENT book are quarantined
+   rather than deleted, so reverting a bad import restores the plan intact. */
+function weekFrom(s, fallback){
+  const w = blankWeek();
+  const base = fallback || null;
+  if(base){ w.primary = base.primary; w.follow = base.follow; w.top25only = base.top25only; }
+  if(!s || typeof s !== 'object') return w;
+  if(TERRITORIES.indexOf(s.primary) !== -1) w.primary = s.primary;
+  if(s.follow === '(none)' || TERRITORIES.indexOf(s.follow) !== -1) w.follow = s.follow;
+  if(typeof s.top25only === 'boolean') w.top25only = s.top25only;
   if(s.assign && typeof s.assign === 'object'){
     Object.keys(s.assign).forEach(id=>{
       const d = s.assign[id];
       if(DAYS.indexOf(d) === -1) return;
-      if(ACCOUNTS[id]) week.assign[id] = d; else week.orphanAssign[id] = d;
+      if(ACCOUNTS[id]) w.assign[id] = d; else w.orphanAssign[id] = d;
     });
   }
-  // Stored weeks from before ordering existed simply have no "order"; dayAccounts
-  // rebuilds it from the assignments on first render.
+  /* Plans stored before ordering existed simply have no "order"; dayAccounts
+     rebuilds it from the assignments on first render. */
   if(s.order && typeof s.order === 'object'){
     DAYS.forEach(d=>{
-      if(Array.isArray(s.order[d])) week.order[d] = s.order[d].filter(id=>typeof id === 'string');
+      if(Array.isArray(s.order[d])) w.order[d] = s.order[d].filter(id=>typeof id === 'string');
     });
   }
-})();
+  return w;
+}
+
+function weekToStored(w){
+  return {
+    primary: w.primary,
+    follow: w.follow,
+    top25only: w.top25only,
+    assign: Object.assign({}, w.orphanAssign, w.assign),
+    order: w.order
+  };
+}
+
+/* The whole history, raw. Migrated once from the single-week key, which is
+   filed under the Monday it was last saved for — unknown, so this Monday,
+   which is where it was being used. */
+function loadWeeks(){
+  const raw = readJSON(WEEKS_KEY);
+  const out = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  if(!Object.keys(out).length){
+    const old = readJSON(STORE.week);
+    if(old && typeof old === 'object') out[THIS_MONDAY] = old;
+  }
+  return out;
+}
+
+let WEEKS = loadWeeks();
+let viewIso = THIS_MONDAY;
+let week = weekFrom(WEEKS[viewIso]);
+
+/* Weeks that hold at least one assignment, newest first. A week whose plan
+   is empty is not a plan — it is a week you opened and left. */
+function plannedIsos(){
+  return Object.keys(WEEKS).filter(iso=>{
+    const a = WEEKS[iso] && WEEKS[iso].assign;
+    return a && typeof a === 'object' && Object.keys(a).length;
+  }).sort().reverse();
+}
+
+/* The last week before this one that worked the same primary territory.
+   With a six-week rotation that is the plan worth copying: same offices,
+   same roads, a few changes. */
+function lastPlanFor(primary, beforeIso){
+  const hit = plannedIsos().filter(iso=>iso < beforeIso && WEEKS[iso].primary === primary)[0];
+  return hit || null;
+}
+
 function saveWeek(){
-  lsSet(STORE.week, JSON.stringify({
-    primary: week.primary,
-    follow: week.follow,
-    top25only: week.top25only,
-    assign: Object.assign({}, week.orphanAssign, week.assign),
-    order: week.order
-  }));
+  WEEKS[viewIso] = weekToStored(week);
+  lsSet(WEEKS_KEY, JSON.stringify(WEEKS));
+  /* Home reads the single-week key and Home means THIS week. Planning ahead
+     must not overwrite what is on it. */
+  if(viewIso === THIS_MONDAY) lsSet(STORE.week, JSON.stringify(WEEKS[viewIso]));
+}
+
+/* Navigation. The pickers carry over to a week that has no plan yet, so
+   stepping forward lands on the territory you were just looking at rather
+   than on whatever happens to be first in the list. */
+function goToWeek(iso){
+  saveWeek();
+  viewIso = iso;
+  week = weekFrom(WEEKS[iso], week);
+  render();
+}
+
+/* Copies the DAY PLAN only — which offices, on which day, in which order.
+   Not the skips or the notes: those live in the annotations and were never
+   per week. Accounts the book no longer holds come across as orphans, the
+   same as they would on a reload, rather than being dropped from a plan you
+   can still open on the week it came from. */
+function copyPlanFrom(iso){
+  const src = WEEKS[iso];
+  if(!src) return;
+  const copied = weekFrom(src, week);
+  week.assign = copied.assign;
+  week.orphanAssign = copied.orphanAssign;
+  week.order = copied.order;
+  week.follow = copied.follow;
+  week.top25only = copied.top25only;
+  render();
+}
+
+/* The pickers belong to the week being viewed, so they follow it from week to
+   week. Values only — the handlers are bound once, at mount. */
+function syncControls(){
+  const pSel = root.getElementById('primarySel');
+  const fSel = root.getElementById('followSel');
+  const t25  = root.getElementById('top25only');
+  if(pSel) pSel.value = week.primary;
+  if(fSel) fSel.value = week.follow;
+  if(t25)  t25.checked = week.top25only;
+}
+
+/* The week label, and the offer to start this week from the last time this
+   territory came round. The offer shows only on a week with nothing in it:
+   once one office is placed the plan is yours, and nothing should offer to
+   write over it. */
+function renderWeekChrome(){
+  const lbl = root.getElementById('weekLabel');
+  const diff = Math.round((dateOfIso(viewIso) - dateOfIso(THIS_MONDAY)) / 604800000);
+  if(lbl){
+    lbl.textContent = diff === 0 ? 'This week'
+      : diff === 1 ? 'Next week'
+      : diff === -1 ? 'Last week'
+      : 'Wk of ' + shortIso(viewIso);
+    lbl.classList.toggle('now', diff === 0);
+    lbl.title = 'Week of ' + shortIso(viewIso) + (diff === 0 ? '' : ' — tap for this week');
+  }
+  const row = root.getElementById('carryRow');
+  if(!row) return;
+  const empty = !Object.keys(week.assign).length && !Object.keys(week.orphanAssign).length;
+  const src = empty ? lastPlanFor(week.primary, viewIso) : null;
+  if(!src){ row.style.display = 'none'; row.innerHTML = ''; return; }
+  row.style.display = '';
+  row.innerHTML = '<span>Nothing planned yet.</span>'
+    + '<button class="btn ok" id="carryBtn">Start from ' + escapeHtml(week.primary)
+    + ', week of ' + escapeHtml(shortIso(src)) + '</button>';
+  root.getElementById('carryBtn').onclick = ()=>copyPlanFrom(src);
 }
 
 /* ---- Day sequence ---------------------------------------------------
@@ -1567,6 +1747,8 @@ function render(){
     + (skippedList.length ? ' · ' + skippedList.length + ' skipped' : '')
     + (clashes ? ' · <span class="conflict-pill">' + clashes + ' off-day</span>' : '');
 
+  syncControls();
+  renderWeekChrome();
   bindCards();
   saveWeek();
 }
@@ -1792,6 +1974,15 @@ function buildControls(){
   t25.checked = week.top25only;
   t25.onchange = e=>{ week.top25only=e.target.checked; render(); };
 
+  /* Week navigation. Plans are kept per week, so these move between them,
+     and the label goes back to this week — which is where you want to be
+     after planning three weeks out. */
+  root.getElementById('wkPrev').onclick = ()=>goToWeek(addWeeks(viewIso, -1));
+  root.getElementById('wkNext').onclick = ()=>goToWeek(addWeeks(viewIso, 1));
+  root.getElementById('weekLabel').onclick = ()=>{
+    if(viewIso !== THIS_MONDAY) goToWeek(THIS_MONDAY);
+  };
+
   // Which book is live, and how big it is. A stale imported book would otherwise
   // be invisible once import lands.
   const pill = root.getElementById('bookPill');
@@ -1838,7 +2029,7 @@ function buildControls(){
   // Clears the week only — Salesforce links live in the annotations store and stay.
   let resetArmed = false, resetTimer = null;
   const resetBtn = root.getElementById('resetBtn');
-  resetBtn.title = 'Clears this week\u2019s day assignments. Salesforce links are kept.';
+  resetBtn.title = 'Clears the day assignments for the week you are looking at. Other weeks, and your Salesforce links, are kept.';
   resetBtn.onclick = ()=>{
     if(!resetArmed){
       resetArmed = true;

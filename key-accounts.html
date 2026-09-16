@@ -2130,32 +2130,77 @@
 
   /* --- The log ------------------------------------------------------------ */
 
-  /* CardCode by SFAccountID, out of the crosswalk. The visit log itself only
-     carries the Salesforce id, but CardCode is the account NUMBER and the
-     identifier actually used day to day, so it is what the list shows. Falls
-     back to the Salesforce id when the crosswalk has no row — showing nothing
-     would be worse than showing the id it does have. */
+  /* CardCode out of the crosswalk. The visit log carries only the Salesforce
+     id, but the account NUMBER is the identifier used day to day — by the
+     office, by the order desk, and by the purchase CSVs — so the number is
+     what the list shows.
+
+     It used to fall back to printing the Salesforce id when the crosswalk had
+     no row. That put an 18-character internal id where a six-digit account
+     number belongs, and read as though that WAS the number. It is not shown
+     in its place any more: a row with no number says so, and keeps the
+     Salesforce id in its tooltip, where it is reference rather than an
+     answer.
+
+     Two ways in. The Salesforce id is exact. Failing that the account name,
+     matched whole against the crosswalk and only where exactly one row
+     carries it — both sheets come out of the same workbook, so their names
+     usually agree. Where they do not, or where two accounts share a name,
+     nothing is guessed. */
+  function nameKey(s) { return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+
   function cardCodeIndex() {
     var x = Store.accountXref.read();
     var accts = (x && x.accounts) || {};
-    var out = {};
+    var bySf = {}, byName = {}, dupeName = {};
     Object.keys(accts).forEach(function (sfId) {
-      var cc = String(accts[sfId] && accts[sfId].cardCode || '').trim();
-      if (cc) out[sfId] = cc;
+      var r = accts[sfId] || {};
+      var cc = String(r.cardCode || '').trim();
+      if (!cc) return;
+      if (sfId) bySf[sfId] = cc;
+      var n = nameKey(r.name);
+      if (!n) return;
+      if (byName[n] && byName[n] !== cc) dupeName[n] = true;
+      else byName[n] = cc;
     });
-    return out;
+    return { bySf: bySf, byName: byName, dupeName: dupeName };
+  }
+
+  /* { code, how } — how is 'id' when the Salesforce id matched a crosswalk
+     row and 'name' when the name had to carry it. Null for neither. */
+  function cardCodeFor(idx, sfId, name) {
+    if (sfId && idx.bySf[sfId]) return { code: idx.bySf[sfId], how: 'id' };
+    var n = nameKey(name);
+    if (n && idx.byName[n] && !idx.dupeName[n]) return { code: idx.byName[n], how: 'name' };
+    return null;
+  }
+
+  /* The account number's tooltip, which is where the Salesforce id lives now.
+     Three states worth telling apart: resolved on the id, resolved on the
+     name (so the two sheets disagree about the id and one of them is wrong),
+     and not resolved at all. */
+  function codeTitle(a) {
+    if (!a.cardCode) {
+      return ' title="' + esc('No row in the workbook’s Accounts sheet for this account. ' +
+        'Salesforce id ' + (a.sfAccountId || 'unknown')) + '"';
+    }
+    if (a.codeHow === 'name') {
+      return ' title="' + esc('Account number ' + a.cardCode + ', matched on the account name — ' +
+        'the Accounts sheet has no row for Salesforce id ' + a.sfAccountId) + '"';
+    }
+    return ' title="' + esc('Account number ' + a.cardCode + ' · Salesforce ' + a.sfAccountId) + '"';
   }
 
   function byAccount() {
     var rows = Store.visits.read().rows;
-    var byCard = cardCodeIndex();
+    var idx = cardCodeIndex();
     var acc = {};
     Object.keys(rows).forEach(function (k) {
       var r = rows[k];
       var a = acc[r.sfAccountId];
       if (!a) {
         a = acc[r.sfAccountId] = { sfAccountId: r.sfAccountId, accountName: r.accountName,
-                                   cardCode: byCard[r.sfAccountId] || '',
+                                   cardCode: '', codeHow: '',
                                    touches: 0, visits: 0, lastVisit: '', lastTouch: '',
                                    subjects: {}, rows: [] };
       }
@@ -2171,6 +2216,13 @@
       }
       if (r.date > a.lastTouch) a.lastTouch = r.date;
       a.rows.push(r);
+    });
+    /* Resolved in a second pass, not while the rows are being read: the name
+       is only final once every row for an account has been seen, and the name
+       is what the fallback match depends on. */
+    Object.keys(acc).forEach(function (k) {
+      var hit = cardCodeFor(idx, acc[k].sfAccountId, acc[k].accountName);
+      if (hit) { acc[k].cardCode = hit.code; acc[k].codeHow = hit.how; }
     });
     return acc;
   }
@@ -2245,7 +2297,8 @@
       return '<details class="card" style="margin-bottom:var(--s-2);">' +
         '<summary style="cursor:pointer; display:flex; justify-content:space-between; gap:var(--s-3); align-items:baseline;">' +
           '<span><b>' + esc(a.accountName || '(unnamed)') + '</b> ' +
-            '<span class="mono hint">' + esc(a.cardCode || a.sfAccountId) + '</span></span>' +
+            '<span class="mono hint"' + codeTitle(a) + '>' +
+              (a.cardCode ? esc(a.cardCode) : 'no account no.') + '</span></span>' +
           '<span class="mono">' + (a.lastVisit ? esc(a.lastVisit) : 'no visit') + '</span>' +
         '</summary>' +
         '<p class="hint" style="margin-top:var(--s-2);">' +

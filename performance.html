@@ -23,6 +23,81 @@
   .msg { font-size: var(--fs-sm); margin-top: var(--s-2); }
   .msg.err { color: var(--red); }
 
+  /* --- Field rankings ----------------------------------------------------
+     These figures used to carry .ka-* class names borrowed from Key Accounts,
+     which defines them in ITS OWN page style block — so on this page they
+     resolved to nothing and the numbers rendered as plain stacked text. They
+     are styled here, where they are used.
+
+     Weighted on purpose rather than laid out as equals: the overall rank is
+     the number this page gets opened to see, so it is the only one drawn
+     large. The four category ranks are peers in a row beneath it. The revenue
+     percentage sits apart from all of them because it is not a rank, and a
+     tile that looked like the others would read as one.
+     ----------------------------------------------------------------------- */
+  .rank-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+  .rank-chip {
+    font-family: var(--font-mono); font-size: var(--fs-xs);
+    padding: 3px var(--s-3); border-radius: var(--r-pill);
+    border: 1px solid var(--rule); background: var(--white);
+    color: var(--ink-light); cursor: pointer;
+  }
+  .rank-chip.on { background: var(--teal-dim); color: var(--teal-deep); border-color: transparent; }
+
+  .rank-hero {
+    display: flex; flex-wrap: wrap; align-items: flex-end;
+    justify-content: space-between; gap: var(--s-5);
+    padding-bottom: var(--s-4); border-bottom: 1px solid var(--rule);
+  }
+  .rank-lbl {
+    display: block; font-family: var(--font-mono); font-size: var(--fs-xs);
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-light);
+  }
+  .rank-big {
+    display: flex; align-items: baseline; gap: var(--s-2); margin-top: 2px;
+    font-family: var(--font-mono); font-size: 46px; font-weight: 500;
+    line-height: 1.02; letter-spacing: -0.03em; color: var(--teal-deep);
+  }
+  /* The denominator is half the fact — #12 of 34 and #12 of 36 are different
+     standings — so it is always drawn, just never at the size of the rank. */
+  .rank-big .of {
+    font-size: var(--fs-base); font-weight: 400; letter-spacing: 0;
+    color: var(--ink-light);
+  }
+  .rank-pct {
+    display: block; margin-top: 2px;
+    font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 500;
+  }
+  .rank-pct.pos { color: var(--green); }
+  .rank-pct.neg { color: var(--red); }
+
+  .rank-tiles {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: var(--s-2); margin-top: var(--s-4);
+  }
+  @media (min-width: 560px) { .rank-tiles { grid-template-columns: repeat(4, 1fr); } }
+  .rank-tile {
+    display: grid; gap: 2px; padding: var(--s-3);
+    border: 1px solid var(--rule); border-radius: var(--r-md); background: var(--bg);
+  }
+  .rank-tile .t-lbl {
+    font-size: var(--fs-xs); color: var(--ink-light); line-height: 1.2;
+  }
+  .rank-tile .t-val {
+    font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 500;
+    display: flex; align-items: baseline; gap: 3px;
+  }
+  .rank-tile .t-val .of { font-size: var(--fs-xs); font-weight: 400; color: var(--ink-light); }
+
+  /* Movement. Green for a gain, red for a loss, and neither for no change —
+     a rank improves DOWNWARD, so the arrow has to be computed, never read
+     off the sign of the difference. */
+  .rank-move { font-family: var(--font-mono); font-size: var(--fs-xs); }
+  .rank-move.up   { color: var(--green); }
+  .rank-move.down { color: var(--red); }
+  .rank-move.flat { color: var(--ink-faint); }
+  .rank-meta { margin-top: var(--s-4); }
+
   /* Movement — the point of the page. Three buckets, colour-coded the way the
      rest of the app codes state: green resolved, amber persistent, red new. */
   .move-group + .move-group { margin-top: var(--s-4); }
@@ -242,24 +317,47 @@
     <span class="eyebrow mono" id="headPill"></span>
   </header>
 
-  <!-- ===================== FIELD RANKINGS =====================
-       First on the page: it is where you stand right now, which is the
-       question this page gets opened to answer. Read from the workbook's
-       Rankings sheet on Accounts. A rank is always drawn with its
-       denominator, and the two bases are never mixed. -->
+  <!-- ===================== WHERE YOU STAND =====================
+       First on the page and deliberately short: the current standing, at a
+       glance, and nothing else. It is the question this page gets opened to
+       answer, and the answer should not need scrolling past an import form.
+
+       The rankings bracket the field rides — this card above them, the
+       history table below. Read from the workbook's Rankings sheet on
+       Accounts. A rank is always drawn with its denominator, and the two
+       bases are never mixed. -->
   <section class="card" id="rankCard">
     <div class="card-head">
-      <h2>Field rankings</h2>
+      <h2>Where you stand</h2>
       <span class="pill" id="rankCount"></span>
     </div>
-    <div id="rankBasisRow" class="ka-chips" style="margin-top:var(--s-2);"></div>
-    <div id="rankBody" style="margin-top:var(--s-3);"></div>
+    <div id="rankBasisRow" class="rank-chips" style="margin-top:var(--s-2);"></div>
+    <div id="rankBody" style="margin-top:var(--s-4);"></div>
+  </section>
+
+  <!-- ===================== FIELD RIDES =====================
+       Filled by the evaluation views. Sits between the two ranking cards. -->
+  <div id="views"></div>
+
+  <!-- ===================== RANKING HISTORY =====================
+       At the bottom because it only grows: every report published, oldest
+       question last. Hidden outright until there are two reports on one
+       basis, since a one-row history is not a history. -->
+  <section class="card" id="rankHistoryCard" style="margin-top:var(--s-4);" hidden>
+    <div class="card-head">
+      <h2>Ranking history</h2>
+      <span class="pill" id="rankHistBasis"></span>
+    </div>
+    <div id="rankHistBody" style="margin-top:var(--s-3);"></div>
   </section>
 
   <!-- ===================== UPLOAD =====================
+       Last on the page. It is a once-a-quarter action and it was standing
+       between you and everything you came to read.
+
        Everything the old form asked you to type is already in the evaluation
        PDF, so it is read from there instead. -->
-  <section class="card" id="uploadCard" style="margin-top:var(--s-5);">
+  <section class="card" id="uploadCard" style="margin-top:var(--s-4);">
     <div class="card-head">
       <h2>Upload field ride evaluations</h2>
       <span class="pill" id="evCount"></span>
@@ -291,8 +389,6 @@
       uploaded and never committed to the repo.
     </p>
   </section>
-
-  <div id="views"></div>
 
   <p class="hint" style="text-align:center; margin-top:var(--s-4);">
     Evaluations stay in this browser. They are never committed to the repo and
@@ -1303,7 +1399,8 @@
 
     if (!list.length) {
       host.innerHTML = '<div class="empty"><strong>No field rides recorded</strong>' +
-        'Upload an evaluation PDF above. Everything is read from it — scores, the ' +
+        'Upload an evaluation PDF at the bottom of this page. Everything is read ' +
+        'from it — scores, the ' +
         'evaluator’s notes, and the action items. Upload two and progress appears.</div>';
       pill.textContent = '';
       return;
@@ -1453,15 +1550,28 @@
     /* Stored as a fraction: 0.068 is +6.8%. */
     return (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
   }
-  function delta(cur, prev) {
-    /* Ranks improve DOWNWARD, so a fall in the number is a gain. Only
+  /* A rank and its denominator as two elements rather than one string, so the
+     rank can be drawn large without "of 34" growing with it. */
+  function rankBig(rank, total) {
+    if (rank === null || rank === undefined) return '&mdash;';
+    return esc(String(rank)) + '<span class="of">of ' +
+           (total === null || total === undefined ? '?' : esc(String(total))) + '</span>';
+  }
+  function rankSmall(rank, total) {
+    if (rank === null || rank === undefined) return '&mdash;';
+    return esc(String(rank)) + '<span class="of">/' +
+           (total === null || total === undefined ? '?' : esc(String(total))) + '</span>';
+  }
+  function move(cur, prev, suffix) {
+    /* Ranks improve DOWNWARD, so a fall in the number is a gain. The arrow is
+       computed from that, never from the sign of the subtraction. Only
        meaningful between two reports of the same basis, which is all
        Store.rankings.series() ever returns. */
     if (cur === null || prev === null || cur === undefined || prev === undefined) return '';
     var d = prev - cur;
-    if (!d) return ' <span class="hint">no change</span>';
-    return d > 0 ? ' <span style="color:var(--green)">&#9650; ' + d + '</span>'
-                 : ' <span style="color:var(--red)">&#9660; ' + Math.abs(d) + '</span>';
+    if (!d) return '<span class="rank-move flat">no change</span>';
+    return '<span class="rank-move ' + (d > 0 ? 'up' : 'down') + '">' +
+           (d > 0 ? '&#9650; ' : '&#9660; ') + Math.abs(d) + esc(suffix || '') + '</span>';
   }
 
   function render() {
@@ -1475,6 +1585,7 @@
     if (!count) {
       pill.textContent = 'No data';
       document.getElementById('rankBasisRow').innerHTML = '';
+      document.getElementById('rankHistoryCard').hidden = true;
       body.innerHTML = '<p class="hint">Upload <b>Territory_Master.xlsx</b> on ' +
         '<b>Accounts &rsaquo; Master workbook</b> — its Rankings sheet lands here.</p>';
       return;
@@ -1491,7 +1602,7 @@
     }
 
     document.getElementById('rankBasisRow').innerHTML = bases.map(function (b) {
-      return '<button class="ka-chip' + (b === basis ? ' on' : '') + '" data-rankbasis="' +
+      return '<button class="rank-chip' + (b === basis ? ' on' : '') + '" data-rankbasis="' +
         esc(b) + '">' + esc(b) + '</button>';
     }).join('') + (bases.length > 1
       ? '<span class="hint" style="align-self:center; margin-left:var(--s-2);">' +
@@ -1501,48 +1612,69 @@
     var latest = series[series.length - 1];
     var prev = series.length > 1 ? series[series.length - 2] : null;
 
-    var rows = [
-      ['Overall',        latest.overallRank,  prev && prev.overallRank],
-      ['Patient Direct', latest.pdRank,       prev && prev.pdRank],
-      ['Primera Scripts',latest.primeraRank,  prev && prev.primeraRank],
-      ['Orders',         latest.ordersRank,   prev && prev.ordersRank],
-      ['Revenue',        latest.revRank,      prev && prev.revRank]
+    /* Overall is drawn on its own above these four. It is the number the page
+       is opened for, and a fifth equal tile is how it stops being that. */
+    var tiles = [
+      ['Patient Direct',  latest.pdRank,      prev && prev.pdRank],
+      ['Primera scripts', latest.primeraRank, prev && prev.primeraRank],
+      ['Orders',          latest.ordersRank,  prev && prev.ordersRank],
+      ['Revenue',         latest.revRank,     prev && prev.revRank]
     ];
 
     body.innerHTML =
-      '<p class="hint">' + esc(latest.repName || '') +
+      '<div class="rank-hero">' +
+        '<div>' +
+          '<span class="rank-lbl">Overall</span>' +
+          '<span class="rank-big">' + rankBig(latest.overallRank, latest.totalReps) + '</span>' +
+          (prev ? move(latest.overallRank, prev.overallRank, ' since ' + prev.reportDate) : '') +
+        '</div>' +
+        '<div>' +
+          '<span class="rank-lbl">Revenue vs prior</span>' +
+          '<span class="rank-pct' + (latest.revPct === null || latest.revPct === undefined ? ''
+            : latest.revPct < 0 ? ' neg' : ' pos') + '">' + pct(latest.revPct) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rank-tiles">' +
+        tiles.map(function (t) {
+          return '<div class="rank-tile">' +
+            '<span class="t-lbl">' + esc(t[0]) + '</span>' +
+            '<span class="t-val">' + rankSmall(t[1], latest.totalReps) + '</span>' +
+            (prev ? move(t[1], t[2]) : '') + '</div>';
+        }).join('') +
+      '</div>' +
+      '<p class="hint rank-meta">' + esc(latest.repName || '') +
         (latest.region ? ' &middot; ' + esc(latest.region) : '') +
         ' &middot; report ' + esc(latest.reportDate) +
         ' &middot; <b>' + esc(latest.basis) + '</b>' +
-        (prev ? ' &middot; change against ' + esc(prev.reportDate) : '') + '</p>' +
-      '<div class="ka-figs" style="margin-top:var(--s-3);">' +
-        rows.map(function (r) {
-          return '<div><div class="ka-fig-lbl">' + esc(r[0]) + '</div>' +
-                 '<div class="ka-fig-val">' + outOf(r[1], latest.totalReps) +
-                 (prev ? delta(r[1], r[2]) : '') + '</div></div>';
-        }).join('') +
-        '<div><div class="ka-fig-lbl">Revenue vs prior</div>' +
-        '<div class="ka-fig-val' + (latest.revPct === null ? ''
-          : latest.revPct < 0 ? ' neg' : ' pos') + '">' + pct(latest.revPct) + '</div></div>' +
-      '</div>' +
-      (series.length > 1
-        ? '<p class="section-label" style="margin-top:var(--s-4);"><span>History</span></p>' +
-          '<div style="overflow-x:auto;"><table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
-          '<tr><th style="text-align:left;">Report</th><th style="text-align:right;">Overall</th>' +
-          '<th style="text-align:right;">PD</th><th style="text-align:right;">Scripts</th>' +
-          '<th style="text-align:right;">Orders</th><th style="text-align:right;">Rev</th>' +
-          '<th style="text-align:right;">Rev %</th></tr>' +
-          series.slice().reverse().map(function (s) {
-            return '<tr><td>' + esc(s.reportDate) + '</td>' +
-              '<td style="text-align:right;">' + outOf(s.overallRank, s.totalReps) + '</td>' +
-              '<td style="text-align:right;">' + outOf(s.pdRank, s.totalReps) + '</td>' +
-              '<td style="text-align:right;">' + outOf(s.primeraRank, s.totalReps) + '</td>' +
-              '<td style="text-align:right;">' + outOf(s.ordersRank, s.totalReps) + '</td>' +
-              '<td style="text-align:right;">' + outOf(s.revRank, s.totalReps) + '</td>' +
-              '<td style="text-align:right;">' + pct(s.revPct) + '</td></tr>';
-          }).join('') + '</table></div>'
-        : '<p class="hint" style="margin-top:var(--s-3);">One report so far on this basis. ' +
-          'Movement appears once there are two.</p>');
+        (prev ? '' : ' &middot; first report on this basis, so nothing to move against yet') +
+        '</p>';
+
+    /* History lives in its own card at the foot of the page: it only grows,
+       and it is reference rather than the answer. Hidden outright on a single
+       report — a one-row history is not a history. */
+    var histCard = document.getElementById('rankHistoryCard');
+    if (series.length > 1) {
+      histCard.hidden = false;
+      document.getElementById('rankHistBasis').textContent =
+        latest.basis + ' · ' + series.length + ' reports';
+      document.getElementById('rankHistBody').innerHTML =
+        '<div style="overflow-x:auto;"><table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
+        '<tr><th style="text-align:left;">Report</th><th style="text-align:right;">Overall</th>' +
+        '<th style="text-align:right;">PD</th><th style="text-align:right;">Scripts</th>' +
+        '<th style="text-align:right;">Orders</th><th style="text-align:right;">Rev</th>' +
+        '<th style="text-align:right;">Rev %</th></tr>' +
+        series.slice().reverse().map(function (s) {
+          return '<tr><td>' + esc(s.reportDate) + '</td>' +
+            '<td style="text-align:right;">' + outOf(s.overallRank, s.totalReps) + '</td>' +
+            '<td style="text-align:right;">' + outOf(s.pdRank, s.totalReps) + '</td>' +
+            '<td style="text-align:right;">' + outOf(s.primeraRank, s.totalReps) + '</td>' +
+            '<td style="text-align:right;">' + outOf(s.ordersRank, s.totalReps) + '</td>' +
+            '<td style="text-align:right;">' + outOf(s.revRank, s.totalReps) + '</td>' +
+            '<td style="text-align:right;">' + pct(s.revPct) + '</td></tr>';
+        }).join('') + '</table></div>';
+    } else {
+      histCard.hidden = true;
+    }
 
     Array.prototype.forEach.call(document.querySelectorAll('[data-rankbasis]'), function (b) {
       b.addEventListener('click', function () { basis = b.dataset.rankbasis; render(); });

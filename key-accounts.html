@@ -1271,8 +1271,8 @@
   var SHEETS = [
     { key:'visits',    match:'visits',    label:'Visits',      reads:true,
       note:'the visit log below' },
-    { key:'accounts',  match:'accounts',  label:'Accounts',    reads:false,
-      note:'read by Route Board’s Data panel for now' },
+    { key:'accounts',  match:'accounts',  label:'Accounts',    reads:true,
+      note:'the account crosswalk — Salesforce id, CardCode, city' },
     { key:'rankings',  match:'rankings',  label:'Rankings',    reads:true,
       note:'shown on Performance' },
     { key:'pins',      match:'pins',      label:'Pins',        reads:true,
@@ -1496,6 +1496,132 @@
     }
     return { rows: rows, skipped: skipped, territories: terrs, tagCounts: tagCounts,
              hasTagCol: idx.tags !== -1, error: null };
+  }
+
+  /* --- Accounts -----------------------------------------------------------
+     The crosswalk: SFAccountID to CardCode to place ID, plus city and route.
+     It is what turns a pin on the Route Board into an account with a
+     Salesforce link and an account number, and what puts a CardCode on the
+     visit log below.
+
+     This sheet used to be `reads:false`. The overlay it feeds could only be
+     built by copying the sheet out of Excel a second time and pasting it as
+     text into Route Board's Data panel — so on any device where that had not
+     been done, the cards showed a name and nothing else. Nothing else in the
+     workbook worked that way.
+
+     Parsed to the exact shape Route Board reads; assets/js/data-store.js
+     documents it under `accountXref`. Route Board keeps its own copy of this
+     parser for the paste path, and the two agree on purpose — including on
+     what is NOT taken:
+
+       Top25      the board reads it from the "⭐ Top 25" pin tag. A second
+                  source for one flag is two sources that disagree.
+       MapsURL    an Excel formula that reads blank whenever the workbook was
+                  saved without recalculating. Fallback for a missing PlaceID
+                  only, where blank costs nothing.
+       SFLink     same formula hazard, and derivable from SFAccountID. The
+                  board builds the link at render time instead.
+       RouteWeek  derivable from Route through ZONES in assets/js/shell.js.
+     ---------------------------------------------------------------------- */
+  var XREF_COLS = {
+    name:        ['accountname'],
+    cardCode:    ['cardcode'],
+    sfAccountId: ['sfaccountid'],
+    placeId:     ['placeid'],
+    mapsUrl:     ['mapsurl'],
+    route:       ['route'],
+    city:        ['city']
+  };
+  /* The board keys accounts on the Maps feature id, the 0x…:0x… pair, not on
+     a ChIJ place id. Both live in a place URL; only this one identifies a pin
+     in the book. */
+  var PLACE_ID_RE = /^0x[0-9a-f]+:0x[0-9a-f]+$/i;
+
+  /* Excel writes #N/A into any cell whose lookup failed, and this workbook has
+     at least one — HAMILTON EYE ASSOCIATES has no Route. Storing the literal
+     would put "#N/A" on a card, so every taken cell is scrubbed, not just
+     Route: the same lookups feed the others and fail the same way. */
+  function xrefCell(v) {
+    var s = String(v == null ? '' : v).trim();
+    return /^#(N\/A|REF!|VALUE!|NAME\?|DIV\/0!|NULL!|NUM!)$/i.test(s) ? '' : s;
+  }
+  function ftidFromUrl(u) {
+    var m = String(u == null ? '' : u).match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
+    return m ? m[1] : '';
+  }
+  function xrefHeaderIndex(row) {
+    var n = row.map(norm), idx = {};
+    Object.keys(XREF_COLS).forEach(function (f) {
+      idx[f] = -1;
+      XREF_COLS[f].some(function (want) {
+        var at = n.indexOf(want);
+        if (at === -1) return false;
+        idx[f] = at; return true;
+      });
+    });
+    return idx;
+  }
+
+  function parseAccounts(grid) {
+    var h = -1;
+    for (var i = 0; i < grid.length && i < 20; i++) {
+      for (var j = 0; j < grid[i].length; j++) {
+        if (norm(grid[i][j]) === 'sfaccountid') { h = i; break; }
+      }
+      if (h !== -1) break;
+    }
+    if (h === -1) {
+      return { accounts: {}, unmatched: [], rows: 0, keyed: 0, withPlace: 0, dupes: 0,
+               error: 'no SFAccountID column, which is what every row is keyed on' };
+    }
+    var idx = xrefHeaderIndex(grid[h]);
+    var accounts = {}, unmatched = [], rows = 0, dupes = 0, withPlace = 0;
+    for (var r = h + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) { return (at === -1 || g[at] == null) ? '' : xrefCell(g[at]); };
+      if (!g.some(function (c) { return String(c == null ? '' : c).trim(); })) continue;
+      rows++;
+      var rec = {
+        sfAccountId: cell(idx.sfAccountId),
+        /* CardCode is a STRING and stays one: 024060 is not 24060, and the
+           leading zero is part of the account number. */
+        cardCode:    cell(idx.cardCode),
+        city:        cell(idx.city),
+        /* Stored raw. "Waco/ East Austin" and "Waco/East Austin" both occur;
+           resolving them is Shell.zoneByName's job, not this importer's. */
+        route:       cell(idx.route),
+        name:        cell(idx.name),
+        placeId:     ''
+      };
+      /* PlaceID first, MapsURL only as a fallback, for the formula reason
+         above. A row with neither is kept, not rejected: it cannot be drawn
+         on the board, but Visits and the purchase CSVs still reach it by
+         SFAccountID, which is the whole reason this is keyed on that. */
+      var pid = cell(idx.placeId);
+      if (!PLACE_ID_RE.test(pid)) pid = ftidFromUrl(pid) || ftidFromUrl(cell(idx.mapsUrl));
+      rec.placeId = PLACE_ID_RE.test(pid) ? pid : '';
+
+      if (!rec.sfAccountId) {
+        unmatched.push({ name: rec.name, cardCode: rec.cardCode, sfAccountId: '',
+                         city: rec.city, route: rec.route,
+                         reason: 'no salesforce account id' });
+        continue;
+      }
+      if (accounts[rec.sfAccountId]) { dupes++; continue; }   // first row wins
+      accounts[rec.sfAccountId] = rec;
+      /* Counted here rather than above, so it stays a count of accounts that
+         reached the crosswalk — a place id on a row that was dropped for
+         having no SFAccountID reaches nothing. */
+      if (rec.placeId) withPlace++;
+    }
+    if (!rows) {
+      return { accounts: {}, unmatched: [], rows: 0, keyed: 0, withPlace: 0, dupes: 0,
+               error: 'only a header row — no account rows to read' };
+    }
+    return { accounts: accounts, unmatched: unmatched, rows: rows,
+             keyed: Object.keys(accounts).length, withPlace: withPlace,
+             dupes: dupes, error: null };
   }
 
   /* --- Rankings -----------------------------------------------------------
@@ -1753,6 +1879,7 @@
       pending = {
         fileName: file.name, found: found,
         visits: parseVisits(gridOf(vis.name)),
+        accounts: sheetNamed('accounts') ? parseAccounts(gridOf(sheetNamed('accounts'))) : null,
         pins: sheetNamed('pins') ? parsePins(gridOf(sheetNamed('pins'))) : null,
         rankings: sheetNamed('rankings') ? parseRankings(gridOf(sheetNamed('rankings'))) : null,
         prescribing: sheetNamed('prescribing') ? parsePrescribing(gridOf(sheetNamed('prescribing'))) : null,
@@ -1801,8 +1928,31 @@
             ' correct rows already in the log. ' + existingKeys.length +
             ' row(s) already stored are left alone.'
           : 'Nothing is in the log yet, so all of these are new.') +
-      '</p>' + pinsSummary() + rankingsSummary() + prescribingSummary();
+      '</p>' + accountsSummary() + pinsSummary() + rankingsSummary() + prescribingSummary();
     document.getElementById('mwPreview').hidden = false;
+  }
+
+  /* The number worth stating is not how many rows were read but how many of
+     them can reach a card: a row with no place id is stored and joins to the
+     visit log, it just has no pin to attach to. */
+  function accountsSummary() {
+    var a = pending.accounts;
+    if (!a) return '';
+    if (a.error) {
+      return '<p class="hint" style="margin-top:var(--s-3);">' +
+        '<b>Accounts sheet not read</b> — ' + esc(a.error) + '.</p>';
+    }
+    var noPlace = a.keyed - a.withPlace;
+    return '<p class="hint" style="margin-top:var(--s-3);">' +
+      '<b>' + a.keyed + '</b> account(s) in the crosswalk, <b>' + a.withPlace +
+      '</b> carrying a place id, so that many can show a Salesforce link and an ' +
+      'account number on the Route Board.' +
+      (noPlace ? ' ' + noPlace + ' have no place id — stored and joined to the visit ' +
+                 'log, but they have no pin to sit on.' : '') +
+      (a.unmatched.length ? ' ' + a.unmatched.length +
+                 ' row(s) had no SFAccountID and could not be keyed at all.' : '') +
+      (a.dupes ? ' ' + a.dupes + ' row(s) repeated an SFAccountID; the first was kept.' : '') +
+      '</p>';
   }
 
   function prescribingSummary() {
@@ -1940,6 +2090,18 @@
             mapping: (pending.prescribers && !pending.prescribers.error)
                     ? pending.prescribers.mapping : {}
           })) {
+        ok = false;
+      }
+    }
+
+    /* The crosswalk REPLACES, like the pins. Every field in it comes from the
+       sheet, so there is no typed history to protect — and Route Board keeps
+       what you typed (a pasted Salesforce URL, a city you set by hand) in its
+       own annotations store, which this never touches. */
+    if (pending.accounts && !pending.accounts.error && pending.accounts.keyed) {
+      if (!Store.accountXref.write({ generated: new Date().toISOString(),
+                                     accounts: pending.accounts.accounts,
+                                     unmatched: pending.accounts.unmatched })) {
         ok = false;
       }
     }

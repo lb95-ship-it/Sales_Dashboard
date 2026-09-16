@@ -266,6 +266,15 @@ const CSS = `  :host{
   .card-city{
     font-size:11.5px; color:var(--ink-dim); margin-top:3px; line-height:1.3;
   }
+  /* Account number and last visit. Mono and quiet: these are reference facts
+     you glance at while deciding, not the name you read the card by. */
+  .card-meta{
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px;
+    font-family:var(--mono); font-size:10px; color:var(--ink-dim);
+    margin-top:3px; line-height:1.4;
+  }
+  .card-meta .sep{opacity:0.45;}
+  .card-meta .acctno{color:var(--ink); letter-spacing:0.02em;}
   .sched{
     display:inline-flex; align-items:center; gap:4px; margin-top:4px;
     font-family:var(--mono); font-size:10px; line-height:1.4;
@@ -1261,6 +1270,76 @@ function cityFor(id){
 }
 const FROM_WORKBOOK = 'From the Territory Master workbook — click to override';
 
+/* ---- Account number and last visit, also joined at render time ------
+   Two more facts the workbook already knows and the card had no way to say.
+
+   The account number is the identifier the office and the order desk both
+   use — "024060", never the Salesforce id, and never the name when two
+   clinics share one. It comes from the crosswalk's CardCode.
+
+   The last visit comes from the visit log, which is keyed on SFAccountID —
+   so it is reachable only through the crosswalk, which is the one place
+   SFAccountID and place id meet. Only a "Visit" counts: the other four
+   subjects are contact, not a credited call, and the log's own page draws
+   exactly that line. A card that counted an email as a visit would quietly
+   tell you to skip an office you have not actually been into.
+
+   Read straight out of th_visits rather than through window.Store, for the
+   same reason the rest of this file does: route-board-local.html loads it
+   without data-store.js.
+   -------------------------------------------------------------------- */
+const LAST_VISIT = (()=>{
+  const v = readJSON('th_visits');
+  const rows = (v && v.rows && typeof v.rows === 'object') ? v.rows : {};
+  const out = {};
+  Object.keys(rows).forEach(k=>{
+    const r = rows[k];
+    if(!r || typeof r !== 'object') return;
+    const id = String(r.sfAccountId || '');
+    const date = String(r.date || '');
+    // ISO dates, so a string compare is a date compare.
+    if(!id || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const visit = String(r.subject || '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'visit';
+    const cur = out[id] || (out[id] = {visit: '', touch: ''});
+    if(visit && date > cur.visit) cur.visit = date;
+    if(date > cur.touch) cur.touch = date;
+  });
+  return out;
+})();
+
+/* "Aug 12" — the year is dropped because every date a card shows is recent
+   enough for it to be noise, and added back when it is not. */
+function shortDate(iso){
+  const p = String(iso).split('-');
+  const d = new Date(+p[0], +p[1] - 1, +p[2]);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-US', sameYear
+    ? {month: 'short', day: 'numeric'}
+    : {month: 'short', day: 'numeric', year: '2-digit'});
+}
+
+/* The card's fact line: account number, last visit, or neither. Returns ''
+   when the crosswalk has nothing for this pin, which is the state every
+   board is in until the workbook has been uploaded — no empty row, no
+   placeholder dash, just one less line on the card. */
+function metaHTML(placeId){
+  const x = xrefFor(placeId);
+  if(!x) return '';
+  const bits = [];
+  if(x.cardCode){
+    bits.push(`<span class="acctno" title="Account number">${escapeHtml(x.cardCode)}</span>`);
+  }
+  const seen = x.sfAccountId ? LAST_VISIT[x.sfAccountId] : null;
+  if(seen && seen.visit){
+    const t = 'Last credited visit ' + seen.visit
+      + (seen.touch > seen.visit ? ' — last touch of any kind ' + seen.touch : '');
+    bits.push(`<span title="${escapeAttr(t)}">seen ${escapeHtml(shortDate(seen.visit))}</span>`);
+  } else if(seen && seen.touch){
+    bits.push(`<span title="${escapeAttr('Last touch ' + seen.touch + ' — no credited visit in the log')}">touched ${escapeHtml(shortDate(seen.touch))}</span>`);
+  }
+  return bits.length ? `<div class="card-meta">${bits.join('<span class="sep">·</span>')}</div>` : '';
+}
+
 // ---- Card rendering ----
 // stop / total are supplied only for cards sitting in a day column.
 function cardHTML(a, stop, total){
@@ -1331,6 +1410,7 @@ function cardHTML(a, stop, total){
     ${ctl}${skipCtl}
 <div class="card-name" title="${escapeAttr(a.name)}">${stopBadge}${escapeHtml(a.name)}</div>
     ${cityHTML}
+    ${metaHTML(a.id)}
     ${noteHTML}
     ${schedHTML}
     <div class="card-tags">${tagStr}<span class="terr-mini" title="${escapeAttr(a.territories.join(', '))}">${terrLabel(a)}</span></div>

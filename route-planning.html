@@ -675,14 +675,43 @@
     return m ? m[1] : '';
   }
 
+  /* The Pins sheet's PlaceID column does NOT hold a Google place id. It holds
+     the Maps FEATURE id — the 0x…:0x… pair out of a place URL's !1s segment —
+     which is what Route Board keys its account book on and what the workbook
+     therefore carries. Google's directions URL accepts only a real place id
+     (ChIJ…), so handing it an ftid produces a stop that resolves to nothing.
+     Anything that is not a real place id is treated as no place id at all,
+     and the name or the coordinates carry that stop instead. */
+  function googlePlaceId(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (/^0x[0-9a-f]+:0x[0-9a-f]+$/i.test(s)) return '';
+    return /^[A-Za-z0-9_-]{20,}$/.test(s) ? s : '';
+  }
+
+  /* The place name out of a Maps URL: /maps/place/THIS+NAME/data=…
+     Preferred over the sheet's Title because it is the name Maps itself
+     resolved the pin to, and Route Board's own one-tap Directions link has
+     been handing Google exactly this string for as long as the board has
+     existed. Decoded here and re-encoded with everything else, so there is
+     one encoding step rather than two half-steps. */
+  function nameFromUrl(url) {
+    var m = String(url || '').match(/\/maps\/place\/([^\/?#]+)/);
+    if (!m) return '';
+    try { return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); }
+    catch (e) { return m[1].replace(/\+/g, ' ').trim(); }
+  }
+
   /* One pin -> { text, placeId }. `text` is what goes in the URL; `placeId`
-     only sharpens it, and is dropped when the text is already coordinates. */
+     only sharpens it, and is dropped when the text is already coordinates.
+
+     Order is by how precisely each identifies a building: coordinates, then
+     the name Maps gave the place, then the name the sheet gave it. */
   function stopFromPin(pin) {
     var coords = coordsFromUrl(pin.mapsUrl);
     if (coords) return { text: coords, placeId: '' };
     return {
-      text: String(pin.title || pin.label || '').trim(),
-      placeId: String(pin.placeId || '').trim() || placeIdFromUrl(pin.mapsUrl)
+      text: nameFromUrl(pin.mapsUrl) || String(pin.title || pin.label || '').trim(),
+      placeId: googlePlaceId(pin.placeId) || googlePlaceId(placeIdFromUrl(pin.mapsUrl))
     };
   }
 

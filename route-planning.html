@@ -289,24 +289,15 @@
      with six zones +3 and -3 are the same position, so rotating the list
      carries each pair with it.
      ---------------------------------------------------------------------- */
-  /* `mapList` is the Google Maps saved-list share link for that route, and the
-     "View on Map" button opens it verbatim. Paste one URL per route between
-     the quotes below — Maps' own Share > Copy link on the saved list. Nothing
-     generates or validates these; a route left empty renders its button
-     disabled rather than opening a broken link. */
+  /* The saved Maps list link for each route used to live here. It moved to
+     route-board.js with the two buttons that open it. */
   var ZONES = [
-    { primary: 'Waco/East Austin',     followup: 'North Central Austin',
-      mapList: 'https://maps.app.goo.gl/NdmU7pQVdi8XgJzR7' },
-    { primary: 'North West Austin',    followup: 'South Central Austin Follow-Ups',
-      mapList: 'https://maps.app.goo.gl/QDsrhVS1MSQXWJpX6' },
-    { primary: 'Hill Country',         followup: 'Southwest Austin Follow-Ups',
-      mapList: 'https://maps.app.goo.gl/6ASQYNCo3NTffoNz6' },
-    { primary: 'North Central Austin', followup: 'Waco/East Austin Follow-Ups',
-      mapList: 'https://maps.app.goo.gl/sGLsxdqQePtgYubi6' },
-    { primary: 'South Central Austin', followup: 'Northwest Austin Follow-Ups',
-      mapList: 'https://maps.app.goo.gl/LzMf1o2hF7CcqRmV7' },
-    { primary: 'South West Austin',    followup: 'Hill Country Follow-Ups',
-      mapList: 'https://maps.app.goo.gl/jmoLYxtDRScqujXAA' }
+    { primary: 'Waco/East Austin',     followup: 'North Central Austin'            },
+    { primary: 'North West Austin',    followup: 'South Central Austin Follow-Ups' },
+    { primary: 'Hill Country',         followup: 'Southwest Austin Follow-Ups'     },
+    { primary: 'North Central Austin', followup: 'Waco/East Austin Follow-Ups'     },
+    { primary: 'South Central Austin', followup: 'Northwest Austin Follow-Ups'     },
+    { primary: 'South West Austin',    followup: 'Hill Country Follow-Ups'         }
   ];
 
   var DAY_LABELS = ['M', 'T', 'W', 'Th', 'F'];
@@ -684,182 +675,27 @@
     showToast(built.events + ' events — import onto ' + calName(zone.primary));
   }
 
-  /* --- Route maps ---------------------------------------------------------
-     Two links per route, both built out of data that already exists.
+  /* --- Route actions ------------------------------------------------------
+     One button per rotation row now: the route's calendar file.
 
-     "View on Map" is the route's saved Maps list — a link Maps itself
-     produces, pasted into ZONES at the top of this file. Nothing is built.
-
-     "Start Route" is a multi-stop directions link assembled from the pins
-     filed under that route in `th_pins`, which the Accounts > Master workbook
-     upload parks there. First pin is the origin, last is the destination, the
-     rest are waypoints, in sheet order — the order the route is already
-     sorted in. No new storage: this reads the pins and nothing else.
-
-     The Pins sheet carries NO street-address column, only each place's name,
-     its Maps URL and its place ID. So a stop is resolved in the order that
-     loses the least precision: coordinates lifted out of the Maps URL when
-     they are in there, else the name pinned to its place ID, else the bare
-     name for Maps to geocode. The bare name is last because it is the only
-     one of the three that can land on the wrong clinic.
+     "View on Map" and "Start Route" started here and moved to the Route
+     Board, which is where a route is a list of offices you can actually work
+     rather than a name in a rotation. The map-list links moved with them —
+     they live in route-board.js.
      ---------------------------------------------------------------------- */
 
-  /* Google Maps will not route more than ten stops. Past that the link is
-     rejected outright, so a long route opens as its first ten and says so
-     rather than doing nothing. */
-  var MAX_STOPS = 10;
-
-  /* The two buttons under a rotation row. `zi` is the index into ZONES and is
-     what the click handler reads back: the row's dates change with the week
-     being viewed, the route it names does not. */
+  /* `zi` is the index into ZONES and is what the click handler reads back:
+     the row's dates change with the week being viewed, the route it names
+     does not. */
   function routeActions(zi) {
-    var zone = ZONES[zi];
-    var name = Shell.escapeHtml(zone.primary);
+    var name = Shell.escapeHtml(ZONES[zi].primary);
     return '<div class="week-actions">' +
-      '<button type="button" class="btn btn-sm" data-maplist="' + zi + '"' +
-        (zone.mapList ? '' : ' disabled') +
-        ' aria-label="View ' + name + ' on the map"' +
-        ' title="' + (zone.mapList
-          ? 'Open the saved Maps list for ' + name
-          : 'No saved Maps list link for ' + name + ' yet') + '">' +
-        'View on Map</button>' +
-      '<button type="button" class="btn btn-sm" data-startroute="' + zi + '"' +
-        ' aria-label="Start the ' + name + ' route"' +
-        ' title="Driving directions through the pins filed under ' + name + '">' +
-        'Start Route</button>' +
       '<button type="button" class="btn btn-sm" data-cal="' + zi + '"' +
         ' aria-label="Download the ' + name + ' calendar file"' +
         ' title="A year of ' + name + ' weeks and its follow-up Sundays, as one' +
         ' .ics to import onto that route&#39;s calendar">' +
         'Calendar</button>' +
       '</div>';
-  }
-
-  /* Pins filed under a route, in sheet order. Territory spellings differ
-     between the workbook and this page, so both sides go through
-     Shell.zoneByName() first; the raw-text compare is the fallback for a
-     spelling that list has never seen. */
-  function pinsForZone(zoneName) {
-    var pins = Store.pins.read();
-    var rows = (pins && Array.isArray(pins.rows)) ? pins.rows : [];
-    var want = Shell.zoneByName(zoneName);
-    return rows.filter(function (r) {
-      var z = Shell.zoneByName(r.territory);
-      if (want && z) return z.id === want.id;
-      return String(r.territory || '').trim().toLowerCase() ===
-             String(zoneName || '').trim().toLowerCase();
-    });
-  }
-
-  /* lat,lng out of a Maps URL. Three shapes turn up in the export:
-     .../@30.26,-97.74,17z  ·  !3d30.26!4d-97.74  ·  ?q=30.26,-97.74 (or ll=).
-     Returns '' for a cid or place link, which carries no coordinates. */
-  function coordsFromUrl(url) {
-    var s = String(url || '');
-    var m = s.match(/[?&](?:q|ll|daddr|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i) ||
-            s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
-            s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    return m ? m[1] + ',' + m[2] : '';
-  }
-
-  function placeIdFromUrl(url) {
-    var m = String(url || '').match(/(?:place_id[:=]|query_place_id=)([A-Za-z0-9_-]+)/);
-    return m ? m[1] : '';
-  }
-
-  /* The Pins sheet's PlaceID column does NOT hold a Google place id. It holds
-     the Maps FEATURE id — the 0x…:0x… pair out of a place URL's !1s segment —
-     which is what Route Board keys its account book on and what the workbook
-     therefore carries. Google's directions URL accepts only a real place id
-     (ChIJ…), so handing it an ftid produces a stop that resolves to nothing.
-     Anything that is not a real place id is treated as no place id at all,
-     and the name or the coordinates carry that stop instead. */
-  function googlePlaceId(v) {
-    var s = String(v == null ? '' : v).trim();
-    if (/^0x[0-9a-f]+:0x[0-9a-f]+$/i.test(s)) return '';
-    return /^[A-Za-z0-9_-]{20,}$/.test(s) ? s : '';
-  }
-
-  /* The place name out of a Maps URL: /maps/place/THIS+NAME/data=…
-     Preferred over the sheet's Title because it is the name Maps itself
-     resolved the pin to, and Route Board's own one-tap Directions link has
-     been handing Google exactly this string for as long as the board has
-     existed. Decoded here and re-encoded with everything else, so there is
-     one encoding step rather than two half-steps. */
-  function nameFromUrl(url) {
-    var m = String(url || '').match(/\/maps\/place\/([^\/?#]+)/);
-    if (!m) return '';
-    try { return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); }
-    catch (e) { return m[1].replace(/\+/g, ' ').trim(); }
-  }
-
-  /* One pin -> { text, placeId }. `text` is what goes in the URL; `placeId`
-     only sharpens it, and is dropped when the text is already coordinates.
-
-     Order is by how precisely each identifies a building: coordinates, then
-     the name Maps gave the place, then the name the sheet gave it. */
-  function stopFromPin(pin) {
-    var coords = coordsFromUrl(pin.mapsUrl);
-    if (coords) return { text: coords, placeId: '' };
-    return {
-      text: nameFromUrl(pin.mapsUrl) || String(pin.title || pin.label || '').trim(),
-      placeId: googlePlaceId(pin.placeId) || googlePlaceId(placeIdFromUrl(pin.mapsUrl))
-    };
-  }
-
-  function directionsUrl(stops) {
-    var origin = stops[0];
-    var dest   = stops[stops.length - 1];
-    var mid    = stops.slice(1, -1);
-    var parts  = ['api=1', 'travelmode=driving',
-                  'origin=' + encodeURIComponent(origin.text),
-                  'destination=' + encodeURIComponent(dest.text)];
-    if (origin.placeId) parts.push('origin_place_id=' + encodeURIComponent(origin.placeId));
-    if (dest.placeId)   parts.push('destination_place_id=' + encodeURIComponent(dest.placeId));
-    if (mid.length) {
-      parts.push('waypoints=' + mid.map(function (s) {
-        return encodeURIComponent(s.text);
-      }).join('|'));
-      /* waypoint_place_ids has to line up with waypoints one for one, so it is
-         all of them or none: a partial list shifts every stop after the gap
-         onto somebody else's place ID. */
-      if (mid.every(function (s) { return !!s.placeId; })) {
-        parts.push('waypoint_place_ids=' + mid.map(function (s) {
-          return encodeURIComponent(s.placeId);
-        }).join('|'));
-      }
-    }
-    return 'https://www.google.com/maps/dir/?' + parts.join('&');
-  }
-
-  function openMapList(zi) {
-    var zone = ZONES[zi];
-    if (!zone || !zone.mapList) { showToast('No saved Maps list for this route yet'); return; }
-    window.open(zone.mapList, '_blank', 'noopener');
-  }
-
-  function startRoute(zi) {
-    var zone = ZONES[zi];
-    if (!zone) return;
-    var pins = pinsForZone(zone.primary);
-    if (!pins.length) {
-      showToast('No pins for ' + zone.primary + ' — upload the workbook first');
-      return;
-    }
-    var stops = pins.map(stopFromPin).filter(function (s) { return !!s.text; });
-    if (!stops.length) { showToast('No usable locations on these pins'); return; }
-    /* One stop is not a route. Open the pin itself rather than directions
-       that start and end in the same parking lot. */
-    if (stops.length === 1) {
-      window.open(pins[0].mapsUrl || directionsUrl([stops[0], stops[0]]), '_blank', 'noopener');
-      return;
-    }
-    var trimmed = stops.length > MAX_STOPS;
-    if (trimmed) stops = stops.slice(0, MAX_STOPS);
-    window.open(directionsUrl(stops), '_blank', 'noopener');
-    showToast(trimmed
-      ? 'First ' + MAX_STOPS + ' stops — Maps routes no more than that'
-      : stops.length + ' stops on ' + zone.primary);
   }
 
   /* --- Anchor ------------------------------------------------------------ */
@@ -906,9 +742,7 @@
     document.getElementById('scheduleBlock').addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('button') : null;
       if (!btn) return;
-      if (btn.hasAttribute('data-maplist'))    openMapList(+btn.getAttribute('data-maplist'));
-      if (btn.hasAttribute('data-startroute')) startRoute(+btn.getAttribute('data-startroute'));
-      if (btn.hasAttribute('data-cal'))        downloadRouteIcs(+btn.getAttribute('data-cal'));
+      if (btn.hasAttribute('data-cal')) downloadRouteIcs(+btn.getAttribute('data-cal'));
     });
 
     /* Catch the last keystrokes if the debounce hasn't fired yet. pagehide

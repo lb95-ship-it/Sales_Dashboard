@@ -525,6 +525,10 @@ const MARKUP = `<div id="app">
     <div class="ctrl">
       <label title="Applies to the follow-up territory only; the primary territory always shows every account."><input type="checkbox" id="top25only" checked style="vertical-align:middle;"> Top 25 only (follow-ups)</label>
     </div>
+    <div class="ctrl">
+      <button class="btn" id="mapListBtn">View on Map</button>
+      <button class="btn" id="startRouteBtn">Start Route</button>
+    </div>
     <div class="spacer"></div>
     <span class="book-pill" id="bookPill"></span>
     <span class="count-pill" id="progress"></span>
@@ -1228,6 +1232,121 @@ function dirUrl(a){
   return 'https://www.google.com/maps/dir/?api=1&destination=' + q;
 }
 
+/* ---- The route, as a whole ------------------------------------------
+   Two header buttons, both about the primary territory rather than one
+   office: the saved Maps list for it, and directions through it.
+
+   They were built on the Schedule Builder first, which was the wrong
+   page for them — there a route is a name in a rotation, and here it is
+   the list of offices you are about to work.
+
+   The saved-list links are Maps' own Share > Copy link on each list.
+   Nothing generates or validates them; a route without one renders its
+   button disabled rather than opening a broken link. Keyed on the name
+   with punctuation and case stripped, because the book and the schedule
+   have spelled the Waco route several ways over time.
+   -------------------------------------------------------------------- */
+function terrKey(s){ return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+const MAP_LISTS = (()=>{
+  const raw = {
+    'Waco/East Austin':     'https://maps.app.goo.gl/NdmU7pQVdi8XgJzR7',
+    'East Austin/ Waco':    'https://maps.app.goo.gl/NdmU7pQVdi8XgJzR7',
+    'North I-35 Waco':      'https://maps.app.goo.gl/NdmU7pQVdi8XgJzR7',
+    'North West Austin':    'https://maps.app.goo.gl/QDsrhVS1MSQXWJpX6',
+    'Hill Country':         'https://maps.app.goo.gl/6ASQYNCo3NTffoNz6',
+    'North Central Austin': 'https://maps.app.goo.gl/sGLsxdqQePtgYubi6',
+    'South Central Austin': 'https://maps.app.goo.gl/LzMf1o2hF7CcqRmV7',
+    'South West Austin':    'https://maps.app.goo.gl/jmoLYxtDRScqujXAA'
+  };
+  const out = {};
+  Object.keys(raw).forEach(k=>{ out[terrKey(k)] = raw[k]; });
+  return out;
+})();
+function mapListFor(terr){ return MAP_LISTS[terrKey(terr)] || ''; }
+
+/* Google Maps will not route more than ten stops. Past that the link is
+   rejected outright, so a long route opens as its first ten and says so. */
+const MAX_STOPS = 10;
+
+/* One account -> the text that identifies it to Maps.
+
+   Coordinates first where the URL carries them. Otherwise the name out of
+   /maps/place/THIS+NAME/, which is the name Maps itself resolved the pin to
+   and what dirUrl above has been handing Google since this board shipped.
+   The account's own id is NOT usable here: it is the Maps feature id
+   (0x…:0x…), which the directions URL does not accept. */
+function stopText(a){
+  const url = String(a.url || '');
+  const c = url.match(/[?&](?:q|ll|daddr|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i)
+         || url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)
+         || url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if(c) return c[1] + ',' + c[2];
+  const m = url.match(/\/maps\/place\/([^\/?#]+)/);
+  if(m){
+    try { return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); }
+    catch(e){ return m[1].replace(/\+/g, ' ').trim(); }
+  }
+  return String(a.name || '').trim();
+}
+
+/* First stop is the origin, last is the destination, the rest are waypoints,
+   in the order the list is already in. */
+function multiStopUrl(stops){
+  const parts = ['api=1', 'travelmode=driving',
+                 'origin=' + encodeURIComponent(stops[0]),
+                 'destination=' + encodeURIComponent(stops[stops.length - 1])];
+  const mid = stops.slice(1, -1);
+  if(mid.length){
+    parts.push('waypoints=' + mid.map(encodeURIComponent).join('|'));
+  }
+  return 'https://www.google.com/maps/dir/?' + parts.join('&');
+}
+
+/* Every office in the primary territory, in book order — which is the order
+   the Google list is in, and roughly the order it drives. Not the week's day
+   assignments: this answers "take me round this territory", and a day is its
+   own shorter run. */
+function routeStops(){
+  return (BOOK.territoryOrder[week.primary] || [])
+    .map(id=>ACCOUNTS[id]).filter(Boolean);
+}
+
+function openMapList(){
+  const url = mapListFor(week.primary);
+  if(url) window.open(url, '_blank', 'noopener');
+}
+
+function startRoute(){
+  const all = routeStops();
+  let stops = all.map(stopText).filter(Boolean);
+  if(!stops.length) return;
+  if(stops.length === 1){ window.open(dirUrl(all[0]), '_blank', 'noopener'); return; }
+  if(stops.length > MAX_STOPS) stops = stops.slice(0, MAX_STOPS);
+  window.open(multiStopUrl(stops), '_blank', 'noopener');
+}
+
+/* The board has no toast, so both buttons state their case before they are
+   pressed rather than complaining afterwards: disabled when there is nothing
+   to open, and the ten-stop cap named in the tooltip where it applies. */
+function refreshRouteBtns(){
+  const mapBtn = root.getElementById('mapListBtn');
+  const goBtn  = root.getElementById('startRouteBtn');
+  if(!mapBtn || !goBtn) return;
+  const url = mapListFor(week.primary);
+  mapBtn.disabled = !url;
+  mapBtn.title = url ? 'Open the saved Maps list for ' + week.primary
+                     : 'No saved Maps list link for ' + week.primary + ' yet';
+  const n = routeStops().length;
+  goBtn.disabled = !n;
+  goBtn.title = !n
+    ? 'No offices in ' + week.primary + ' to route'
+    : n > MAX_STOPS
+      ? 'Driving directions through the first ' + MAX_STOPS + ' of ' + n
+        + ' offices in ' + week.primary + ' — Maps will not route more than that'
+      : 'Driving directions through all ' + n + ' offices in ' + week.primary;
+}
+
 // All tags present, for filter chips
 const ALLTAGS = (()=>{
   const c = {};
@@ -1815,6 +1934,7 @@ function render(){
 
   syncControls();
   renderWeekChrome();
+  refreshRouteBtns();
   bindCards();
   saveWeek();
 }
@@ -2048,6 +2168,9 @@ function buildControls(){
   root.getElementById('weekLabel').onclick = ()=>{
     if(viewIso !== THIS_MONDAY) goToWeek(THIS_MONDAY);
   };
+
+  root.getElementById('mapListBtn').onclick = openMapList;
+  root.getElementById('startRouteBtn').onclick = startRoute;
 
   // Which book is live, and how big it is. A stale imported book would otherwise
   // be invisible once import lands.

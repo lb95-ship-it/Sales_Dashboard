@@ -294,7 +294,11 @@ const CSS = `  :host{
     font-family:var(--sans); font-size:12px; line-height:1; transition:.08s;
   }
   .card-nav button.step{flex:0 0 44px; font-size:11px;}
-  .card-nav button.dayp{flex:1;}
+  /* Was a full-width "Day ▾". Now the same control as a mark, sized like the
+     arrows beside it: it is what moves a stop to another day, and on touch it
+     is the ONLY thing that does — HTML5 drag and drop does not fire from a
+     finger — so it keeps its place, just not its share of the width. */
+  .card-nav button.dayp{flex:0 0 44px; font-size:15px; line-height:1;}
   .card-nav button:hover:not(:disabled){color:var(--ink); border-color:var(--ink-faint);}
   .card-nav button:disabled{opacity:0.3; cursor:default;}
   .card-nav button.dayp[aria-expanded="true"]{color:var(--accent); border-color:var(--accent-line);}
@@ -399,6 +403,18 @@ const CSS = `  :host{
   .card-actions a{
     font-size:11px; text-decoration:none; padding:2px 7px; border-radius:5px;
     border:1px solid var(--line); color:var(--ink-dim); transition:.1s; white-space:nowrap;
+  }
+  /* The marks. Sized in one place so the three of them and the edit pencil
+     line up, and drawn in currentColor so each keeps the colour its own rule
+     below already gives it. */
+  .card-actions a, .card-actions .sf-add{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:28px; min-height:26px; padding:2px 6px;
+  }
+  .card-actions svg{
+    width:14px; height:14px; display:block;
+    fill:none; stroke:currentColor; stroke-width:1.7;
+    stroke-linecap:round; stroke-linejoin:round;
   }
   .card-actions a:hover{color:var(--ink); border-color:var(--ink-faint);}
   .card-actions a.dir{color:var(--fri); border-color:var(--fri-line);}
@@ -795,6 +811,22 @@ function mount(host, opts){
   const remount = function(){ return mount(host, opts); };
 const DAYS = ['Mon','Tue','Wed','Thu','Fri'];
 const DAYFULL = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday'};
+/* Single letters for the buttons ON a card. Those are pressed, not read, and
+   the label only has to tell five of them apart — while the three characters
+   "Mon" times five is most of the width of a card in a day column. The full
+   name still heads the column itself. */
+const DAY_SHORT = {Mon:'M',Tue:'T',Wed:'W',Thu:'Th',Fri:'F'};
+
+/* Card actions as marks rather than words. "View Directions SF ✎ + city" ran
+   to three wrapped rows on a 150px card and left no room for the clinic name,
+   which is the one thing the card exists to tell you. Each mark keeps its
+   words in title and aria-label, so nothing is lost to a hover, a long press
+   or a screen reader — only the width. */
+const ICON = {
+  view: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>',
+  dir:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.2 11.6 21 4l-7.6 17.8-2.1-7.9z"/></svg>',
+  sf:   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.6 19a4 4 0 0 1-.5-8 5.6 5.6 0 0 1 10.5-1.6A3.9 3.9 0 0 1 17.9 19z"/></svg>'
+};
 
 /* ------------------------------------------------------------------
    FOUR STORES, deliberately kept apart. Each has exactly one writer, and
@@ -1762,13 +1794,11 @@ function cardHTML(a, stop, total){
   const tagStr = a.tags.map(t=>`<span class="tag">${t.split(' ')[0]}</span>`).join('');
   // Never written into `note` — build-book.ps1 regenerates that field, so
   // anything typed here would be lost on the next book import.
-  /* Two values, deliberately not one. `cityInfo` is what the card displays
-     and may come from the workbook; `cityTyped` is what the edit popup binds
-     to, and stays empty when the shown city was derived — otherwise opening
-     the popup and pressing Save would quietly copy the workbook's city into
-     your annotations, where it would then outrank every future correction. */
-  const cityInfo  = cityFor(a.id);
-  const cityTyped = annotations.labels[a.id];
+  /* Read-only now. The city button came off the card to make room, so nothing
+     types a label any more — but one typed before still displays and still
+     outranks the workbook, and the workbook fills this for every account the
+     Accounts sheet covers, which is what made the button spare. */
+  const cityInfo = cityFor(a.id);
   const cityHTML  = cityInfo ? `<div class="card-city">${escapeHtml(cityInfo.text)}</div>` : '';
   /* Carries its own title: a placed card clamps this to two lines in a narrow
      column, and the rest of it has to stay reachable. */
@@ -1789,10 +1819,11 @@ function cardHTML(a, stop, total){
     ? `<div class="card-nav">
          <button class="step" data-move="${id}" data-dir="-1" title="Earlier in the day" aria-label="Move earlier"${stop===1?' disabled':''}>&#9650;</button>
          <button class="step" data-move="${id}" data-dir="1" title="Later in the day" aria-label="Move later"${stop===total?' disabled':''}>&#9660;</button>
-         <button class="dayp" data-moveday="${id}" aria-expanded="false" title="Move to another day">Day &#9662;</button>
+         <button class="dayp" data-moveday="${id}" aria-expanded="false"
+                 aria-label="Move to another day" title="Move to another day">&#8644;</button>
        </div>
        <div class="qa" data-moverow="${id}" style="display:none;">${
-         DAYS.filter(d=>d!==assigned).map(d=>`<button data-d="${d}" data-assign="${id}">${d}</button>`).join('')
+         DAYS.filter(d=>d!==assigned).map(d=>`<button data-d="${d}" data-assign="${id}" title="${DAYFULL[d]}" aria-label="Move to ${DAYFULL[d]}">${DAY_SHORT[d]}</button>`).join('')
        }</div>`
     : '';
   // Skip lives only on pool cards: a placed account is already a decision, and
@@ -1803,7 +1834,7 @@ function cardHTML(a, stop, total){
         ? `<button class="x unskip" data-unskip="${id}" title="Put back in the pool" aria-label="Put back in the pool">&#8630;</button>`
         : `<button class="x" data-skip="${id}" title="Skip — take out of the pool" aria-label="Skip this account">&times;</button>`);
   const stopBadge = assigned ? `<span class="stopno">${stop}</span>` : '';
-  const qaRow = !assigned ? `<div class="qa">${DAYS.map(d=>`<button data-d="${d}" data-assign="${id}">${d}</button>`).join('')}</div>` : '';
+  const qaRow = !assigned ? `<div class="qa">${DAYS.map(d=>`<button data-d="${d}" data-assign="${id}" title="${DAYFULL[d]}" aria-label="Put on ${DAYFULL[d]}">${DAY_SHORT[d]}</button>`).join('')}</div>` : '';
   // Same split as the city: what the link points at, and what you typed.
   const sfInfo  = sfLinkFor(a.id);
   const sfTyped = annotations.sfLinks[a.id];
@@ -1834,20 +1865,18 @@ function cardHTML(a, stop, total){
     ${schedHTML}
     <div class="card-tags">${PICKED[a.id] ? `<span class="tag pick" title="${escapeAttr('Flagged on Sales' + (PICKED[a.id].why ? ' — ' + PICKED[a.id].why : ''))}">Sales</span>` : ''}${tagStr}<span class="terr-mini" title="${escapeAttr(a.territories.join(', '))}">${terrLabel(a)}</span></div>
     <div class="card-actions">
-      <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener">View</a>
-      <a class="dir" href="${escapeAttr(dirUrl(a))}" target="_blank" rel="noopener">Directions</a>
+      <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener"
+         title="Open in Google Maps" aria-label="${escapeAttr('Open ' + a.name + ' in Google Maps')}">${ICON.view}</a>
+      <a class="dir" href="${escapeAttr(dirUrl(a))}" target="_blank" rel="noopener"
+         title="Directions" aria-label="${escapeAttr('Directions to ' + a.name)}">${ICON.dir}</a>
       ${sfInfo
-        ? `<a class="sf" href="${escapeAttr(sfInfo.href)}" target="_blank" rel="noopener">SF</a><button class="sf-add" data-sfedit="${escapeAttr(a.id)}" title="${escapeAttr(sfInfo.source==='you' ? 'Edit link' : FROM_WORKBOOK)}">✎</button>`
-        : `<button class="sf-add" data-sfedit="${escapeAttr(a.id)}">＋ SF link</button>`}
-      <button class="sf-add" data-labeledit="${escapeAttr(a.id)}"${cityInfo ? ` title="${escapeAttr(cityInfo.source==='you' ? 'Edit city' : FROM_WORKBOOK)}"` : ''}>${cityInfo ? '✎ city' : '＋ city'}</button>
+        ? `<a class="sf" href="${escapeAttr(sfInfo.href)}" target="_blank" rel="noopener"
+             title="Open in Salesforce" aria-label="${escapeAttr('Open ' + a.name + ' in Salesforce')}">${ICON.sf}</a><button class="sf-add" data-sfedit="${escapeAttr(a.id)}" title="${escapeAttr(sfInfo.source==='you' ? 'Edit the Salesforce link' : FROM_WORKBOOK)}" aria-label="Edit the Salesforce link">✎</button>`
+        : `<button class="sf-add" data-sfedit="${escapeAttr(a.id)}" title="Add a Salesforce link" aria-label="Add a Salesforce link">${ICON.sf}</button>`}
     </div>
     <div class="sf-pop" data-sfpop="${escapeAttr(a.id)}" style="display:none;">
       <input type="url" placeholder="Paste Salesforce URL" value="${escapeAttr(sfTyped||'')}" data-sfinput="${escapeAttr(a.id)}">
       <button class="save" data-sfsave="${escapeAttr(a.id)}">Save</button>
-    </div>
-    <div class="sf-pop" data-labelpop="${escapeAttr(a.id)}" style="display:none;">
-      <input type="text" maxlength="40" placeholder="Round Rock" value="${escapeAttr(cityTyped||'')}" data-labelinput="${escapeAttr(a.id)}">
-      <button class="save" data-labelsave="${escapeAttr(a.id)}">Save</button>
     </div>
     ${qaRow}${navRow}
   </div>`;
@@ -2133,30 +2162,6 @@ function bindCards(){
   root.querySelectorAll('[data-unskip]').forEach(b=>{
     b.addEventListener('click', e=>{ e.stopPropagation(); setSkipped(b.dataset.unskip, false); });
   });
-  // City label: same three pieces as the SF link above — toggle, save, Enter.
-  root.querySelectorAll('[data-labeledit]').forEach(b=>{
-    b.addEventListener('click', e=>{
-      e.stopPropagation();
-      const pop = root.querySelector(`[data-labelpop="${cssEsc(b.dataset.labeledit)}"]`);
-      if(!pop) return;
-      const showing = pop.style.display !== 'none';
-      pop.style.display = showing ? 'none' : 'flex';
-      if(!showing){ const inp = pop.querySelector('input'); inp.focus(); inp.select(); }
-    });
-  });
-  root.querySelectorAll('[data-labelsave]').forEach(b=>{
-    b.addEventListener('click', e=>{
-      e.stopPropagation();
-      setLabel(b.dataset.labelsave, root.querySelector(`[data-labelinput="${cssEsc(b.dataset.labelsave)}"]`).value);
-    });
-  });
-  root.querySelectorAll('[data-labelinput]').forEach(inp=>{
-    inp.addEventListener('keydown', e=>{
-      if(e.key==='Enter'){ e.preventDefault(); setLabel(inp.dataset.labelinput, inp.value); }
-    });
-    inp.closest('.card').setAttribute('draggable','true');
-    inp.addEventListener('mousedown', e=>e.stopPropagation());
-  });
   // Enter to save in the paste box; prevent drag from starting on inputs
   root.querySelectorAll('[data-sfinput]').forEach(inp=>{
     inp.addEventListener('keydown', e=>{
@@ -2174,12 +2179,6 @@ function setSfLink(id, rawVal){
 }
 function setSkipped(id, on){
   if(on) annotations.skipped[id] = true; else delete annotations.skipped[id];
-  saveAnnotations();
-  render();
-}
-function setLabel(id, rawVal){
-  const val = sanitizeLabel(rawVal);
-  if(val) annotations.labels[id] = val; else delete annotations.labels[id];
   saveAnnotations();
   render();
 }

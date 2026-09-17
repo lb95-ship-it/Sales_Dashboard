@@ -62,6 +62,11 @@ const CSS = `  :host{
     --mon-soft:rgba(47,111,208,0.09); --mon-line:rgba(47,111,208,0.32);
     --wed-soft:rgba(200,67,58,0.09);  --wed-line:rgba(200,67,58,0.36);
     --fri-line:rgba(23,128,90,0.36);
+    /* The set was half-built: only the three days something happened to need
+       a line tint had one. Completed at the same opacities, derived from the
+       day colours above and used nowhere the contrast note applies — these
+       are borders, never text. */
+    --tue-line:rgba(154,101,8,0.36);  --thu-line:rgba(110,79,201,0.32);
 
     /* Salesforce links carried a literal #5b8def in six separate rules. */
     --sf:#2f6fd0; --sf-line:rgba(47,111,208,0.35);
@@ -189,18 +194,47 @@ const CSS = `  :host{
   .board.expanded .source{display:none;}
   .board.expanded .day{min-width:0;}
   .days{flex:1; display:flex; overflow-x:auto; min-height:0;}
+  /* A size container in its own right. What a card can show depends on how
+     wide ITS COLUMN is, not on how wide the board is — and the two do not
+     move together: in landscape the account list takes 340px and leaves the
+     five columns narrower than they are on a phone. Scoping the card rules to
+     the board's width put the fixes on the wrong side of that. */
   .day{
     flex:1 1 0; min-width:150px; border-right:1px solid var(--line);
     display:flex; flex-direction:column; min-height:0;
+    container-type:inline-size;
   }
+
+  /* A column too narrow for a clinic name and five controls, which is every
+     column in the split view and none in the expanded one. */
   .day:last-child{border-right:none;}
   .day-head{
     padding:9px 12px; border-bottom:1px solid var(--line); flex-shrink:0;
     display:flex; align-items:center; gap:8px; background:var(--panel);
   }
   .day-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  /* Two spellings, one element, so the per-day colour rule below still has a
+     single target. "Wednesday" plus a count plus a Start button does not fit
+     a 150px column, and the column is not negotiable — five of them have to
+     fit an iPad in portrait. */
   .day-name{font-weight:700; font-size:13px; letter-spacing:0.02em;}
+  .day-name .abbr{display:none;}
   .day-n{font-size:11px; color:var(--ink-faint); font-family:var(--mono); margin-left:auto;}
+  /* Start this day. Takes the day's own colour, because what it drives is
+     that column and nothing else. */
+  .day-go{
+    background:transparent; border:1px solid var(--line); border-radius:6px;
+    padding:2px 7px; font-family:var(--sans); font-size:11px; font-weight:600;
+    color:var(--ink-dim); cursor:pointer; white-space:nowrap; flex-shrink:0;
+    transition:.12s;
+  }
+  .day-go:hover:not(:disabled){color:var(--ink); border-color:var(--ink-faint);}
+  .day-go:disabled{opacity:0.35; cursor:not-allowed;}
+  .day[data-day="Mon"] .day-go:not(:disabled){color:var(--mon); border-color:var(--mon-line);}
+  .day[data-day="Tue"] .day-go:not(:disabled){color:var(--tue); border-color:var(--tue-line);}
+  .day[data-day="Wed"] .day-go:not(:disabled){color:var(--wed); border-color:var(--wed-line);}
+  .day[data-day="Thu"] .day-go:not(:disabled){color:var(--thu); border-color:var(--thu-line);}
+  .day[data-day="Fri"] .day-go:not(:disabled){color:var(--fri); border-color:var(--fri-line);}
   .day-list{overflow-y:auto; flex:1; padding:7px; min-height:0; transition:.1s;}
   .day-list.dragover{background:var(--accent-soft);}
   .day[data-day="Mon"] .day-dot{background:var(--mon);} .day[data-day="Mon"] .day-name{color:var(--mon);}
@@ -358,7 +392,10 @@ const CSS = `  :host{
   .win-flag{font-size:10px; color:var(--wed); margin-left:auto; font-family:var(--mono);}
   .card-tags{display:flex; flex-wrap:wrap; gap:3px; margin-top:5px;}
   .tag{font-size:11px; line-height:1; opacity:0.9;}
-  .card-actions{display:flex; gap:6px; margin-top:6px; align-items:center;}
+  /* Wraps. Without this the third and fourth control run off the edge of a
+     narrow card and are simply cut in half — which is what a 150px day column
+     was doing to the Salesforce link. */
+  .card-actions{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center;}
   .card-actions a{
     font-size:11px; text-decoration:none; padding:2px 7px; border-radius:5px;
     border:1px solid var(--line); color:var(--ink-dim); transition:.1s; white-space:nowrap;
@@ -499,11 +536,60 @@ const CSS = `  :host{
     display:flex; align-items:center; gap:12px; padding:0 14px 14px;
   }
 
+  @container (max-width:210px){
+    .day-name .full{display:none;}
+    .day-name .abbr{display:inline;}
+
+    /* The name is not clamped. Three lines still cut "Southwest Austin Eye
+       Care" off, and a name you have to tap to read is the one thing on the
+       card that cannot be abbreviated. The card grows; the column scrolls. */
+    .card.placed .card-name{display:block; -webkit-line-clamp:unset; padding-right:20px;}
+
+    /* The note is the opposite case: prose, the tallest thing on a narrow
+       card, and the part that matters is already drawn as the visit-window
+       pill under it. Two lines here, all of it in the tooltip. */
+    .card.placed .card-note{
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    }
+
+    /* The two EDITORS go — the Salesforce link and the city. Both are
+       curation you do from the pool while deciding, not while a card sits on
+       Thursday, and both are still on the same card in the list. An SF link
+       that already exists stays: that one is a destination, not an edit. */
+    .card.placed .card-actions .sf-add{display:none;}
+    .card.placed .card-actions{gap:5px;}
+    .card.placed .card-tags{display:none;}
+  }
+
   @container (max-width:820px){
     .board{flex-direction:column;}
     .source{width:100%; max-height:42vh; border-right:none; border-bottom:1px solid var(--line);}
     .days{flex-direction:row;}
-    .day{min-width:135px;}
+    /* 150, not 135. Five columns still fit an iPad in portrait, and the extra
+       fifteen pixels each is the difference between a clinic name wrapping
+       and a clinic name being cut off. */
+    .day{min-width:150px;}
+
+    /* The toolbar was four rows deep here, which is a quarter of the screen
+       spent on controls. The page directly above says "Route Board", and the
+       book pill is a fact you check once after an import, not something to
+       watch — so neither earns a row on a narrow screen. */
+    .day-head{padding:8px 9px; gap:6px;}
+    header{padding:8px 10px; gap:9px;}
+    .brand{display:none;}
+    .book-pill{display:none;}
+    .ctrl label{font-size:10px; letter-spacing:0.04em;}
+    select{font-size:12px; padding:5px 7px;}
+
+    /* A placed card in a 150px column cannot carry five controls and a full
+       name. The name wins: it is how the office is recognised, and a clipped
+       one has to be tapped to be read.
+
+       What goes is the pair of EDITORS — the Salesforce link and the city.
+       Both are curation you do from the pool while deciding, not while a card
+       sits on Thursday, and both are still there on the same card in the list
+       above. An SF link that already exists stays, because that one is a
+       destination rather than an edit. */
   }`;
 
 const MARKUP = `<div id="app">
@@ -517,6 +603,9 @@ const MARKUP = `<div id="app">
     <div class="ctrl">
       <label>Primary</label>
       <select id="primarySel"></select>
+      <!-- Beside the picker that says which route this is, because that is
+           what it opens: the saved Maps list for the primary territory. -->
+      <button class="btn" id="mapListBtn">Map</button>
     </div>
     <div class="ctrl">
       <label>Follow-ups</label>
@@ -524,10 +613,6 @@ const MARKUP = `<div id="app">
     </div>
     <div class="ctrl">
       <label title="Applies to the follow-up territory only; the primary territory always shows every account."><input type="checkbox" id="top25only" checked style="vertical-align:middle;"> Top 25 only (follow-ups)</label>
-    </div>
-    <div class="ctrl">
-      <button class="btn" id="mapListBtn">View on Map</button>
-      <button class="btn" id="startRouteBtn">Start Route</button>
     </div>
     <div class="spacer"></div>
     <span class="book-pill" id="bookPill"></span>
@@ -1303,22 +1388,36 @@ function multiStopUrl(stops){
   return 'https://www.google.com/maps/dir/?' + parts.join('&');
 }
 
-/* Every office in the primary territory, in book order — which is the order
-   the Google list is in, and roughly the order it drives. Not the week's day
-   assignments: this answers "take me round this territory", and a day is its
-   own shorter run. */
-function routeStops(){
-  return (BOOK.territoryOrder[week.primary] || [])
-    .map(id=>ACCOUNTS[id]).filter(Boolean);
-}
-
 function openMapList(){
   const url = mapListFor(week.primary);
   if(url) window.open(url, '_blank', 'noopener');
 }
 
-function startRoute(){
-  const all = routeStops();
+/* ---- Start a day -----------------------------------------------------
+   Directions through ONE DAY's stops, in the order they are sequenced in
+   that column. This is the version worth having: a territory is 40-odd
+   offices and Maps routes ten, but a day is the run you are about to
+   drive, already in the order you put it in.
+
+   Drawn into each day header, so the button is on the thing it drives.
+   Disabled on an empty day, and where a day somehow holds more than ten
+   stops the tooltip says which ten it will take.
+   -------------------------------------------------------------------- */
+function dayGoBtn(d, inDay){
+  const n = inDay.length;
+  const title = !n
+    ? 'Nothing planned for ' + DAYFULL[d] + ' yet'
+    : n > MAX_STOPS
+      ? 'Directions through the first ' + MAX_STOPS + ' of ' + DAYFULL[d] + '’s '
+        + n + ' stops, in this order — Maps will not route more than that'
+      : 'Directions through ' + DAYFULL[d] + '’s ' + n
+        + (n === 1 ? ' stop' : ' stops, in this order');
+  return `<button class="day-go" data-daygo="${d}"${n ? '' : ' disabled'}`
+    + ` title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">Start</button>`;
+}
+
+function startDay(d){
+  const all = dayAccounts(d);
   let stops = all.map(stopText).filter(Boolean);
   if(!stops.length) return;
   if(stops.length === 1){ window.open(dirUrl(all[0]), '_blank', 'noopener'); return; }
@@ -1326,25 +1425,15 @@ function startRoute(){
   window.open(multiStopUrl(stops), '_blank', 'noopener');
 }
 
-/* The board has no toast, so both buttons state their case before they are
-   pressed rather than complaining afterwards: disabled when there is nothing
-   to open, and the ten-stop cap named in the tooltip where it applies. */
+/* The board has no toast, so the Map button states its case before it is
+   pressed rather than complaining afterwards. */
 function refreshRouteBtns(){
   const mapBtn = root.getElementById('mapListBtn');
-  const goBtn  = root.getElementById('startRouteBtn');
-  if(!mapBtn || !goBtn) return;
+  if(!mapBtn) return;
   const url = mapListFor(week.primary);
   mapBtn.disabled = !url;
   mapBtn.title = url ? 'Open the saved Maps list for ' + week.primary
                      : 'No saved Maps list link for ' + week.primary + ' yet';
-  const n = routeStops().length;
-  goBtn.disabled = !n;
-  goBtn.title = !n
-    ? 'No offices in ' + week.primary + ' to route'
-    : n > MAX_STOPS
-      ? 'Driving directions through the first ' + MAX_STOPS + ' of ' + n
-        + ' offices in ' + week.primary + ' — Maps will not route more than that'
-      : 'Driving directions through all ' + n + ' offices in ' + week.primary;
 }
 
 // All tags present, for filter chips
@@ -1681,7 +1770,10 @@ function cardHTML(a, stop, total){
   const cityInfo  = cityFor(a.id);
   const cityTyped = annotations.labels[a.id];
   const cityHTML  = cityInfo ? `<div class="card-city">${escapeHtml(cityInfo.text)}</div>` : '';
-  const noteHTML = a.note ? `<div class="card-note">${escapeHtml(a.note)}</div>` : '';
+  /* Carries its own title: a placed card clamps this to two lines in a narrow
+     column, and the rest of it has to stay reachable. */
+  const noteHTML = a.note
+    ? `<div class="card-note" title="${escapeAttr(a.note)}">${escapeHtml(a.note)}</div>` : '';
   const assigned = week.assign[a.id];
   const id = escapeAttr(a.id);
   // Real buttons, not just drag: HTML5 drag-and-drop does not work on touch, and
@@ -1915,7 +2007,7 @@ function render(){
       ? inDay.map((a,i)=>cardHTML(a, i+1, inDay.length)).join('')
       : '<div class="empty">Drop here</div>';
     return `<div class="day" data-day="${d}">
-      <div class="day-head"><span class="day-dot"></span><span class="day-name">${DAYFULL[d]}</span><span class="day-n">${inDay.length}</span></div>
+      <div class="day-head"><span class="day-dot"></span><span class="day-name"><span class="full">${DAYFULL[d]}</span><span class="abbr">${d}</span></span><span class="day-n">${inDay.length}</span>${dayGoBtn(d, inDay)}</div>
       <div class="day-list" data-day="${d}">${cards}</div>
     </div>`;
   }).join('');
@@ -1971,6 +2063,11 @@ function renderSkipToggle(n){
 // ---- Interaction ----
 let dragId = null;
 function bindCards(){
+  /* Day headers are rebuilt with the columns on every render, so their Start
+     buttons are bound here alongside the cards rather than once at mount. */
+  root.querySelectorAll('[data-daygo]').forEach(b=>{
+    b.addEventListener('click', e=>{ e.stopPropagation(); startDay(b.dataset.daygo); });
+  });
   root.querySelectorAll('.card').forEach(card=>{
     card.addEventListener('dragstart', e=>{
       dragId = card.dataset.id; card.classList.add('dragging');
@@ -2170,7 +2267,6 @@ function buildControls(){
   };
 
   root.getElementById('mapListBtn').onclick = openMapList;
-  root.getElementById('startRouteBtn').onclick = startRoute;
 
   // Which book is live, and how big it is. A stale imported book would otherwise
   // be invisible once import lands.

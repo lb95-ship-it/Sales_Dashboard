@@ -20,16 +20,42 @@
      layout — so it needs a box with a real height. On its own page that box
      is never hidden, which is why the mount below is no longer lazy.
      ----------------------------------------------------------------------- */
+  /* The board is the page, so the frame takes the viewport and everything
+     else on it is measured against that.
+
+     Reserved above: the page's top padding and the switcher. Below: the
+     bottom nav bar and the iOS home indicator. Nothing else is on this page.
+
+     dvh after vh, not instead of it: iOS resolves 100vh to the viewport with
+     the Safari toolbar HIDDEN, so a vh-only box spends its last 60-odd pixels
+     underneath a toolbar that is plainly on screen. Browsers that know dvh
+     take the second line; the rest keep the first. */
+  body[data-page="route"] .page.board-page {
+    padding-top: var(--s-3);
+    /* .page reserves nav height plus a generous gap at the bottom for a
+       scrolling column. This page does not scroll — the frame does — so that
+       reservation is made in the frame's own height instead. */
+    padding-bottom: 0;
+  }
+  .board-page .subtabs { margin-bottom: var(--s-3); padding: 3px; }
+  .board-page .subtabs a { min-height: 30px; font-size: var(--fs-xs); }
+
   #routeBoardFrame {
-    height: 70vh;
-    min-height: 520px;
+    height: calc(100vh - 116px - var(--nav-h) - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 116px - var(--nav-h) - env(safe-area-inset-bottom, 0px));
+    min-height: 420px;
     border: 1px solid var(--rule);
     border-radius: var(--r-lg);
     overflow: hidden;
     box-shadow: var(--shadow-card);
   }
+  /* The rail replaces the bottom bar at this width, so its height comes back. */
   @media (min-width: 900px) {
-    #routeBoardFrame { height: calc(100vh - 210px); min-height: 560px; }
+    #routeBoardFrame {
+      height: calc(100vh - 92px);
+      height: calc(100dvh - 92px);
+      min-height: 560px;
+    }
   }
 
   /* -----------------------------------------------------------------------
@@ -81,17 +107,14 @@
 <body data-page="route">
 <a class="skip-link" href="#main">Skip to content</a>
 
-<main class="page" id="main">
+<main class="page board-page" id="main">
 
-  <header class="page-head">
-    <h1>Route Board</h1>
-    <span class="eyebrow mono" id="todayLabel"></span>
-  </header>
-
-  <!-- Two pages, one pillar. This bar looks like the sub-tabs it replaced and
-       behaves like navigation, because that is what it now is: the board and
-       the schedule were splitting one screen between them and neither had the
-       room. The nav rail still shows a single "Route" tab for both. -->
+  <!-- No heading and no date line. Splitting this page off the Schedule
+       Builder was supposed to give the board room and did not: the frame kept
+       the height it had as a tab, and a title, a date and a tab bar were still
+       taking the top third of an iPad before the account list began. The
+       switcher below is the whole of this page's chrome, and it doubles as the
+       title — the nav rail already says Route. -->
   <nav class="subtabs" aria-label="Route planning pages">
     <a href="route-board.html" aria-current="page">Route Board</a>
     <a href="route-planning.html">Schedule Builder</a>
@@ -110,7 +133,7 @@
 
 <script src="assets/js/data-store.js?v=1789543294"></script>
 <script src="assets/js/shell.js?v=1788054532"></script>
-<script src="route-board.js?v=1789613196" charset="utf-8"></script>
+<script src="route-board.js?v=1789618996" charset="utf-8"></script>
 <script>
 /* ===========================================================================
    Route Board host — page-scoped.
@@ -136,10 +159,6 @@
   }
 
   Shell.ready(function () {
-    document.getElementById('todayLabel').textContent =
-      new Date().toLocaleDateString('en-US',
-        { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-
     if (typeof RouteBoard === 'undefined') {
       showFallback('script',
         'route-board.js did not load.',

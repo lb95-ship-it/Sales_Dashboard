@@ -149,8 +149,22 @@ const CSS = `  :host{
   .source-head{
     padding:10px 14px 8px; border-bottom:1px solid var(--line); flex-shrink:0;
   }
-  .source-title{font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
+  .source-title{font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;}
   .source-title b{color:var(--accent); font-size:13px;}
+  .source-title .head-right{display:flex; align-items:center; gap:8px; flex-shrink:0;}
+
+  /* Either half can take the whole frame. Not both at once — the board would
+     have nothing in it. */
+  .board.focused .days-wrap{display:none;}
+  /* flex:1 and min-height:0, not just max-height:none. A flex item sized by
+     its content grows past the frame, and the frame clips — the bottom of the
+     list would be unreachable, which is worse than the short column this is
+     meant to fix. These two make it fill exactly the space there is and
+     scroll inside it. */
+  .board.focused .source{
+    width:100%; max-height:none; border-right:none; border-bottom:none;
+    flex:1 1 auto; min-height:0;
+  }
   .search{
     width:100%; background:var(--bg); border:1px solid var(--line); border-radius:7px;
     padding:7px 10px; color:var(--ink); font-family:var(--sans); font-size:13px;
@@ -162,6 +176,13 @@ const CSS = `  :host{
     background:transparent; color:var(--ink-dim); cursor:pointer; transition:.1s; user-select:none;
   }
   .chip.on{background:var(--accent-fill); color:var(--on-accent); border-color:var(--accent-fill); font-weight:600;}
+  /* The fold. Reads as the control it is rather than as another tag: same
+     size, dashed edge, and it never lights up. */
+  .chip-toggle{
+    font-family:var(--sans); font-weight:600; border-style:dashed;
+    color:var(--ink-dim); flex-shrink:0;
+  }
+  .chip-toggle:hover{color:var(--ink); border-color:var(--ink-faint);}
   .source-list{overflow-y:auto; flex:1; padding:8px; min-height:0;}
   .source-list.dragover{background:var(--accent-soft);}
 
@@ -293,15 +314,11 @@ const CSS = `  :host{
     background:transparent; color:var(--ink-dim); cursor:pointer;
     font-family:var(--sans); font-size:12px; line-height:1; transition:.08s;
   }
-  .card-nav button.step{flex:0 0 44px; font-size:11px;}
-  /* Was a full-width "Day ▾". Now the same control as a mark, sized like the
-     arrows beside it: it is what moves a stop to another day, and on touch it
-     is the ONLY thing that does — HTML5 drag and drop does not fire from a
-     finger — so it keeps its place, just not its share of the width. */
-  .card-nav button.dayp{flex:0 0 44px; font-size:15px; line-height:1;}
+  /* Two of them, so they can take the width between them rather than leaving
+     a third to hang off the edge of the card. */
+  .card-nav button.step{flex:1 1 0; min-width:44px; font-size:11px;}
   .card-nav button:hover:not(:disabled){color:var(--ink); border-color:var(--ink-faint);}
   .card-nav button:disabled{opacity:0.3; cursor:default;}
-  .card-nav button.dayp[aria-expanded="true"]{color:var(--accent); border-color:var(--accent-line);}
   .drop-line{
     height:2px; margin:2px 1px; border-radius:2px; background:var(--accent-fill);
     box-shadow:0 0 6px var(--accent-glow);
@@ -641,12 +658,26 @@ const MARKUP = `<div id="app">
   <div class="board">
     <aside class="source">
       <div class="source-head">
-        <div class="source-title"><span>Unassigned</span><b id="srcCount"></b></div>
+        <div class="source-title"><span>Unassigned</span>
+          <span class="head-right">
+            <b id="srcCount"></b>
+            <!-- The mirror of Expand across the board: that one gives the five
+                 days the whole frame, this one gives it to the account list.
+                 Scrolling a 200-account pool through 340px of column was the
+                 complaint this answers. -->
+            <button class="expand-btn" id="focusBtn" aria-pressed="false"
+                    title="Fill the board with the account list and hide the days">Full list</button>
+          </span>
+        </div>
         <input class="search" id="search" placeholder="Search every route..."
                title="Searches this week's pool first, then every other route in the book">
         <div class="fits-row" id="fitsRow">
           <span class="lbl" title="Show only accounts whose note allows this day, plus everyone with no stated day">Fits</span>
         </div>
+        <!-- Eleven tag chips ran to three rows and pushed the list itself off
+             the bottom of the screen. Folded away by default; whatever is
+             switched ON stays visible either way, so a filter can never be
+             hiding accounts from behind a closed row. -->
         <div class="filters" id="filters"></div>
         <div class="filters" id="skipRow"></div>
       </div>
@@ -1339,7 +1370,7 @@ function moveInDay(id, dir){
 // showSkipped is view state, not stored: a skip is a lasting decision, but
 // wanting to look at what you skipped is a moment.
 let view = { search: '', activeTags: new Set(), fitsDay: null, showSkipped: false,
-             expanded: false };
+             expanded: false, focused: false, filtersOpen: false };
 
 // Directions URL from place URL (extract name for one-tap nav)
 function dirUrl(a){
@@ -1815,16 +1846,20 @@ function cardHTML(a, stop, total){
     : '';
   // Reorder and day-move, both by tap. The day list omits the day the stop is
   // already on, and assignTo appends it to the end of the target day.
+  /* Two controls, both about order within the day. Moving a stop to a
+     DIFFERENT day is done by taking it off this one — the × above — and
+     tapping the day you want on the card that comes back to the list.
+
+     There used to be a third button here for that. It was removed because
+     three 44px targets do not fit a 127px card: the third hung off the edge,
+     which is worse than a second step. Drag and drop moves a card between
+     columns on a desktop, but not from a finger — HTML5 DnD has no touch
+     equivalent — so on the iPad the × is the way. */
   const navRow = assigned
     ? `<div class="card-nav">
          <button class="step" data-move="${id}" data-dir="-1" title="Earlier in the day" aria-label="Move earlier"${stop===1?' disabled':''}>&#9650;</button>
          <button class="step" data-move="${id}" data-dir="1" title="Later in the day" aria-label="Move later"${stop===total?' disabled':''}>&#9660;</button>
-         <button class="dayp" data-moveday="${id}" aria-expanded="false"
-                 aria-label="Move to another day" title="Move to another day">&#8644;</button>
-       </div>
-       <div class="qa" data-moverow="${id}" style="display:none;">${
-         DAYS.filter(d=>d!==assigned).map(d=>`<button data-d="${d}" data-assign="${id}" title="${DAYFULL[d]}" aria-label="Move to ${DAYFULL[d]}">${DAY_SHORT[d]}</button>`).join('')
-       }</div>`
+       </div>`
     : '';
   // Skip lives only on pool cards: a placed account is already a decision, and
   // its top-right corner belongs to the reorder/unassign controls.
@@ -2026,6 +2061,9 @@ function render(){
   }
   srcEl.innerHTML = pickedHTML + srcHTML + elsewhereHTML;
   root.getElementById('srcCount').textContent = inPool.length + ' left';
+  /* Rebuilt on every render, because switching a tag on changes both which
+     chips are lit and — while the row is folded — which chips are drawn. */
+  renderFilters();
   renderSkipToggle(skippedList.length);
 
   // Days: every assigned account, from ANY territory (never wiped by switching)
@@ -2066,13 +2104,38 @@ function render(){
 function applyExpanded(){
   const board = root.querySelector('.board');
   const btn = root.getElementById('expandBtn');
-  if(!board || !btn) return;
+  const fBtn = root.getElementById('focusBtn');
+  if(!board || !btn || !fBtn) return;
   board.classList.toggle('expanded', view.expanded);
+  board.classList.toggle('focused', view.focused);
   btn.textContent = view.expanded ? 'Collapse' : 'Expand';
   btn.setAttribute('aria-pressed', view.expanded ? 'true' : 'false');
   btn.title = view.expanded
     ? 'Show the account list again'
     : 'Fill the board with the five days and hide the account list';
+  fBtn.textContent = view.focused ? 'Show days' : 'Full list';
+  fBtn.setAttribute('aria-pressed', view.focused ? 'true' : 'false');
+  fBtn.title = view.focused
+    ? 'Show the five days again'
+    : 'Fill the board with the account list and hide the days';
+}
+
+/* The tag chips, folded. Closed shows only what is switched on, so the row
+   never hides a filter that is quietly removing accounts from the list; open
+   shows all of them. Transient like the rest of `view` — a reload starts
+   closed, because the state worth remembering is which filters are on, and
+   those are drawn either way. */
+function renderFilters(){
+  const el = root.getElementById('filters');
+  if(!el) return;
+  const on = ALLTAGS.filter(t=>view.activeTags.has(t));
+  const shown = view.filtersOpen ? ALLTAGS : on;
+  el.innerHTML =
+    `<button class="chip chip-toggle" data-filtertoggle="1" aria-expanded="${view.filtersOpen}"
+       title="${view.filtersOpen ? 'Fold the tag filters away' : 'Show every tag filter'}">`
+    + (view.filtersOpen ? '&#9652; Tags' : '&#9662; Tags' + (on.length ? ' &middot; ' + on.length : ''))
+    + '</button>'
+    + shown.map(t=>`<span class="chip${view.activeTags.has(t) ? ' on' : ''}" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</span>`).join('');
 }
 
 /* The toggle only exists when there is something to reveal, or while it is on
@@ -2122,18 +2185,6 @@ function bindCards(){
     b.addEventListener('click', e=>{
       e.stopPropagation();
       moveInDay(b.dataset.move, parseInt(b.dataset.dir, 10));
-    });
-  });
-  // Day picker on a placed card. Toggle only — the day buttons inside it are
-  // ordinary [data-assign] buttons and are already wired above.
-  root.querySelectorAll('[data-moveday]').forEach(b=>{
-    b.addEventListener('click', e=>{
-      e.stopPropagation();
-      const row = root.querySelector(`[data-moverow="${cssEsc(b.dataset.moveday)}"]`);
-      if(!row) return;
-      const showing = row.style.display !== 'none';
-      row.style.display = showing ? 'none' : 'flex';
-      b.setAttribute('aria-expanded', showing ? 'false' : 'true');
     });
   });
   // SF link: toggle paste box
@@ -2276,23 +2327,33 @@ function buildControls(){
     + (BOOK.generated ? '\nGenerated: ' + BOOK.generated : '')
     + '\nRegenerate with tools\\build-book.ps1';
 
-  // Filter chips
+  /* Filter chips. Delegated, because renderFilters() rebuilds the row every
+     time one is switched on or the row is folded. */
   const fEl = root.getElementById('filters');
-  fEl.innerHTML = ALLTAGS.map(t=>`<span class="chip" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</span>`).join('');
-  fEl.querySelectorAll('.chip').forEach(c=>{
-    c.onclick = ()=>{
-      const t = c.dataset.tag;
-      if(view.activeTags.has(t)){ view.activeTags.delete(t); c.classList.remove('on'); }
-      else { view.activeTags.add(t); c.classList.add('on'); }
-      render();
-    };
+  fEl.addEventListener('click', e=>{
+    const toggle = e.target.closest('[data-filtertoggle]');
+    if(toggle){ view.filtersOpen = !view.filtersOpen; renderFilters(); return; }
+    const c = e.target.closest('[data-tag]');
+    if(!c) return;
+    const t = c.dataset.tag;
+    if(view.activeTags.has(t)) view.activeTags.delete(t); else view.activeTags.add(t);
+    render();
   });
+  renderFilters();
 
   root.getElementById('search').oninput = e=>{ view.search=e.target.value; render(); };
 
-  // Expand / collapse the day board. Pure view state, so no render() here.
+  /* Expand / collapse either half of the board. Pure view state, so no
+     render() here — and the two are mutually exclusive, because turning both
+     on would leave an empty frame. */
   root.getElementById('expandBtn').onclick = ()=>{
     view.expanded = !view.expanded;
+    if(view.expanded) view.focused = false;
+    applyExpanded();
+  };
+  root.getElementById('focusBtn').onclick = ()=>{
+    view.focused = !view.focused;
+    if(view.focused) view.expanded = false;
     applyExpanded();
   };
 

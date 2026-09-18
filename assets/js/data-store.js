@@ -593,8 +593,9 @@
   };
 
   /* -------------------------------------------------------------------------
-     Visit log — the Visits sheet of the master workbook, itself a Salesforce
-     activity export.
+     Visit log — a Salesforce activity export, read either from the master
+     workbook's Visits sheet or, now, straight from the "My Call Logs" report
+     as it downloads.
 
      The first thing in the Hub that records that a call HAPPENED. Until this
      existed, `th_route.week.v2` held exactly one week and was overwritten on
@@ -613,21 +614,36 @@
      Email, Outbound call, Stop, Inbound call) and only `Visit` earns bonus
      credit; the other four are touches. They are matched case-insensitively
      but never collapsed, because the distinction is the point.
+
+     `contacts` is a second table, keyed on the same SFAccountID: who was seen
+     at that office, gathered from the report's contact block. It is NOT on the
+     rows and never will be. The call-log report is a joined report — the
+     account block and the contact block are two independent lists padded to
+     the same height, so the contact printed beside a visit is very often
+     somebody else's activity. Per-account is the finest grain the file
+     actually supports, so that is the grain it is stored at.
      ------------------------------------------------------------------------- */
   var visits = {
     /* { generated,
          rows: { "<sfAccountId>|<date>|<subject>": { sfAccountId, accountName,
-                 date, subject, comments1, contactFirst, contactLast, comments2 } } } */
+                 date, subject, comments1, contactFirst, contactLast, comments2 } },
+         contacts: { "<sfAccountId>": [ "FIRST LAST", … ] } }
+
+       contactFirst/contactLast/comments2 are the workbook path's per-row
+       contact and survive on rows imported that way. The call-log path leaves
+       them empty and fills `contacts` instead. */
     read: function () {
       var v = get(KEYS.visits, null);
-      if (!v || typeof v !== 'object') return { generated: null, rows: {} };
+      if (!v || typeof v !== 'object') return { generated: null, rows: {}, contacts: {} };
       return { generated: v.generated || null,
-               rows: (v.rows && typeof v.rows === 'object') ? v.rows : {} };
+               rows: (v.rows && typeof v.rows === 'object') ? v.rows : {},
+               contacts: (v.contacts && typeof v.contacts === 'object') ? v.contacts : {} };
     },
     write: function (v) {
       return set(KEYS.visits, {
         generated: (v && v.generated) || new Date().toISOString(),
-        rows: (v && v.rows && typeof v.rows === 'object') ? v.rows : {}
+        rows: (v && v.rows && typeof v.rows === 'object') ? v.rows : {},
+        contacts: (v && v.contacts && typeof v.contacts === 'object') ? v.contacts : {}
       });
     },
     clear: function () { return remove(KEYS.visits); }

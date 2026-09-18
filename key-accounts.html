@@ -280,13 +280,36 @@
   </section>
 
   <!-- ===================== MASTER WORKBOOK =====================
-       Territory_Master.xlsx, uploaded whole. Each tool reads only the sheet it
-       needs and ignores the rest, so importing Visits cannot disturb Accounts.
-       Visits is the first slot; the others are listed but not yet consumed. -->
+       Two ways in, because the visit log has two sources and only one of them
+       is a workbook.
+
+       Territory_Master.xlsx carries the crosswalk, the pins, the rankings and
+       the prescribing — sheets nothing else produces, so the whole-workbook
+       upload stays.
+
+       The call log does not belong in it. It is a Salesforce report you export
+       whenever you want it, and hand-shaping it into a Visits sheet was a
+       conversion step that existed only to satisfy this uploader. So the
+       export now has its own button and is read in its own shape. -->
   <section class="tabpanel" data-panel="workbook" role="tabpanel" aria-label="Master workbook" hidden>
 
     <section id="mwImportView">
       <p class="section-label">
+        <span>Import a call log</span>
+        <span class="mono">My Call Logs</span>
+      </p>
+
+      <label class="ka-drop" id="clDrop">
+        <span class="ka-drop-title">Choose your call log export</span>
+        <span class="ka-drop-sub">
+          The Salesforce &ldquo;My Call Logs&rdquo; report, exactly as it downloads &mdash;
+          .xlsx or .csv, filter rows, sort arrows and all. Nothing to reshape first.
+          It adds to the visit log; it never replaces it.
+        </span>
+        <input type="file" id="clFile" accept=".xlsx,.xlsm,.xls,.csv">
+      </label>
+
+      <p class="section-label" style="margin-top:var(--s-6);">
         <span>Upload Territory_Master</span>
         <span class="mono">.xlsx</span>
       </p>
@@ -294,8 +317,9 @@
       <label class="ka-drop" id="mwDrop">
         <span class="ka-drop-title">Choose Territory_Master.xlsx</span>
         <span class="ka-drop-sub">
-          Tap to pick the file, or drag it here. The whole workbook is read at once
-          and each sheet goes to its own slot.
+          The crosswalk, pins, rankings and prescribing sheets. The whole workbook is
+          read at once and each sheet goes to its own slot. Its Visits sheet still
+          imports if it has one.
         </span>
         <input type="file" id="mwFile" accept=".xlsx,.xlsm,.xls">
       </label>
@@ -303,7 +327,7 @@
       <div class="err" id="mwErr" hidden style="margin-top:var(--s-4);"></div>
 
       <div id="mwPreview" hidden style="margin-top:var(--s-5);">
-        <p class="section-label"><span>Sheets found</span></p>
+        <p class="section-label"><span id="mwPreviewTitle">Sheets found</span></p>
         <div class="card" id="mwSheetList"></div>
         <div class="row" style="margin-top:var(--s-4);">
           <button class="btn btn-primary" id="mwApplyBtn" style="flex:1;">Import these sheets</button>
@@ -339,7 +363,7 @@
       <div class="stack" id="mwList" style="margin-top:var(--s-4);"></div>
 
       <div class="row" style="justify-content:center; gap:var(--s-4); margin-top:var(--s-8);">
-        <button class="btn btn-sm" id="mwAddBtn">Upload a newer workbook</button>
+        <button class="btn btn-sm" id="mwAddBtn">Import a newer call log</button>
         <button class="btn btn-sm btn-danger" id="mwClearBtn">Clear the visit log</button>
       </div>
       <div id="mwClearConfirm" hidden style="margin-top:var(--s-3);">
@@ -1425,6 +1449,180 @@
     return { rows: rows, skipped: skipped, dupes: dupes, subjects: subjects, count: keys.length };
   }
 
+  /* --- Call log ------------------------------------------------------------
+     The "My Call Logs" report, read in the shape Salesforce actually hands it
+     over in. This is the path that replaced reshaping the export by hand into
+     a Visits sheet.
+
+     Four things about the file are load-bearing, and all four are why the
+     workbook parser above could not simply be pointed at it:
+
+     1. It opens with a title, an "As of" line and a dozen "Filtered By" rows.
+        The header is found by looking for a row carrying Account ID, never by
+        counting rows down from the top — the number of filter lines changes
+        with the filter.
+
+     2. It is a JOINED report: two blocks side by side. The left block
+        (Account ID, Account Name, Date, Subject, Full Comments) is the
+        activity list rolled up to the account. The right block (First Name,
+        Last Name, Full Comments) is a separate activity list at the contact
+        level. They are padded to the same height, NOT aligned row for row —
+        in the sample export the left block has 676 rows against the right
+        block's 450, and the comment printed beside a visit is routinely a
+        different activity's. So contacts are collected PER ACCOUNT and never
+        stapled onto a row. Guessing the alignment would put words in a
+        doctor's mouth.
+
+     3. The Account ID is a GROUPING column with repeated values suppressed:
+        printed once, then blank on every following row of that office.
+        Forward-filling it is therefore correct here, and it is the exact
+        opposite of the rule on the workbook's Visits sheet, where a blank id
+        means a continuation row for an extra contact and is skipped. What
+        keeps the two apart is the Date: a row becomes an activity only if the
+        account block gives it a date AND a subject. A group whose only rows
+        are in the contact block contributes no activities, and the
+        "Total / Count" footer contributes nothing at all.
+
+     4. One visit logged against four contacts appears as four account rows
+        sharing a date and a subject. They collapse onto one key, the same as
+        they always have — one lunch is one visit — but the longest comment
+        wins rather than the last, because the long one is the narrative and
+        the short ones are the per-contact stubs.
+     ------------------------------------------------------------------------- */
+
+  /* Excel escapes a carriage return inside a shared string as _x000D_, and not
+     every reader hands it back decoded. Either way a note is one cell here, so
+     every run of line breaks and spaces becomes one space. */
+  function flatten(s) {
+    return String(s == null ? '' : s)
+      .replace(/_x000D_/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function callLogHeader(grid) {
+    for (var i = 0; i < grid.length && i < 60; i++) {
+      var n = grid[i].map(norm);
+      if (n.indexOf('accountid') !== -1 && n.indexOf('subject') !== -1) {
+        return { row: i, cells: n };
+      }
+    }
+    return null;
+  }
+
+  /* Column positions, by header text and by ORDER — 'fullcomments' appears
+     twice and which one is which is decided by the block it falls in, not by a
+     distinct name the report never gives it. */
+  function callLogCols(n) {
+    var firstAfter = function (names, after) {
+      for (var i = after + 1; i < n.length; i++) {
+        if (names.indexOf(n[i]) !== -1) return i;
+      }
+      return -1;
+    };
+    var c = {
+      accountId: n.indexOf('accountid'),
+      date:      n.indexOf('date'),
+      subject:   n.indexOf('subject'),
+      first:     n.indexOf('firstname'),
+      last:      n.indexOf('lastname')
+    };
+    /* "Account Name(Card Name)" normalises to accountnamecardname, so this
+       matches on the prefix rather than the whole cell. */
+    c.accountName = -1;
+    for (var i = 0; i < n.length; i++) {
+      if (n[i].indexOf('accountname') === 0) { c.accountName = i; break; }
+    }
+    var CMT = ['fullcomments', 'comments'];
+    c.comments = firstAfter(CMT, c.subject);
+    c.contactComments = c.last === -1 ? -1 : firstAfter(CMT, c.last);
+    /* One comments column in the file means one block: it belongs to the
+       activity, not to a contact list that is not there. */
+    if (c.comments === c.contactComments) c.contactComments = -1;
+    return c;
+  }
+
+  function parseCallLog(grid) {
+    var head = callLogHeader(grid);
+    if (!head) {
+      throw new Error('This does not look like a call log export — no row in it ' +
+        'carries both an Account ID and a Subject column.');
+    }
+    var c = callLogCols(head.cells);
+    if (c.date === -1 || c.subject === -1) {
+      throw new Error('The call log is missing its ' +
+        (c.date === -1 ? 'Date' : 'Subject') + ' column.');
+    }
+
+    var rows = {}, contacts = {}, seen = {}, groups = {}, subjects = {};
+    var rowsRead = 0, collapsed = 0, contactRows = 0;
+    var curId = '', curName = '';
+
+    for (var r = head.row + 1; r < grid.length; r++) {
+      var g = grid[r];
+      var cell = function (at) {
+        return (at === -1 || g[at] == null) ? '' : String(g[at]).trim();
+      };
+      var id = cell(c.accountId);
+
+      /* The grand-total footer. Everything at or below it is chrome, and
+         letting it through would forward-fill "Total" onto nothing. */
+      if (norm(id) === 'total') break;
+
+      if (id) { curId = id; curName = flatten(cell(c.accountName)) || curName; }
+      if (!curId) continue;                    /* rows above the first group */
+
+      /* The report writes a lone asterisk where a contact has no last name. */
+      var who = (cell(c.first) + ' ' + cell(c.last)).replace(/\*/g, ' ');
+      who = who.replace(/\s+/g, ' ').trim();
+      if (who) {
+        contactRows++;
+        var ck = curId + '|' + who.toUpperCase();
+        if (!seen[ck]) {
+          seen[ck] = true;
+          (contacts[curId] = contacts[curId] || []).push(who);
+        }
+      }
+
+      var subject = flatten(cell(c.subject));
+      var rawDate = cell(c.date);
+      if (!rawDate || !subject) continue;      /* contact-block row, or a spacer */
+
+      rowsRead++;
+      groups[curId] = true;
+      var date = isoDate(rawDate);
+      var comment = flatten(cell(c.comments));
+      var key = curId + '|' + date + '|' + norm(subject);
+      var prior = rows[key];
+      if (prior) {
+        collapsed++;
+        /* The longest note is the one that tells the story — see note 4. */
+        if (comment.length > prior.comments1.length) prior.comments1 = comment;
+        if (!prior.accountName && curName) prior.accountName = curName;
+      } else {
+        rows[key] = {
+          sfAccountId: curId, accountName: curName,
+          date: date, subject: subject,
+          comments1: comment,
+          contactFirst: '', contactLast: '', comments2: ''
+        };
+        var sk = norm(subject) || 'blank';
+        subjects[sk] = subjects[sk] || { label: subject || '(blank)', n: 0 };
+        subjects[sk].n++;
+      }
+    }
+
+    var keys = Object.keys(rows);
+    if (!keys.length) {
+      throw new Error('No activities in this call log — every row was missing a ' +
+        'date or a subject. Is this the right export?');
+    }
+    return { rows: rows, contacts: contacts, subjects: subjects,
+             count: keys.length, rowsRead: rowsRead, collapsed: collapsed,
+             contactRows: contactRows, contactCount: Object.keys(contacts).length,
+             accounts: Object.keys(groups).length };
+  }
+
   /* --- Pins ---------------------------------------------------------------
      The Maps saved-places export. Parsed here, parked in th_pins, and turned
      into the account book by Route Board — see the note on Store.pins.
@@ -1848,6 +2046,12 @@
   }
   function clearErr() { document.getElementById('mwErr').hidden = true; }
 
+  /* The two uploads land in the same `pending` slot and go out through the
+     same Import button, because from here on they do the same thing: merge
+     rows into the visit log. `kind` is what the preview and the apply branch
+     on, and it is also what stops a call log dropped on the workbook tile
+     from being read as a workbook. */
+
   function handleFile(file) {
     clearErr();
     loadXlsx().then(function () {
@@ -1858,11 +2062,6 @@
         var name = findSheet(wb, s.match);
         return { spec: s, name: name };
       });
-      var vis = found.filter(function (f) { return f.spec.key === 'visits'; })[0];
-      if (!vis.name) {
-        throw new Error('No Visits sheet in this workbook. Sheets present: ' +
-          wb.SheetNames.join(', '));
-      }
       /* raw:false gives what Excel shows in the cell rather than a serial
          number; defval keeps rows rectangular so a blank column cannot shift
          the next one into its place. */
@@ -1874,11 +2073,20 @@
         var f = found.filter(function (x) { return x.spec.key === key; })[0];
         return f && f.name ? f.name : null;
       };
-      /* Pins and Rankings are optional: a workbook without them still imports
-         its visit log rather than refusing the whole upload. */
+      var vis = sheetNamed('visits');
+      /* Every sheet is optional now, Visits included: the call log has its own
+         button, so a workbook that no longer carries a Visits sheet is the
+         normal case rather than a failed upload. A workbook carrying none of
+         the six is still worth refusing — that is a wrong file, not a thin
+         one. */
+      if (!found.some(function (f) { return f.name; })) {
+        throw new Error('None of the sheets this reads are in that workbook. ' +
+          'Sheets present: ' + wb.SheetNames.join(', ') + '. If that file is a ' +
+          'call log export, use the call log button above.');
+      }
       pending = {
-        fileName: file.name, found: found,
-        visits: parseVisits(gridOf(vis.name)),
+        kind: 'workbook', fileName: file.name, found: found,
+        visits: vis ? tryParse(parseVisits, gridOf(vis)) : null,
         accounts: sheetNamed('accounts') ? parseAccounts(gridOf(sheetNamed('accounts'))) : null,
         pins: sheetNamed('pins') ? parsePins(gridOf(sheetNamed('pins'))) : null,
         rankings: sheetNamed('rankings') ? parseRankings(gridOf(sheetNamed('rankings'))) : null,
@@ -1886,21 +2094,117 @@
         prescribers: sheetNamed('prescribers') ? parsePrescribers(gridOf(sheetNamed('prescribers'))) : null
       };
       renderPreview();
-    }).catch(function (e) {
+    }).catch(failed('Not a readable Excel workbook — is it really an .xlsx?'));
+  }
+
+  /* The call log downloads as .xlsx or as .csv depending on which button was
+     used in Salesforce, and the report is identical either way. SheetJS reads
+     both from the same bytes, so this does not care which one arrived — only
+     the first sheet is looked at, since a CSV has exactly one. */
+  function handleCallLog(file) {
+    clearErr();
+    loadXlsx().then(function () {
+      return readArrayBuffer(file);
+    }).then(function (bytes) {
+      var wb = window.XLSX.read(bytes, { type: 'array', raw: false });
+      var first = wb.SheetNames[0];
+      if (!first) throw new Error('That file has no sheets in it at all.');
+      var grid = window.XLSX.utils.sheet_to_json(wb.Sheets[first],
+        { header: 1, raw: false, defval: '' });
+      pending = {
+        kind: 'calllog', fileName: file.name,
+        log: parseCallLog(grid)
+      };
+      renderPreview();
+    }).catch(failed('Could not read that file — the call log export is an ' +
+      '.xlsx or a .csv.'));
+  }
+
+  /* A Visits sheet that will not parse must not take the crosswalk and the
+     pins down with it — those are the sheets nothing else can supply, and the
+     visit log now has a second way in. The reason is shown in the preview and
+     the rest of the workbook still goes in. */
+  function tryParse(fn, grid) {
+    try { return fn(grid); }
+    catch (e) { return { error: (e && e.message) || 'could not be read' }; }
+  }
+
+  function failed(fallback) {
+    return function (e) {
       pending = null;
       document.getElementById('mwPreview').hidden = true;
       showErr(e && e.message === 'network'
         ? 'Could not load the spreadsheet reader. It comes from a CDN, so this needs a connection the first time.'
-        : (e && e.message) || 'Not a readable Excel workbook — is it really an .xlsx?');
-    });
+        : (e && e.message) || fallback);
+    };
   }
 
+  /* --- Preview -------------------------------------------------------------
+     Both kinds answer the same question before anything is written: what will
+     this add, and what is it about to leave alone. */
+
   function renderPreview() {
-    var v = pending.visits;
-    var existing = Store.visits.read();
-    var existingKeys = Object.keys(existing.rows);
-    var incoming = Object.keys(v.rows);
-    var fresh = incoming.filter(function (k) { return !existing.rows[k]; }).length;
+    if (pending.kind === 'calllog') renderCallLogPreview();
+    else renderWorkbookPreview();
+    document.getElementById('mwPreview').hidden = false;
+  }
+
+  /* How many rows arrived matters less than how many of them the log does not
+     already have, so that is the number given the bold. */
+  function freshness(rows) {
+    var existing = Store.visits.read().rows;
+    var incoming = Object.keys(rows);
+    var fresh = incoming.filter(function (k) { return !existing[k]; }).length;
+    var held = Object.keys(existing).length;
+    return '<p class="hint" style="margin-top:var(--s-2);">' +
+      (held
+        ? '<b>' + fresh + '</b> of these are new; the other ' + (incoming.length - fresh) +
+          ' correct rows already in the log. ' + held +
+          ' row(s) already stored are left alone.'
+        : 'Nothing is in the log yet, so all of these are new.') +
+      '</p>';
+  }
+
+  function subjectLine(subjects) {
+    return Object.keys(subjects).sort(function (a, b) {
+      return subjects[b].n - subjects[a].n;
+    }).map(function (k) {
+      return esc(subjects[k].label) + ' ' + subjects[k].n;
+    }).join(' &middot; ');
+  }
+
+  function renderCallLogPreview() {
+    var v = pending.log;
+    document.getElementById('mwPreviewTitle').textContent = 'Call log read';
+    document.getElementById('mwApplyBtn').textContent = 'Add to the visit log';
+    document.getElementById('mwSheetList').innerHTML =
+      '<p class="hint"><b>' + v.count + '</b> activit' + (v.count === 1 ? 'y' : 'ies') +
+        ' across <b>' + v.accounts + '</b> account(s) &mdash; ' + subjectLine(v.subjects) + '.' +
+        (v.collapsed
+          ? ' ' + v.collapsed + ' row(s) repeated an account, date and subject &mdash; ' +
+            'one call logged against several people &mdash; and were collapsed onto ' +
+            'one, keeping the fullest note.'
+          : '') +
+      '</p>' +
+      freshness(v.rows) +
+      '<p class="hint" style="margin-top:var(--s-2);">' +
+        (v.contactCount
+          ? '<b>' + v.contactCount + '</b> account(s) also carry a contact list, ' +
+            'from the report’s second block. Those names are stored against the ' +
+            '<b>office</b>, not against a particular call: the two blocks are ' +
+            'separate lists printed side by side, so the name beside a visit is ' +
+            'often somebody else’s activity.'
+          : 'No contact names in this export — only the account block was filled in.') +
+      '</p>' +
+      '<p class="hint" style="margin-top:var(--s-2);">Only the visit log is touched. ' +
+      'The crosswalk, pins, rankings and prescribing all come from the workbook and ' +
+      'are left exactly as they are.</p>';
+  }
+
+  function renderWorkbookPreview() {
+    var v = pending.visits && !pending.visits.error ? pending.visits : null;
+    document.getElementById('mwPreviewTitle').textContent = 'Sheets found';
+    document.getElementById('mwApplyBtn').textContent = 'Import these sheets';
 
     var sheetRows = pending.found.map(function (f) {
       return '<div class="row" style="justify-content:space-between; gap:var(--s-3);">' +
@@ -1909,27 +2213,22 @@
         '</div>';
     }).join('');
 
-    var subj = Object.keys(v.subjects).sort(function (a, b) {
-      return v.subjects[b].n - v.subjects[a].n;
-    }).map(function (k) {
-      return esc(v.subjects[k].label) + ' ' + v.subjects[k].n;
-    }).join(' &middot; ');
-
     document.getElementById('mwSheetList').innerHTML = sheetRows +
-      '<p class="hint" style="margin-top:var(--s-3);">' +
-        '<b>' + v.count + '</b> visit row(s) read &mdash; ' + subj + '.' +
-        (v.skipped ? ' <b>' + v.skipped + '</b> row(s) had no SFAccountID and were skipped ' +
-                     '(continuation rows for extra contacts).' : '') +
-        (v.dupes ? ' ' + v.dupes + ' row(s) collapsed onto an identical account, date and subject.' : '') +
-      '</p>' +
-      '<p class="hint" style="margin-top:var(--s-2);">' +
-        (existingKeys.length
-          ? '<b>' + fresh + '</b> of these are new; the other ' + (v.count - fresh) +
-            ' correct rows already in the log. ' + existingKeys.length +
-            ' row(s) already stored are left alone.'
-          : 'Nothing is in the log yet, so all of these are new.') +
-      '</p>' + accountsSummary() + pinsSummary() + rankingsSummary() + prescribingSummary();
-    document.getElementById('mwPreview').hidden = false;
+      (v
+        ? '<p class="hint" style="margin-top:var(--s-3);">' +
+            '<b>' + v.count + '</b> visit row(s) read &mdash; ' + subjectLine(v.subjects) + '.' +
+            (v.skipped ? ' <b>' + v.skipped + '</b> row(s) had no SFAccountID and were skipped ' +
+                         '(continuation rows for extra contacts).' : '') +
+            (v.dupes ? ' ' + v.dupes + ' row(s) collapsed onto an identical account, date and subject.' : '') +
+          '</p>' + freshness(v.rows)
+        : '<p class="hint" style="margin-top:var(--s-3);">' +
+          (pending.visits && pending.visits.error
+            ? '<b>Visits sheet not read</b> &mdash; ' + esc(pending.visits.error) +
+              '. The other sheets still import, and call logs come in through the ' +
+              'button above now.'
+            : 'No Visits sheet here, so the visit log is left alone. Call logs come ' +
+              'in through the button above now.') + '</p>') +
+      accountsSummary() + pinsSummary() + rankingsSummary() + prescribingSummary();
   }
 
   /* The number worth stating is not how many rows were read but how many of
@@ -2059,13 +2358,58 @@
       'are checked.</p>';
   }
 
-  function applyImport() {
-    if (!pending) return;
+  /* The visit log MERGES from either source. The upload is one stretch of
+     days; the log is the history, and a call log pulled for the last 60 days
+     must not delete the sixty before it. */
+  function mergeVisits(parsed) {
     var cur = Store.visits.read();
     var rows = cur.rows;
-    /* Merge, never replace. The upload is one week; the log is the history. */
-    Object.keys(pending.visits.rows).forEach(function (k) { rows[k] = pending.visits.rows[k]; });
-    var ok = Store.visits.write({ generated: new Date().toISOString(), rows: rows });
+    Object.keys(parsed.rows).forEach(function (k) { rows[k] = parsed.rows[k]; });
+
+    /* The contact roster merges per account and keeps what is already there:
+       an export windowed to the last 60 days simply did not see the person you
+       met in May, which is not the same as their having left. Names are
+       matched case-insensitively so one export shouting FERNANDO and another
+       spelling it Fernando do not become two people. */
+    var contacts = cur.contacts;
+    var incoming = parsed.contacts || {};
+    Object.keys(incoming).forEach(function (id) {
+      var have = contacts[id] || [];
+      var seen = {};
+      have.forEach(function (n) { seen[String(n).toUpperCase()] = true; });
+      incoming[id].forEach(function (n) {
+        var k = String(n).toUpperCase();
+        if (!seen[k]) { seen[k] = true; have.push(n); }
+      });
+      contacts[id] = have;
+    });
+
+    return Store.visits.write({ generated: new Date().toISOString(),
+                                rows: rows, contacts: contacts });
+  }
+
+  function applyImport() {
+    if (!pending) return;
+
+    /* A call log carries nothing but visits, so it is done here. Falling
+       through would run every workbook branch below against a `pending` that
+       has no sheets on it. */
+    if (pending.kind === 'calllog') {
+      var okLog = mergeVisits(pending.log);
+      pending = null;
+      document.getElementById('mwPreview').hidden = true;
+      document.getElementById('clFile').value = '';
+      document.getElementById('mwFile').value = '';
+      if (!okLog) {
+        showErr('The visit log could not be saved — this device is out of ' +
+                'storage for the Hub. Nothing was changed.');
+        return;
+      }
+      showLog();
+      return;
+    }
+
+    var ok = (pending.visits && !pending.visits.error) ? mergeVisits(pending.visits) : true;
 
     /* Pins REPLACE, unlike the visit log. Every field comes from the sheet, so
        there is no accumulated history to protect here — and the thing that does
@@ -2124,6 +2468,7 @@
     }
     pending = null;
     document.getElementById('mwPreview').hidden = true;
+    document.getElementById('clFile').value = '';
     document.getElementById('mwFile').value = '';
     showLog();
   }
@@ -2274,14 +2619,17 @@
 
   function renderList() {
     var acc = byAccount();
+    var contacts = Store.visits.read().contacts;
     var q = search.toLowerCase();
     var list = Object.keys(acc).map(function (k) { return acc[k]; })
       .filter(function (a) {
         if (subjectFilter && !a.subjects[subjectFilter]) return false;
         if (!q) return true;
+        var who = (contacts[a.sfAccountId] || []).join(' ').toLowerCase();
         return (a.accountName || '').toLowerCase().indexOf(q) !== -1 ||
                (a.cardCode || '').toLowerCase().indexOf(q) !== -1 ||
-               a.sfAccountId.toLowerCase().indexOf(q) !== -1;
+               a.sfAccountId.toLowerCase().indexOf(q) !== -1 ||
+               who.indexOf(q) !== -1;
       })
       .sort(function (a, b) {
         if (b.lastTouch !== a.lastTouch) return b.lastTouch < a.lastTouch ? -1 : 1;
@@ -2294,6 +2642,12 @@
     }
     el.innerHTML = list.map(function (a) {
       var rows = a.rows.slice().sort(function (x, y) { return y.date < x.date ? -1 : 1; });
+      /* The Contact column belongs to rows the workbook path imported, where
+         the name was on the row. Call-log rows carry the office's roster
+         instead, above the table — so the column is drawn only when something
+         is actually in it, rather than as a stripe of empty cells. */
+      var perRow = rows.some(function (r) { return (r.contactFirst || r.contactLast); });
+      var seen = contacts[a.sfAccountId] || [];
       return '<details class="card" style="margin-bottom:var(--s-2);">' +
         '<summary style="cursor:pointer; display:flex; justify-content:space-between; gap:var(--s-3); align-items:baseline;">' +
           '<span><b>' + esc(a.accountName || '(unnamed)') + '</b> ' +
@@ -2305,15 +2659,21 @@
           a.visits + ' credited visit(s), ' + a.touches + ' touch(es) in all' +
           (a.lastTouch && a.lastTouch !== a.lastVisit ? ', last contact ' + esc(a.lastTouch) : '') +
           '.</p>' +
+        (seen.length
+          ? '<p class="hint" style="margin-top:var(--s-1);">Seen here: ' +
+            seen.map(function (n) { return esc(n); }).join(', ') + '.</p>'
+          : '') +
         '<div style="overflow-x:auto; margin-top:var(--s-2);">' +
         '<table class="mono" style="font-size:11.5px; width:100%; border-collapse:collapse;">' +
         '<tr><th style="text-align:left;">Date</th><th style="text-align:left;">Subject</th>' +
-        '<th style="text-align:left;">Contact</th><th style="text-align:left;">Comments</th></tr>' +
+        (perRow ? '<th style="text-align:left;">Contact</th>' : '') +
+        '<th style="text-align:left;">Comments</th></tr>' +
         rows.map(function (r) {
           var who = (r.contactFirst + ' ' + r.contactLast).trim();
           var cm = [r.comments1, r.comments2].filter(Boolean).join(' — ');
           return '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.subject) + '</td>' +
-            '<td>' + esc(who) + '</td><td>' + esc(cm) + '</td></tr>';
+            (perRow ? '<td>' + esc(who) + '</td>' : '') +
+            '<td>' + esc(cm) + '</td></tr>';
         }).join('') +
         '</table></div></details>';
     }).join('');
@@ -2326,8 +2686,8 @@
     document.getElementById('mwBackRow').hidden = false;
     var g = Store.visits.read().generated;
     document.getElementById('mwAsOf').textContent =
-      'Visit log' + (g ? ', last uploaded ' + String(g).slice(0, 10) : '') +
-      '. Re-uploading a newer workbook adds to it.';
+      'Visit log' + (g ? ', last imported ' + String(g).slice(0, 10) : '') +
+      '. Importing a newer call log adds to it; it never replaces it.';
     renderStats(); renderSubjects(); renderList();
   }
   function showImport() {
@@ -2337,29 +2697,34 @@
   }
 
   /* --- Wiring ------------------------------------------------------------- */
-
   Shell.ready(function () {
-    var drop = document.getElementById('mwDrop');
-    document.getElementById('mwFile').addEventListener('change', function (e) {
-      if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
-    });
-    ['dragenter', 'dragover'].forEach(function (ev) {
-      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
-    });
-    ['dragleave', 'drop'].forEach(function (ev) {
-      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
-    });
-    drop.addEventListener('drop', function (e) {
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-        handleFile(e.dataTransfer.files[0]);
-      }
-    });
+    /* Two tiles, same behaviour, different reader. */
+    function wireDrop(dropId, inputId, handler) {
+      var drop = document.getElementById(dropId);
+      document.getElementById(inputId).addEventListener('change', function (e) {
+        if (e.target.files && e.target.files[0]) handler(e.target.files[0]);
+      });
+      ['dragenter', 'dragover'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+      });
+      ['dragleave', 'drop'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+      });
+      drop.addEventListener('drop', function (e) {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handler(e.dataTransfer.files[0]);
+        }
+      });
+    }
+    wireDrop('clDrop', 'clFile', handleCallLog);
+    wireDrop('mwDrop', 'mwFile', handleFile);
 
     document.getElementById('mwApplyBtn').addEventListener('click', applyImport);
     document.getElementById('mwDiscardBtn').addEventListener('click', function () {
       pending = null; clearErr();
       document.getElementById('mwPreview').hidden = true;
       document.getElementById('mwFile').value = '';
+      document.getElementById('clFile').value = '';
     });
     document.getElementById('mwBackBtn').addEventListener('click', showLog);
     document.getElementById('mwAddBtn').addEventListener('click', showImport);
@@ -2372,8 +2737,8 @@
       document.getElementById('mwClearText').textContent =
         'This clears the whole visit log — ' +
         Object.keys(Store.visits.read().rows).length +
-        ' row(s) of history, not just the last upload. Re-uploading the workbook ' +
-        'restores only what that workbook still contains.';
+        ' row(s) of history and every contact roster with it, not just the last ' +
+        'import. Re-importing a call log restores only the days that export covers.';
       document.getElementById('mwClearConfirm').hidden = false;
     });
     document.getElementById('mwClearNo').addEventListener('click', function () {
